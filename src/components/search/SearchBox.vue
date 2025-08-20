@@ -2,13 +2,15 @@
   <div class="search-box">
     <!-- Filter toggle button -->
     <div class="filter-toggle">
+      <!-- 改为直接使用 Filter 图标 -->
       <el-button 
-        :icon="showFilters ? 'ArrowLeft' : 'Filter'" 
         circle 
         size="small"
         @click="toggleFilters"
         class="filter-btn"
-      />
+      >
+        <el-icon><Filter /></el-icon>
+      </el-button>
     </div>
 
     <!-- Main search container (支持拖拽) -->
@@ -87,7 +89,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { Search, Upload, Close } from '@element-plus/icons-vue';
+import { Search, Upload, Close, Filter } from '@element-plus/icons-vue';
 
 const emit = defineEmits(['search', 'toggle-filters']);
 
@@ -239,7 +241,6 @@ function removeImage() {
   align-items: center;
   margin-top: var(--spacing-md);
   padding-top: var(--spacing-md);
-  border-top: 1px solid var(--border-color-light);
 }
 
 .search-type-selector {

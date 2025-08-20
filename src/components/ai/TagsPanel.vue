@@ -2,7 +2,7 @@
   <div class="tags-panel">
     <div class="panel-header">
       <h3>文档标签</h3>
-      <el-button size="small" @click="generateTags">生成标签</el-button>
+      <el-button size="small" @click="generateTags" :loading="loading">{{ loading ? '生成中...' : '生成标签' }}</el-button>
     </div>
     
     <div class="tags-content">
@@ -33,15 +33,18 @@ const tags = ref([]);
 const loading = ref(false);
 
 async function generateTags() {
+  if (loading.value) return;
   loading.value = true;
   try {
-    tags.value = await aiToolsStore.getTags(props.fileId);
+    tags.value = await aiToolsStore.getTags(props.fileId) || [];
   } catch (error) {
     console.error('Failed to generate tags:', error);
   } finally {
     loading.value = false;
   }
 }
+
+defineExpose({ generateTags });
 </script>
 
 <style scoped>
@@ -72,5 +75,9 @@ async function generateTags() {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.loading {
+  padding: 8px 0;
 }
 </style>

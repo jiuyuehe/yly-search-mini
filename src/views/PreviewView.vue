@@ -1,256 +1,150 @@
 <template>
-  <div class="preview-container">
-    <!-- Header with file info and controls -->
-    <preview-header 
-      :file="fileData" 
-      :activePanels="activePanels"
-      @toggle-panel="togglePanel"
-      @download="downloadFile"
-      @locate="locateFile"
-    />
-
-    <!-- Content area with panels -->
-    <div class="preview-content">
-      <!-- Panel 1: File Preview + AI Tools -->
-      <div v-if="activePanels.filePreview" class="preview-panel">
-        <file-preview 
-          :fileId="fileId" 
-          :fileType="fileData.fileType" 
-        />
-        
-        <ai-toolbar 
-          v-if="activePanels.aiTools" 
-          :activeAITool="activeAITool"
-          @tool-change="setActiveAITool"
-        />
-        
-        <component 
-          v-if="activePanels.aiTools && activeAITool !== 'translation'" 
-          :is="currentAIComponent" 
-          :fileId="fileId"
-        />
-      </div>
-
-      <!-- Panel 2: Text Extraction + Translation -->
-      <div v-if="activePanels.textExtraction || activePanels.translation" class="text-panel">
-        <div class="panel-columns">
-          <text-extractor 
-            v-if="activePanels.textExtraction" 
-            :fileId="fileId" 
-            :content="extractedText"
-          />
-          
-          <translation-panel 
-            v-if="activePanels.translation" 
-            :sourceText="extractedText"
-            v-model:targetText="translatedText"
-          />
+  <div class="new-preview-layout">
+    <!-- 统一顶部栏 -->
+    <div class="top-bar" v-if="fileData">
+      <div class="file-info">
+        <div class="title-line">
+          <el-icon class="file-icon"><Document /></el-icon>
+          <span class="name" :title="fileData.name">{{ fileData.name }}</span>
         </div>
+        <div class="path-line" :title="fileData.path">{{ fileData.path || fileData.fullPath || '—' }}</div>
+      </div>
+      <div class="mode-switch">
+        <el-button-group>
+          <el-button size="small" :type="contentMode==='preview' ? 'primary':'default'" @click="contentMode='preview'">Preview</el-button>
+          <el-button size="small" :type="contentMode==='text' ? 'primary':'default'" @click="contentMode='text'">Text</el-button>
+          <el-button size="small" :type="contentMode==='translate' ? 'primary':'default'" @click="switchToTranslate">Translate</el-button>
+        </el-button-group>
+      </div>
+      <div class="actions">
+        <el-button size="small" @click="reload" :loading="loading">Refresh</el-button>
+        <el-button size="small" type="primary" @click="downloadFile">Download</el-button>
       </div>
     </div>
-
-    <!-- Access request modal -->
-    <el-dialog
-      v-model="accessDialog.visible"
-      title="Request Access"
-      width="500px"
-    >
-      <el-form :model="accessDialog.form" label-width="120px">
-        <el-form-item label="Request Type">
-          <el-select v-model="accessDialog.form.requestType" placeholder="Select request type">
-            <el-option 
-              v-for="type in accessDialog.options" 
-              :key="type.value" 
-              :label="type.label" 
-              :value="type.value" 
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Reason">
-          <el-input 
-            v-model="accessDialog.form.reason" 
-            type="textarea" 
-            :rows="4" 
-            placeholder="Please enter your reason" 
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="accessDialog.visible = false">Cancel</el-button>
-        <el-button type="primary" @click="submitAccessRequest">Submit Request</el-button>
-      </template>
-    </el-dialog>
+    <div class="body-area">
+      <div class="doc-wrapper" v-if="contentMode!=='translate'">
+        <!-- 预览/文本 + AI -->
+        <file-preview
+          v-if="fileData"
+          :file-id="fileId"
+          :file-type="fileData.fileType"
+          :show-a-i-side="true"
+          hide-header
+          class="file-preview-shell"
+        >
+          <template #ai>
+            <div class="ai-side">
+              <div class="ai-tools-panel">
+                <div class="tools-list">
+                  <div
+                    v-for="tool in aiTools"
+                    :key="tool.key"
+                    class="tool-item"
+                    :class="{ active: activeAITool===tool.key }"
+                    @click="selectTool(tool.key)"
+                  >
+                    <el-icon><component :is="tool.icon" /></el-icon>
+                    <span class="tool-label">{{ tool.label }}</span>
+                  </div>
+                </div>
+                <div class="tool-content" v-if="activeAITool">
+                  <template v-if="activeAITool==='summary'">
+                    <summary-panel :file-id="fileId" class="stack-panel" />
+                    <tags-panel :file-id="fileId" class="stack-panel" />
+                    <NERPanel :file-id="fileId" class="stack-panel" />
+                  </template>
+                  <component v-else :is="currentAIComponent" :file-id="fileId" />
+                </div>
+                <div class="tool-placeholder" v-else>
+                  <el-empty description="选择右侧 AI 工具" />
+                </div>
+              </div>
+            </div>
+          </template>
+        </file-preview>
+      </div>
+      <translation-workspace v-else :file-id="fileId" />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useFilePreviewStore } from '../stores/filePreview';
 import { useAiToolsStore } from '../stores/aiTools';
-import PreviewHeader from '../components/preview/PreviewHeader.vue';
 import FilePreview from '../components/preview/FilePreview.vue';
-import AIToolbar from '../components/ai/AIToolbar.vue';
-import TextExtractor from '../components/preview/TextExtractor.vue';
-import TranslationPanel from '../components/preview/TranslationPanel.vue';
+import TranslationWorkspace from '../components/preview/TranslationWorkspace.vue';
 import SummaryPanel from '../components/ai/SummaryPanel.vue';
 import TagsPanel from '../components/ai/TagsPanel.vue';
 import NERPanel from '../components/ai/NERPanel.vue';
 import CustomExtractionPanel from '../components/ai/CustomExtractionPanel.vue';
 import DocumentQA from '../components/ai/DocumentQA.vue';
-import TranslationTool from '../components/ai/TranslationTool.vue';
+import { ChatLineSquare, Box, ChatRound, RefreshRight, Document } from '@element-plus/icons-vue';
 
 const route = useRoute();
-const router = useRouter();
 const filePreviewStore = useFilePreviewStore();
-const aiToolsStore = useAiToolsStore();
+useAiToolsStore(); // 可能用于摘要/标签/实体内部请求
 
-// Get file ID from route params
 const fileId = computed(() => route.params.id);
+const fileData = ref(null);
+const loading = ref(false);
+const contentMode = ref('preview');
 
-// State
-const fileData = ref({});
+// AI 工具：摘要（同时展示摘要+标签+实体）、自定义提取、问答、翻译
+const aiTools = [
+  { key: 'summary', label: '摘要', icon: ChatLineSquare },
+  { key: 'customExtraction', label: '自定义提取', icon: Box },
+  { key: 'qa', label: '问答', icon: ChatRound },
+  { key: 'translation', label: '翻译', icon: RefreshRight }
+];
 const activeAITool = ref('summary');
-const extractedText = ref('');
-const translatedText = ref('');
-const accessDialog = ref({
-  visible: false,
-  form: {
-    requestType: '',
-    reason: ''
-  },
-  options: [
-    { value: 'view', label: 'View Permission' },
-    { value: 'download', label: 'Download Permission' },
-    { value: 'edit', label: 'Edit Permission' }
-  ]
-});
 
-const activePanels = ref({
-  filePreview: true,
-  aiTools: true,
-  textExtraction: false,
-  translation: false
-});
-
-// Computed
 const currentAIComponent = computed(() => {
   switch (activeAITool.value) {
-    case 'summary': return SummaryPanel;
-    case 'tags': return TagsPanel;
-    case 'ner': return NERPanel;
     case 'customExtraction': return CustomExtractionPanel;
     case 'qa': return DocumentQA;
-    case 'translation': return TranslationTool;
+    case 'translation': return SummaryPanel; // 占位
     default: return SummaryPanel;
   }
 });
 
-// Methods
-function togglePanel(panel) {
-  activePanels.value[panel] = !activePanels.value[panel];
-  
-  // If translation tool is activated, switch to text+translation panel
-  if (panel === 'aiTools' && activeAITool.value === 'translation') {
-    activePanels.value.textExtraction = true;
-    activePanels.value.translation = true;
-  }
+function selectTool(key) {
+  if (key === 'translation') { switchToTranslate(); return; }
+  activeAITool.value = key;
 }
+function switchToTranslate() { contentMode.value = 'translate'; }
+function reload() { load(); }
+function downloadFile() { filePreviewStore.downloadFile(fileId.value); }
 
-function setActiveAITool(tool) {
-  activeAITool.value = tool;
-  
-  // If translation is selected, activate text extraction and translation panels
-  if (tool === 'translation') {
-    activePanels.value.textExtraction = true;
-    activePanels.value.translation = true;
-  }
-}
+async function load() { if (!fileId.value) return; loading.value = true; try { fileData.value = await filePreviewStore.loadFile(fileId.value); } finally { loading.value = false; } }
 
-function downloadFile() {
-  filePreviewStore.downloadFile(fileId.value);
-}
-
-function locateFile() {
-  router.push({
-    name: 'search',
-    query: { locate: fileId.value }
-  });
-}
-
-function showAccessRequestDialog() {
-  accessDialog.value.visible = true;
-}
-
-function submitAccessRequest() {
-  filePreviewStore.requestAccess(
-    fileId.value, 
-    accessDialog.value.form.requestType,
-    accessDialog.value.form.reason
-  );
-  accessDialog.value.visible = false;
-}
-
-// Lifecycle
-onMounted(async () => {
-  try {
-    fileData.value = await filePreviewStore.loadFile(fileId.value);
-    extractedText.value = await aiToolsStore.extractText(fileId.value);
-  } catch (error) {
-    if (error.response && (error.response.status === 403 || error.response.status === 404)) {
-      showAccessRequestDialog();
-    }
-  }
-});
-
-// Watch for changes to route params
-watch(() => route.params.id, async (newId) => {
-  if (newId && newId !== fileId.value) {
-    fileData.value = await filePreviewStore.loadFile(newId);
-    extractedText.value = await aiToolsStore.extractText(newId);
-  }
-});
+onMounted(load);
+watch(() => route.params.id, () => load());
 </script>
 
 <style scoped>
-.preview-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.preview-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.preview-panel {
-  display: flex;
-  height: 100%;
-  overflow: hidden;
-}
-
-.text-panel {
-  height: 100%;
-  overflow: hidden;
-}
-
-.panel-columns {
-  display: flex;
-  height: 100%;
-}
-
-.panel-columns > * {
-  flex: 1;
-  overflow: auto;
-  padding: 15px;
-  border-right: 1px solid #dcdfe6;
-}
-
-.panel-columns > *:last-child {
-  border-right: none;
-}
+.new-preview-layout { display:flex; flex-direction:column; height:100vh; background:#fff; }
+.top-bar { display:flex; align-items:center; padding:10px 16px 8px; gap:32px; border-bottom:1px solid #ebeef5; }
+.file-info { min-width:0; flex:1; }
+.title-line { display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; }
+.title-line .name { max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.path-line { font-size:11px; color:#909399; margin-top:2px; max-width:600px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mode-switch { display:flex; }
+.actions { display:flex; gap:8px; }
+.body-area { flex:1; display:flex; overflow:hidden; }
+.doc-wrapper { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.file-preview-shell { flex:1; }
+.ai-side { width:380px; border-left:1px solid #ebeef5; display:flex; flex-direction:column; background:#fff; }
+.ai-tools-panel { display:flex; flex-direction:column; height:100%; }
+.tools-list { padding:12px 16px 8px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid #f0f2f5; }
+.tool-item { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:13px; color:#606266; transition:.15s; }
+.tool-item:hover { background:#f5f7fa; color:#1671f2; }
+.tool-item.active { background:#1671f2; color:#fff; box-shadow:0 4px 10px -2px rgba(22,113,242,.35); }
+.tool-label { flex:1; }
+.tool-content { flex:1; overflow:auto; padding:14px 16px 22px; display:flex; flex-direction:column; gap:14px; }
+.stack-panel { background:#fff; border:1px solid #ebeef5; border-radius:8px; padding:8px 10px; }
+.tool-placeholder { flex:1; display:flex; align-items:center; justify-content:center; }
+.tool-content::-webkit-scrollbar { width:8px; }
+.tool-content::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius:4px; }
 </style>
