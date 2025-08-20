@@ -1,0 +1,187 @@
+<template>
+  <div class="search-container">
+    <!-- Left sidebar with filters -->
+    <div class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
+      <filter-sidebar v-if="showFilters" />
+      <div class="sidebar-toggle" @click="toggleFilters">
+        <span>{{ showFilters ? '◀' : '▶' }}</span>
+      </div>
+    </div>
+
+    <!-- Right content area -->
+    <div class="search-content">
+      <!-- Search box at top -->
+      <search-box @search="handleSearch" @toggle-filters="handleToggleFilters" />
+      
+      <!-- Search result tabs -->
+      <search-result-tabs 
+        :activeTab="activeTab" 
+        :counts="tabCounts" 
+        @tab-change="handleTabChange" 
+      />
+      
+      <!-- Search results -->
+      <div class="search-results">
+        <search-result-item 
+          v-for="(item, index) in searchResults" 
+          :key="item.id" 
+          :item="item"
+          v-model:selected="selectedItems[item.id]"
+          @click="navigateToPreview(item.id)"
+        />
+        
+        <el-empty v-if="searchResults.length === 0" description="No results found" />
+      </div>
+      
+      <!-- Pagination and action buttons -->
+      <div class="search-footer">
+        <div class="selection-actions" v-if="hasSelectedItems">
+          <el-button type="primary" @click="downloadSelected">Download Selected</el-button>
+          <el-button @click="exportSelected">Export Results</el-button>
+        </div>
+        <search-pagination 
+          v-model:currentPage="currentPage"
+          :total="total" 
+          :pageSize="pageSize"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useSearchStore } from '../stores/search';
+import FilterSidebar from '../components/search/FilterSidebar.vue';
+import SearchBox from '../components/search/SearchBox.vue';
+import SearchResultTabs from '../components/search/SearchResultTabs.vue';
+import SearchResultItem from '../components/search/SearchResultItem.vue';
+import SearchPagination from '../components/search/SearchPagination.vue';
+
+const router = useRouter();
+const searchStore = useSearchStore();
+
+// UI state
+const showFilters = ref(true);
+const activeTab = ref('all');
+const currentPage = ref(1);
+const pageSize = ref(10);
+const selectedItems = ref({});
+
+// Computed properties
+const searchResults = computed(() => searchStore.getFilteredResults(activeTab.value));
+const total = computed(() => searchStore.getTotalCount);
+const tabCounts = computed(() => searchStore.getTabCounts);
+const hasSelectedItems = computed(() => Object.values(selectedItems.value).some(item => item));
+
+// Methods
+function toggleFilters() {
+  showFilters.value = !showFilters.value;
+}
+
+function handleSearch(query, searchType) {
+  searchStore.search(query, searchType);
+  currentPage.value = 1;
+}
+
+function handleToggleFilters(show) {
+  showFilters.value = show;
+}
+
+function handleTabChange(tab) {
+  activeTab.value = tab;
+}
+
+function navigateToPreview(id) {
+  router.push({ name: 'preview', params: { id } });
+}
+
+function handleSizeChange(size) {
+  pageSize.value = size;
+  searchStore.updatePageSize(size);
+}
+
+function handleCurrentChange(page) {
+  currentPage.value = page;
+  searchStore.updateCurrentPage(page);
+}
+
+function downloadSelected() {
+  const ids = getSelectedIds();
+  searchStore.downloadFiles(ids);
+}
+
+function exportSelected() {
+  const ids = getSelectedIds();
+  searchStore.exportResults(ids);
+}
+
+function getSelectedIds() {
+  return Object.keys(selectedItems.value).filter(id => selectedItems.value[id]);
+}
+
+onMounted(() => {
+  searchStore.loadInitialData();
+});
+</script>
+
+<style scoped>
+.search-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.filter-sidebar {
+  width: 300px;
+  background-color: #f5f7fa;
+  transition: width 0.3s;
+  position: relative;
+  overflow-y: auto;
+  border-right: 1px solid #dcdfe6;
+}
+
+.filter-sidebar.collapsed {
+  width: 30px;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 20px;
+  right: 10px;
+  cursor: pointer;
+  background-color: #ffffff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.search-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.search-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+
+.search-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 15px;
+  border-top: 1px solid #ebeef5;
+}
+</style>
