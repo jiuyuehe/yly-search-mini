@@ -19,6 +19,7 @@
     "@milkdown/preset-commonmark": "7.15.3",
     "@milkdown/theme-nord": "^7.15.3",
     "@milkdown/vue": "^7.15.3",
+    "@opentiny/fluent-editor": "^3.25.4",
     "axios": "^1.11.0",
     "element-plus": "^2.3.9",
     "md-editor-v3": "^5.8.4",

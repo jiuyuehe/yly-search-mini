@@ -20,7 +20,7 @@
           </div>
         </div>
         <div class="editor-wrapper">
-          <rich-text-editor v-model="sourceContent" @change="updateSourceCount" />
+          <RichTextEditor v-model="sourceContent" @change="updateSourceCount" />
         </div>
       </div>
       <!-- 翻译设置 + 目标列 -->
@@ -59,7 +59,8 @@
           </div>
         </div>
         <div class="editor-wrapper">
-          <rich-text-editor v-model="targetContent" @change="updateTargetCount" />
+          <!-- 使用 PascalCase 引用已导入组件，确保解析正确 -->
+          <OpenTinyEditor v-model="targetContent" @change="updateTargetCount" />
         </div>
       </div>
     </template>
@@ -70,6 +71,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
 import RichTextEditor from '../editor/RichTextEditor.vue';
+import OpenTinyEditor from '../editor/OpenTinyEditor.vue'
 import { RefreshRight, Close, DocumentCopy } from '@element-plus/icons-vue';
 
 const props = defineProps({
@@ -144,6 +146,8 @@ watch(() => props.fileId, () => { extractSource(); targetContent.value=''; updat
 .word-count { color:#909399; margin-left:12px; font-weight:400; }
 .actions { display:flex; align-items:center; gap:2px; }
 .editor-wrapper { flex:1; padding:0 8px 12px; display:flex; }
+/* 新增：确保编辑器组件能撑满编辑区 */
+.editor-wrapper > * { flex:1; min-height:0; }
 .settings-card { margin:8px 8px 0; border:1px solid #e5e7eb; border-radius:8px; background:#fff; padding:10px 12px 6px; }
 .settings-header { display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; margin-bottom:6px; }
 .both-hidden { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
