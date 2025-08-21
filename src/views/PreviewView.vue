@@ -1,24 +1,21 @@
 <template>
   <div class="new-preview-layout">
-    <!-- 统一顶部栏 -->
     <div class="top-bar" v-if="fileData">
-      <div class="file-info">
-        <div class="title-line">
-          <el-icon class="file-icon"><Document /></el-icon>
-          <span class="name" :title="fileData.name">{{ fileData.name }}</span>
-        </div>
-        <div class="path-line" :title="fileData.path">{{ fileData.path || fileData.fullPath || '—' }}</div>
-      </div>
+      <el-button class="back-btn" @click="goBack">
+        <el-icon><ArrowLeft /></el-icon>
+        <span class="txt">返回搜索</span>
+      </el-button>
+      <FileMetaInfo :file="fileData" @open-path="openPath" />
       <div class="mode-switch">
         <el-button-group>
-          <el-button size="small" :type="contentMode==='preview' ? 'primary':'default'" @click="contentMode='preview'">Preview</el-button>
-          <el-button size="small" :type="contentMode==='text' ? 'primary':'default'" @click="contentMode='text'">Text</el-button>
-          <el-button size="small" :type="contentMode==='translate' ? 'primary':'default'" @click="switchToTranslate">Translate</el-button>
+          <el-button :type="contentMode==='preview' ? 'primary':'default'" @click="contentMode='preview'">Preview</el-button>
+          <el-button :type="contentMode==='text' ? 'primary':'default'" @click="contentMode='text'">Text</el-button>
+          <el-button :type="contentMode==='translate' ? 'primary':'default'" @click="switchToTranslate">Translate</el-button>
         </el-button-group>
       </div>
       <div class="actions">
-        <el-button size="small" @click="reload" :loading="loading">Refresh</el-button>
-        <el-button size="small" type="primary" @click="downloadFile">Download</el-button>
+        <el-button @click="reload" :loading="loading">Refresh</el-button>
+        <el-button type="primary" @click="downloadFile">Download</el-button>
       </div>
     </div>
     <div class="body-area">
@@ -70,7 +67,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useFilePreviewStore } from '../stores/filePreview';
 import { useAiToolsStore } from '../stores/aiTools';
 import FilePreview from '../components/preview/FilePreview.vue';
@@ -80,9 +77,11 @@ import TagsPanel from '../components/ai/TagsPanel.vue';
 import NERPanel from '../components/ai/NERPanel.vue';
 import CustomExtractionPanel from '../components/ai/CustomExtractionPanel.vue';
 import DocumentQA from '../components/ai/DocumentQA.vue';
-import { ChatLineSquare, Box, ChatRound, RefreshRight, Document } from '@element-plus/icons-vue';
+import { ChatLineSquare, Box, ChatRound, RefreshRight, Document, ArrowLeft } from '@element-plus/icons-vue';
+import FileMetaInfo from '../components/preview/FileMetaInfo.vue';
 
 const route = useRoute();
+const router = useRouter();
 const filePreviewStore = useFilePreviewStore();
 useAiToolsStore(); // 可能用于摘要/标签/实体内部请求
 
@@ -116,6 +115,15 @@ function selectTool(key) {
 function switchToTranslate() { contentMode.value = 'translate'; }
 function reload() { load(); }
 function downloadFile() { filePreviewStore.downloadFile(fileId.value); }
+function goBack() {
+  // 优先尝试浏览器历史返回
+  if (window.history.length > 1) router.back();
+  else router.push({ name: 'search' }).catch(()=>{});
+}
+// 新增：打开路径
+function openPath(path) {
+  router.push({ name: 'search', query: { path: path || '' } }).catch(()=>{});
+}
 
 async function load() { if (!fileId.value) return; loading.value = true; try { fileData.value = await filePreviewStore.loadFile(fileId.value); } finally { loading.value = false; } }
 
@@ -125,11 +133,31 @@ watch(() => route.params.id, () => load());
 
 <style scoped>
 .new-preview-layout { display:flex; flex-direction:column; height:100vh; background:#fff; }
-.top-bar { display:flex; align-items:center; padding:10px 16px 8px; gap:32px; border-bottom:1px solid #ebeef5; }
-.file-info { min-width:0; flex:1; }
-.title-line { display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; }
-.title-line .name { max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.path-line { font-size:11px; color:#909399; margin-top:2px; max-width:600px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.top-bar { display:flex; align-items:flex-start; padding:10px 16px 8px; gap:32px; border-bottom:1px solid #ebeef5; }
+/* 移除旧的 .file-info / .meta-line / .title-line 样式 */
+.file-info, .meta-line, .title-line { display:none; }
+/* 保留返回按钮样式 */
+.back-btn {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  height:40px;
+  padding:0 18px;
+  font-size:14px;
+  font-weight:600;
+  border:1px solid #d0d5dd;
+  background:#fff;
+  color:#303133;
+  border-radius:8px;
+  line-height:1;
+  box-shadow:0 1px 2px rgba(0,0,0,.05);
+  transition:.18s;
+}
+.back-btn:hover { color:#1671f2; border-color:#1671f2; box-shadow:0 2px 6px -2px rgba(22,113,242,.35); background:#f5f9ff; }
+.back-btn:active { transform:translateY(1px); }
+.back-btn :deep(.el-icon) { font-size:18px; margin-right:2px; }
+.back-btn .txt { letter-spacing:.5px; }
+/* 其余保持 */
 .mode-switch { display:flex; }
 .actions { display:flex; gap:8px; }
 .body-area { flex:1; display:flex; overflow:hidden; }

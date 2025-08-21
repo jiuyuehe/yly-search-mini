@@ -1,4 +1,5 @@
 import api from './api';
+import { DOC_TYPE_CODE, mapDocTypeCodeToTab, mapExtToTab } from '../constants/fileTypes';
 
 // Mock data for development
 const MOCK_DATA = {
@@ -96,66 +97,129 @@ const MOCK_DATA = {
   ]
 };
 
+function mapTypeByExt(name, docType) {
+  const ext = (name || '').split('.').pop().toLowerCase();
+  // 优先用后端 docType 数值
+  if (typeof docType === 'number') return mapDocTypeCodeToTab(docType);
+  // 兼容字符串数字
+  const num = Number(docType);
+  if (!isNaN(num) && num in DOC_TYPE_CODE) return mapDocTypeCodeToTab(num);
+  return mapExtToTab(ext);
+}
+
+function transformResponse(data) {
+  const list = data?.fileList || [];
+  const results = list.map(f => {
+    const name = f.fileName || f.name || '';
+    const type = mapTypeByExt(name, f.docType);
+    const pathBase = f.filePath || f.rootPath || f.subPath || '';
+    const fullPath = pathBase && name ? pathBase.replace(/\/+$/,'/') + name : (pathBase || name);
+    const preview =
+      f.fileSummary ||
+      f.fileSummaryTranslate ||
+      f.fileContents ||
+      f.fileTranslate ||
+      '';
+    const tags = (f.fileSysTag || '')
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    return {
+      id: f.fileId || f.id || f.fsFileId,
+      name,
+      type,
+      size: f.fileSize || 0,
+      modifiedTime: f.updateTime || f.dctermsModified || f.createTime || '',
+      creator: f.createrName || f.dcCreator || f.updateUserName || '',
+      path: fullPath || '',
+      preview,
+      tags,
+      score: f.score,
+      hasSensitiveInfo: false
+    };
+  });
+
+  // 如果后端未返回 types，自行统计
+  let tabCounts;
+  if (data?.types && typeof data.types === 'object') {
+    const types = data.types;
+    tabCounts = {
+      all: data.total || results.length,
+      document: types.document || 0,
+      image: types.image || 0,
+      multimedia: types.multimedia || 0,
+      archive: types.archive || 0,
+      other: types.other || 0
+    };
+  } else {
+    const counter = { document:0, image:0, multimedia:0, archive:0, other:0 };
+    results.forEach(r => { if (counter[r.type] != null) counter[r.type]++; else counter.other++; });
+    tabCounts = {
+      all: data?.total || results.length,
+      ...counter
+    };
+  }
+
+  return {
+    results,
+    pagination: { total: data?.total || results.length },
+    tabCounts
+  };
+}
+
 class SearchService {
-  async search(query, searchType, filters, page, pageSize) {
-    // Mock API response for development
+  async search(builtParams, imageFile = null) {
+    const url = '/admin-api/documents/search';
+    const { offset, limit, ...rest } = builtParams;
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const results = MOCK_DATA.searchResults.filter(item => {
-        if (!query) return true;
-        return item.name.toLowerCase().includes(query.toLowerCase()) ||
-               (item.preview && item.preview.toLowerCase().includes(query.toLowerCase()));
-      });
-      
-      const total = results.length;
-      const startIndex = (page - 1) * pageSize;
-      const paginatedResults = results.slice(startIndex, startIndex + pageSize);
-      
-      const tabCounts = {
-        all: results.length,
-        document: results.filter(r => r.type === 'document').length,
-        image: results.filter(r => r.type === 'image').length,
-        multimedia: results.filter(r => r.type === 'multimedia').length,
-        archive: results.filter(r => r.type === 'archive').length,
-        other: results.filter(r => r.type === 'other').length
-      };
-      
-      return {
-        results: paginatedResults,
-        pagination: {
-          currentPage: page,
-          pageSize,
-          total
-        },
-        tabCounts
-      };
+      let root;
+      if (imageFile) {
+        const form = new FormData();
+        Object.entries(rest).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') form.append(k, v); });
+        form.append('offset', offset);
+        form.append('limit', limit);
+        form.append('image', imageFile); // 若后端字段不同请调整
+        root = await api.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      } else {
+        const formData = new URLSearchParams();
+        Object.entries({ ...rest, offset, limit }).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== '') formData.append(k, v);
+        });
+        root = await api.post(url, formData, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      }
+      // axios 拦截器已返回 data，root 即 { code, data, msg }
+      if (root?.code !== 0) throw new Error(root?.msg || '搜索失败');
+      const apiData = root?.data;
+      if (!apiData || !Array.isArray(apiData.fileList)) throw new Error('无数据');
+      const mapped = transformResponse(apiData);
+      return { ...mapped, searchTime: apiData.searchTime };
     } catch (error) {
-      console.warn('API not available, using mock data');
-      return this.search(query, searchType, filters, page, pageSize);
+      console.warn('搜索接口失败，使用 mock 数据', error);
+      const list = MOCK_DATA.searchResults.slice(0, builtParams.limit);
+      return {
+        results: list,
+        pagination: { total: MOCK_DATA.searchResults.length },
+        tabCounts: {
+          all: MOCK_DATA.searchResults.length,
+          document: MOCK_DATA.searchResults.filter(r => r.type === 'document').length,
+          image: MOCK_DATA.searchResults.filter(r => r.type === 'image').length,
+          multimedia: MOCK_DATA.searchResults.filter(r => r.type === 'multimedia').length,
+          archive: MOCK_DATA.searchResults.filter(r => r.type === 'archive').length,
+          other: MOCK_DATA.searchResults.filter(r => r.type === 'other').length
+        },
+        searchTime: 0
+      };
     }
   }
   
   async getFilterOptions() {
-    // Mock API response for development
-    try {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      return MOCK_DATA.filterOptions;
-    } catch (error) {
-      console.warn('API not available, using mock data');
-      return MOCK_DATA.filterOptions;
-    }
+    // 可调用后端专用接口，这里直接 mock
+    return MOCK_DATA.filterOptions;
   }
   
-  async getFileCount(filters) {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      return { count: MOCK_DATA.searchResults.length };
-    } catch (error) {
-      console.warn('API not available, using mock data');
-      return { count: MOCK_DATA.searchResults.length };
-    }
+  async getFileCount(_filters) {
+    // 保留 mock
+    return { count: MOCK_DATA.searchResults.length };
   }
   
   async downloadFiles(fileIds) {
@@ -174,11 +238,36 @@ class SearchService {
     try {
       console.log('Exporting results:', fileIds);
       // Mock export implementation
-      alert(`正在导出 ${fileIds.length} 个文件的搜索结果...`);
+      alert(`正在导出 ${fileIds.length} 个文件结果...`);
       return Promise.resolve();
     } catch (error) {
       console.warn('Export failed:', error);
       throw error;
+    }
+  }
+
+  // 新增：获取聚合统计（与搜索参数一致）
+  async getAggregationStats(builtParams) {
+    const url = '/admin-api/documents/aggregations/stats';
+    try {
+      const formData = new URLSearchParams();
+      Object.entries(builtParams).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') formData.append(k, v); });
+      const root = await api.post(url, formData, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      if (root?.code !== 0) throw new Error(root?.msg || '聚合统计失败');
+      const dataObj = root?.data || {};
+      // 新结构: data.docType 是数组 [{ key: '2', count: 6 }, ...]
+      const docTypeArr = Array.isArray(dataObj.docType) ? dataObj.docType : [];
+      const counts = { document:0, image:0, multimedia:0, archive:0, other:0 };
+      docTypeArr.forEach(item => {
+        const code = Number(item.key);
+        const tab = mapDocTypeCodeToTab(code);
+        if (counts[tab] != null) counts[tab] += item.count || 0; else counts.other += item.count || 0;
+      });
+      // fileCategory 目前不直接影响 tabs，如需可返回
+      return counts;
+    } catch (e) {
+      console.warn('获取聚合统计失败，忽略并使用搜索结果内统计', e);
+      return {};
     }
   }
 }

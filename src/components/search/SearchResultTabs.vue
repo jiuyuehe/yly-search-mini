@@ -1,6 +1,6 @@
 <template>
   <div class="search-result-tabs">
-    <el-tabs v-model="activeTabModel" @tab-change="handleTabChange">
+    <el-tabs v-model="activeTabModel" @tab-click="onTabClick">
       <el-tab-pane 
         v-for="tab in tabs" 
         :key="tab.key"
@@ -46,8 +46,10 @@ function getTabLabel(tab) {
   return `${tab.label} (${count})`;
 }
 
-function handleTabChange(tabName) {
-  emit('tab-change', tabName);
+function onTabClick(pane) {
+  // 兜底：如果某些情况下 v-model 未触发（理论上不会），手动 emit
+  const name = pane?.props?.name;
+  if (name && name !== props.activeTab) emit('tab-change', name);
 }
 </script>
 

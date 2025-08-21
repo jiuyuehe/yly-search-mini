@@ -10,16 +10,16 @@
     <div class="filter-sections">
       <!-- 文件空间 -->
       <div class="filter-section">
-        <div class="section-title" @click="toggleSection('fileSpace')">
+        <div class="section-title" @click="toggleSection('fileCategory')">
           <span>文件空间</span>
-          <el-icon class="toggle-icon" :class="{ expanded: expandedSections.fileSpace }">
+          <el-icon class="toggle-icon" :class="{ expanded: expandedSections.fileCategory }">
             <ArrowDown />
           </el-icon>
         </div>
-        <div v-show="expandedSections.fileSpace" class="section-content">
-          <el-checkbox-group v-model="filters.fileSpace" class="checkbox-group">
+        <div v-show="expandedSections.fileCategory" class="section-content">
+          <el-checkbox-group v-model="filters.fileCategory" class="checkbox-group">
             <el-checkbox 
-              v-for="space in filterOptions.fileSpaces" 
+              v-for="space in filterOptions.fileCategory" 
               :key="space.value" 
               :label="space.value"
               class="filter-checkbox"
@@ -39,16 +39,36 @@
           </el-icon>
         </div>
         <div v-show="expandedSections.creators" class="section-content">
-          <el-checkbox-group v-model="filters.creators" class="checkbox-group">
-            <el-checkbox 
-              v-for="creator in filterOptions.creators" 
-              :key="creator.value" 
-              :label="creator.value"
-              class="filter-checkbox"
+          <el-select
+            v-model="filters.creators"
+            multiple
+            filterable
+            remote
+            reserve-keyword
+            :remote-method="querySearchCreators"
+            :loading="loadingCreators"
+            placeholder="搜索创建者并选择"
+            class="full-width-select"
+            size="small"
+          >
+            <el-option
+              v-for="item in creatorOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+          <div class="chosen-tags" v-if="filters.creators.length">
+            <el-tag
+              v-for="c in filters.creators"
+              :key="c"
+              closable
+              size="small"
+              @close="removeCreator(c)"
             >
-              {{ creator.label }}
-            </el-checkbox>
-          </el-checkbox-group>
+              {{ findCreatorLabel(c) }}
+            </el-tag>
+          </div>
         </div>
       </div>
 
@@ -63,11 +83,12 @@
         <div v-show="expandedSections.timeRange" class="section-content">
           <div class="time-filter">
             <el-radio-group v-model="filters.timeRange" size="small" class="time-radio-group">
-              <el-radio label="all">全部时间</el-radio>
-              <el-radio label="today">今天</el-radio>
-              <el-radio label="week">本周</el-radio>
-              <el-radio label="month">本月</el-radio>
-              <el-radio label="year">本年</el-radio>
+              <el-radio label="">全部时间</el-radio>
+              <el-radio label="now-1d/d">今天</el-radio>
+              <el-radio label="now-1w/d">本周</el-radio>
+              <el-radio label="now-1M/d">本月</el-radio>
+              <el-radio label="now-6M/d">半年</el-radio>
+              <el-radio label="now-1y/d">本年</el-radio>
               <el-radio label="custom">自定义</el-radio>
             </el-radio-group>
             <div v-if="filters.timeRange === 'custom'" class="custom-time">
@@ -95,10 +116,10 @@
         </div>
         <div v-show="expandedSections.fileSize" class="section-content">
           <el-checkbox-group v-model="filters.fileSize" class="checkbox-group">
-            <el-checkbox label="small" class="filter-checkbox">小于 1MB</el-checkbox>
-            <el-checkbox label="medium" class="filter-checkbox">1MB - 10MB</el-checkbox>
-            <el-checkbox label="large" class="filter-checkbox">10MB - 100MB</el-checkbox>
-            <el-checkbox label="xlarge" class="filter-checkbox">大于 100MB</el-checkbox>
+            <el-checkbox label="0-10M" class="filter-checkbox">小于 10MB</el-checkbox>
+            <el-checkbox label="10-100M" class="filter-checkbox">10MB - 100MB</el-checkbox>
+            <el-checkbox label="100-1G" class="filter-checkbox">100MB - 1GB</el-checkbox>
+            <el-checkbox label="1G-0" class="filter-checkbox">大于 1GB</el-checkbox>
           </el-checkbox-group>
         </div>
       </div>
@@ -106,17 +127,16 @@
       <!-- 历史版本 -->
       <div class="filter-section">
         <div class="section-title" @click="toggleSection('versions')">
-          <span>历史版本</span>
+          <span>文件夹与版本</span>
           <el-icon class="toggle-icon" :class="{ expanded: expandedSections.versions }">
             <ArrowDown />
           </el-icon>
         </div>
         <div v-show="expandedSections.versions" class="section-content">
-          <el-checkbox-group v-model="filters.versions" class="checkbox-group">
-            <el-checkbox label="latest" class="filter-checkbox">仅最新版本</el-checkbox>
-            <el-checkbox label="all" class="filter-checkbox">包含历史版本</el-checkbox>
-            <el-checkbox label="archived" class="filter-checkbox">已归档版本</el-checkbox>
-          </el-checkbox-group>
+          <div class="checkbox-group">
+            <el-checkbox v-model="filters.folder" class="filter-checkbox">包含文件夹</el-checkbox>
+            <el-checkbox v-model="filters.hasHistory" class="filter-checkbox">包含历史版本</el-checkbox>
+          </div>
         </div>
       </div>
 
@@ -129,16 +149,37 @@
           </el-icon>
         </div>
         <div v-show="expandedSections.tags" class="section-content">
-          <el-checkbox-group v-model="filters.tags" class="checkbox-group">
-            <el-checkbox 
-              v-for="tag in filterOptions.tags" 
-              :key="tag.value" 
-              :label="tag.value"
-              class="filter-checkbox"
+          <el-select
+            v-model="filters.tags"
+            multiple
+            filterable
+            remote
+            reserve-keyword
+            :remote-method="querySearchTags"
+            :loading="loadingTags"
+            placeholder="搜索标签并选择"
+            class="full-width-select"
+            size="small"
+          >
+            <el-option
+              v-for="item in tagOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+          <div class="chosen-tags" v-if="filters.tags.length">
+            <el-tag
+              v-for="t in filters.tags"
+              :key="t"
+              closable
+              size="small"
+              type="info"
+              @close="removeTagValue(t)"
             >
-              {{ tag.label }}
-            </el-checkbox>
-          </el-checkbox-group>
+              {{ findTagLabel(t) }}
+            </el-tag>
+          </div>
         </div>
       </div>
 
@@ -175,36 +216,37 @@ import { useSearchStore } from '../../stores/search';
 const searchStore = useSearchStore();
 
 const expandedSections = reactive({
-  fileSpace: true,
-  creators: false,
-  timeRange: false,
-  fileSize: false,
-  versions: false,
-  tags: false,
+  fileCategory: true,
+  creators: true,
+  timeRange: true,
+  fileSize: true,
+  versions: true,
+  tags: true,
   formats: true
 });
 
 const filters = reactive({
-  fileSpace: [],
+  fileCategory: [],
   creators: [],
   timeRange: 'all',
   customTimeRange: null,
   fileSize: [],
-  versions: ['latest'],
+  hasHistory: false,
+  folder: false,
   tags: [],
   formats: []
 });
 
 const filterOptions = reactive({
-  fileSpaces: [
+  fileCategory: [
     { label: '个人空间', value: 'personal' },
-    { label: '团队空间', value: 'team' },
+    { label: '团队空间', value: 'group' },
     { label: '公共空间', value: 'public' }
   ],
   creators: [
-    { label: 'Alice Smith', value: 'alice' },
-    { label: 'Bob Johnson', value: 'bob' },
-    { label: 'Carol Wilson', value: 'carol' }
+    { label: 'Alice Smith', value: '98' },
+    { label: 'Bob Johnson', value: '99' },
+    { label: 'Carol Wilson', value: '100' }
   ],
   tags: [
     { label: '重要', value: 'important' },
@@ -221,26 +263,111 @@ const filterOptions = reactive({
   ]
 });
 
+const creatorOptions = ref([]); // 当前搜索到的创建者候选
+const tagOptions = ref([]);     // 当前搜索到的标签候选
+const loadingCreators = ref(false);
+const loadingTags = ref(false);
+
+// 模拟后端接口 - 创建者
+function mockFetchCreators(keyword) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const base = [
+        { label: 'Alice Smith', value: '98' },
+        { label: 'Bob Johnson', value: '99' },
+        { label: 'Carol Wilson', value: '100' },
+        { label: 'David Chen', value: '101' },
+        { label: 'Emma Li', value: '102' }
+      ];
+      if (!keyword) return resolve(base.slice(0, 5));
+      resolve(base.filter(i => i.label.toLowerCase().includes(keyword.toLowerCase())));
+    }, 300);
+  });
+}
+// 模拟后端接口 - 标签
+function mockFetchTags(keyword) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const base = [
+        { label: '重要', value: 'important' },
+        { label: '待审核', value: 'pending' },
+        { label: '已完成', value: 'completed' },
+        { label: '项目', value: 'project' },
+        { label: '归档', value: 'archived' }
+      ];
+      if (!keyword) return resolve(base.slice(0, 5));
+      resolve(base.filter(i => i.label.includes(keyword) || i.value.includes(keyword)));
+    }, 300);
+  });
+}
+
+async function querySearchCreators(query) {
+  loadingCreators.value = true;
+  creatorOptions.value = await mockFetchCreators(query);
+  loadingCreators.value = false;
+  // 将新获取的选项合并到全局映射（供 FilterToggleSummary 展示 label）
+  creatorOptions.value.forEach(o => {
+    if (!searchStore.filterOptions.creators.find(c => c.value === o.value)) {
+      searchStore.filterOptions.creators.push(o);
+    }
+  });
+}
+
+async function querySearchTags(query) {
+  loadingTags.value = true;
+  tagOptions.value = await mockFetchTags(query);
+  loadingTags.value = false;
+  tagOptions.value.forEach(o => {
+    if (!searchStore.filterOptions.tags.find(t => t.value === o.value)) {
+      searchStore.filterOptions.tags.push(o);
+    }
+  });
+}
+
+function findCreatorLabel(val) {
+  const item = [...creatorOptions.value, ...(searchStore.filterOptions.creators||[])].find(i => i.value === val);
+  return item?.label || val;
+}
+function findTagLabel(val) {
+  const item = [...tagOptions.value, ...(searchStore.filterOptions.tags||[])].find(i => i.value === val);
+  return item?.label || val;
+}
+function removeCreator(v) { filters.creators = filters.creators.filter(c => c !== v); }
+function removeTagValue(v) { filters.tags = filters.tags.filter(t => t !== v); }
+
 function toggleSection(section) {
   expandedSections[section] = !expandedSections[section];
 }
 
 function resetFilters() {
   Object.assign(filters, {
-    fileSpace: [],
+    fileCategory: [],
     creators: [],
     timeRange: 'all',
     customTimeRange: null,
     fileSize: [],
-    versions: ['latest'],
+    hasHistory: false,
+    folder: false,
     tags: [],
     formats: []
   });
 }
+defineExpose({ resetFilters /*, getCurrentFilters: () => ({...filters}) */ });
 
 // Watch filters and apply to store
 watch(filters, (newFilters) => {
-  searchStore.updateFilters(newFilters);
+  const payload = {
+    fileCategory: [...newFilters.fileCategory],
+    creators: [...newFilters.creators],
+    timeRange: newFilters.timeRange,
+    customTimeRange: newFilters.customTimeRange,
+    fileSize: [...newFilters.fileSize],
+    hasHistory: newFilters.hasHistory,
+    folder: newFilters.folder,
+    tags: [...newFilters.tags],
+    formats: [...newFilters.formats]
+  };
+  searchStore.updateFilters(payload);
 }, { deep: true });
 </script>
 
@@ -252,6 +379,9 @@ watch(filters, (newFilters) => {
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  height:100%;
+  display:flex;
+  flex-direction:column;
 }
 
 .filter-header {
@@ -271,8 +401,8 @@ watch(filters, (newFilters) => {
 }
 
 .filter-sections {
-  max-height: calc(100vh - 200px);
-  overflow-y: auto;
+  flex:1;
+  overflow-y:auto;
 }
 
 .filter-section {
@@ -344,6 +474,7 @@ watch(filters, (newFilters) => {
 .time-radio-group {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--spacing-xs);
 }
 
@@ -375,5 +506,8 @@ watch(filters, (newFilters) => {
   border-radius: var(--border-radius-sm);
   border-color: var(--border-color);
 }
+
+.full-width-select { width: 100%; margin-bottom: 8px; }
+.chosen-tags { display:flex; flex-wrap:wrap; gap:6px; }
 </style>
-     
+

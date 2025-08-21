@@ -1,18 +1,6 @@
 <template>
   <div class="search-box">
-    <!-- Filter toggle button -->
-    <div class="filter-toggle">
-      <!-- 改为直接使用 Filter 图标 -->
-      <el-button 
-        circle 
-        size="small"
-        @click="toggleFilters"
-        class="filter-btn"
-      >
-        <el-icon><Filter /></el-icon>
-      </el-button>
-    </div>
-
+    
     <!-- Main search container (支持拖拽) -->
     <div class="search-container"
          @dragover.prevent
@@ -22,8 +10,7 @@
         <el-input
           v-model="searchQuery"
           type="textarea"
-          :rows="searchQuery ? Math.min(Math.ceil(searchQuery.length / 60), 4) : 1"
-          resize="none"
+          rows=3
           placeholder="输入搜索关键词或问题，图片可拖入此区域..."
           class="search-textarea"
           @keydown.ctrl.enter="handleSearch"
@@ -89,14 +76,13 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { Search, Upload, Close, Filter } from '@element-plus/icons-vue';
+import { Search, Upload, Close } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
-const emit = defineEmits(['search', 'toggle-filters']);
+const emit = defineEmits(['search']);
 
 const searchQuery = ref('');
 const searchType = ref('fullText');
-const showFilters = ref(true);
 
 // 图片相关
 const fileInput = ref(null);
@@ -121,13 +107,8 @@ const canSearch = computed(() => {
 
 function handleSearch() {
   if (!canSearch.value) return;
-  // 第三个参数传递图片文件（若有）
-  emit('search', searchQuery.value.trim(), searchType.value, imageFile.value || null);
-}
-
-function toggleFilters() {
-  showFilters.value = !showFilters.value;
-  emit('toggle-filters', showFilters.value);
+  // 仅触发事件，把 query / searchType / imageFile 交给父级（SearchView.vue）处理
+  emit('search', searchQuery.value.trim(), searchType.value, imageFile.value);
 }
 
 function triggerImageSelect() {
@@ -172,26 +153,6 @@ function removeImage() {
   margin-bottom: var(--spacing-xl);
 }
 
-.filter-toggle {
-  flex-shrink: 0;
-  margin-top: var(--spacing-xs);
-}
-
-.filter-btn {
-  width: 32px;
-  height: 32px;
-  background-color: var(--background-color);
-  border: 1px solid var(--border-color);
-  color: var(--text-color-secondary);
-  transition: all 0.2s ease;
-}
-
-.filter-btn:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  background-color: var(--primary-color-lighter);
-}
-
 .search-container {
   flex: 1;
   background: var(--background-color);
@@ -217,14 +178,12 @@ function removeImage() {
 }
 
 :deep(.search-textarea .el-textarea__inner) {
-  border: none;
   box-shadow: none;
   padding: 0;
   font-size: 16px;
   line-height: 1.5;
   color: var(--text-color-primary);
   background: transparent;
-  resize: none;
 }
 
 :deep(.search-textarea .el-textarea__inner):focus {
@@ -240,8 +199,6 @@ function removeImage() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: var(--spacing-md);
-  padding-top: var(--spacing-md);
 }
 
 .search-type-selector {

@@ -2,50 +2,60 @@
   <div class="search-container">
     <!-- Left sidebar with filters -->
     <div class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
-      <filter-sidebar v-if="showFilters" />
-      <div class="sidebar-toggle" @click="toggleFilters">
+      <filter-sidebar ref="filterSidebarRef" v-if="showFilters" />
+      <!-- <div class="sidebar-toggle" @click="toggleFilters">
         <span>{{ showFilters ? '◀' : '▶' }}</span>
-      </div>
+      </div> -->
     </div>
 
     <!-- Right content area -->
     <div class="search-content">
-      <!-- Search box at top -->
-      <search-box @search="handleSearch" @toggle-filters="handleToggleFilters" />
-      
-      <!-- Search result tabs -->
-      <search-result-tabs 
-        :activeTab="activeTab" 
-        :counts="tabCounts" 
-        @tab-change="handleTabChange" 
-      />
-      
-      <!-- Search results -->
-      <div class="search-results">
-        <search-result-item 
-          v-for="(item, index) in searchResults" 
-          :key="item.id" 
-          :item="item"
-          v-model:selected="selectedItems[item.id]"
-          @click="navigateToPreview(item.id)"
+      <div class="search-content-inner">
+       
+        <search-box @search="handleSearch" />
+
+         <FilterToggleSummary
+          :show="showFilters"
+          @toggle="handleToggleFilters"
+          @clear="handleClearFilters"
+          @remove="handleRemoveFilter"
         />
         
-        <el-empty v-if="searchResults.length === 0" description="No results found" />
-      </div>
-      
-      <!-- Pagination and action buttons -->
-      <div class="search-footer">
-        <div class="selection-actions" v-if="hasSelectedItems">
-          <el-button type="primary" @click="downloadSelected">Download Selected</el-button>
-          <el-button @click="exportSelected">Export Results</el-button>
-        </div>
-        <search-pagination 
-          v-model:currentPage="currentPage"
-          :total="total" 
-          :pageSize="pageSize"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+        <!-- Search result tabs -->
+        <search-result-tabs 
+          :activeTab="activeTab" 
+          :counts="tabCounts" 
+          @tab-change="handleTabChange" 
         />
+        
+        <!-- Search results -->
+        <div class="search-results">
+          <search-result-item 
+            v-for="(item, index) in searchResults" 
+            :key="item.id" 
+            :item="item"
+            v-model:selected="selectedItems[item.id]"
+            :search-query="searchStore.query"
+            @click="navigateToPreview(item.id)"
+          />
+          
+          <el-empty v-if="searchResults.length === 0" description="No results found" />
+        </div>
+        
+        <!-- Pagination and action buttons -->
+        <div class="search-footer">
+          <div class="selection-actions" v-if="hasSelectedItems">
+            <el-button type="primary" @click="downloadSelected">Download Selected</el-button>
+            <el-button @click="exportSelected">Export Results</el-button>
+          </div>
+          <search-pagination 
+            v-model:currentPage="currentPage"
+            :total="total" 
+            :pageSize="pageSize"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -60,6 +70,7 @@ import SearchBox from '../components/search/SearchBox.vue';
 import SearchResultTabs from '../components/search/SearchResultTabs.vue';
 import SearchResultItem from '../components/search/SearchResultItem.vue';
 import SearchPagination from '../components/search/SearchPagination.vue';
+import FilterToggleSummary from '../components/search/FilterToggleSummary.vue';
 
 const router = useRouter();
 const searchStore = useSearchStore();
@@ -70,6 +81,9 @@ const activeTab = ref('all');
 const currentPage = ref(1);
 const pageSize = ref(10);
 const selectedItems = ref({});
+
+// 新增：侧栏 ref
+const filterSidebarRef = ref(null);
 
 // Computed properties
 const searchResults = computed(() => searchStore.getFilteredResults(activeTab.value));
@@ -82,8 +96,10 @@ function toggleFilters() {
   showFilters.value = !showFilters.value;
 }
 
-function handleSearch(query, searchType) {
-  searchStore.search(query, searchType);
+function handleSearch(query, searchType, imageFile) {
+  // 这里衔接：收到子组件事件后调用 Pinia 中的 search 动作
+  // imageFile 在图片搜索模式下会被传递到 service 形成 multipart/form-data
+  searchStore.search(query, searchType, imageFile);
   currentPage.value = 1;
 }
 
@@ -91,8 +107,26 @@ function handleToggleFilters(show) {
   showFilters.value = show;
 }
 
-function handleTabChange(tab) {
-  activeTab.value = tab;
+function handleClearFilters() {
+  // 防御：若未挂载不报错
+  try { filterSidebarRef.value?.resetFilters?.(); } catch {}
+  // 重置 store
+  searchStore.resetFilters();
+}
+
+function handleRemoveFilter(tag) {
+  const f = { ...searchStore.filters };
+  if (Array.isArray(f[tag.key])) {
+    f[tag.key] = f[tag.key].filter(v => v !== tag.value);
+  } else if (tag.key === 'timeRange') {
+    f.timeRange = 'all';
+  } else if (tag.key === 'versions') {
+    if (Array.isArray(f.versions)) {
+      f.versions = f.versions.filter(v => v !== tag.value);
+      if (!f.versions.length) f.versions = ['latest'];
+    }
+  }
+  searchStore.updateFilters(f);
 }
 
 function navigateToPreview(id) {
@@ -123,6 +157,12 @@ function getSelectedIds() {
   return Object.keys(selectedItems.value).filter(id => selectedItems.value[id]);
 }
 
+function handleTabChange(tab) {
+  activeTab.value = tab;
+  searchStore.setActiveTab(tab);
+  currentPage.value = 1;
+}
+
 onMounted(() => {
   searchStore.loadInitialData();
 });
@@ -136,7 +176,6 @@ onMounted(() => {
 }
 
 .filter-sidebar {
-  width: 300px;
   background-color: #f5f7fa;
   transition: width 0.3s;
   position: relative;
@@ -168,7 +207,18 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 20px;
+  padding: 20px 0 0 0; /* 去除左右 padding 让内层真正居中 */
+}
+
+.search-content-inner {
+  width: 900px;
+  max-width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0 20px; /* 内部左右留出内容呼吸区 */
 }
 
 .search-results {
@@ -181,7 +231,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 15px;
+  padding-top: 4px;
   border-top: 1px solid #ebeef5;
 }
 </style>

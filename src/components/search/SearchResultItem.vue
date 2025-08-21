@@ -10,7 +10,7 @@
         <div class="icon-placeholder">{{ getFileIcon(item.type) }}</div>
       </div>
       <div class="file-info">
-        <h4 class="file-name">{{ item.name }}</h4>
+        <h4 class="file-name" v-html="highlightName"></h4>
         <div class="file-meta">
           <span>{{ formatFileSize(item.size) }}</span>
           <span>{{ formatDate(item.modifiedTime) }}</span>
@@ -23,9 +23,7 @@
       </div>
     </div>
     
-    <div v-if="item.preview" class="item-preview">
-      <p>{{ item.preview }}</p>
-    </div>
+    <div v-if="item.preview" class="item-preview" v-html="rawPreview"></div>
     
     <div v-if="item.tags && item.tags.length" class="item-tags">
       <el-tag 
@@ -41,17 +39,12 @@
 </template>
 
 <script setup>
-defineProps({
-  item: {
-    type: Object,
-    required: true
-  },
-  selected: {
-    type: Boolean,
-    default: false
-  }
+import { computed } from 'vue';
+const props = defineProps({
+  item: { type: Object, required: true },
+  selected: { type: Boolean, default: false },
+  searchQuery: { type: String, default: '' }
 });
-
 defineEmits(['click', 'update:selected']);
 
 function getFileIcon(type) {
@@ -82,6 +75,29 @@ function formatDate(date) {
   if (!date) return '';
   return new Date(date).toLocaleDateString('zh-CN');
 }
+
+// 直接返回后端原始内容
+const rawPreview = computed(() => {
+  if (!props.item) return '';
+  return typeof props.item.preview === 'string' ? props.item.preview : '';
+});
+
+// 高亮文件名中与搜索词匹配的部分
+const highlightName = computed(() => {
+  const name = props.item?.name || '';
+  const q = (props.searchQuery || '').trim();
+  if (!q) return name;
+  // 转义正则特殊字符
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    return name.replace(new RegExp(escaped, 'gi'), 
+    m => `<span style="
+    background: #FBD9A7;
+    ">${m}</span>`);
+  } catch {
+    return name;
+  }
+});
 </script>
 
 <style scoped>
@@ -136,6 +152,13 @@ function formatDate(date) {
   font-size: 14px;
   color: #606266;
 }
+/* 若后端未内联背景，可给 font 标签一个统一高亮背景（可选） */
+.item-preview :deep(font) {
+  background:#FBD9A7;
+  padding:0 2px;
+  border-radius:3px;
+  font-weight:600;
+}
 
 .item-tags {
   margin-top: 10px;
@@ -152,5 +175,13 @@ function formatDate(date) {
   font-size: 16px;
   background-color: #f0f0f0;
   border-radius: 4px;
+}
+
+/* 文件名高亮与预览统一 */
+.hl {
+  background:#ffeb3b;
+  padding:0 2px;
+  border-radius:3px;
+  font-weight:600;
 }
 </style>
