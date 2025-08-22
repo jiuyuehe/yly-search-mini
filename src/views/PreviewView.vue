@@ -19,46 +19,25 @@
       </div>
     </div>
     <div class="body-area" v-if="hasPerm">
-      <div class="doc-wrapper" v-if="contentMode!=='translate'">
-        <!-- 预览/文本 + AI -->
-        <file-preview
-          v-if="fileData"
-          :file-id="fileId"
-            :file-type="fileData.fileType"
-          :show-a-i-side="true"
-          hide-header
-          class="file-preview-shell"
-        >
-          <template #ai>
-            <div class="ai-side">
-              <div class="ai-tools-panel">
-                <div class="tools-list">
-                  <div
-                    v-for="tool in aiTools"
-                    :key="tool.key"
-                    class="tool-item"
-                    :class="{ active: activeAITool===tool.key }"
-                    @click="selectTool(tool.key)"
-                  >
-                    <el-icon><component :is="tool.icon" /></el-icon>
-                    <span class="tool-label">{{ tool.label }}</span>
-                  </div>
-                </div>
-                <div class="tool-content" v-if="activeAITool">
-                  <template v-if="activeAITool==='summary'">
-                    <summary-panel :file-id="fileId" class="stack-panel" />
-                    <tags-panel :file-id="fileId" class="stack-panel" />
-                    <NERPanel :file-id="fileId" class="stack-panel" />
-                  </template>
-                  <component v-else :is="currentAIComponent" :file-id="fileId" />
-                </div>
-                <div class="tool-placeholder" v-else>
-                  <el-empty description="选择右侧 AI 工具" />
-                </div>
-              </div>
+      <div v-if="contentMode!=='translate'" class="split-wrapper">
+        <el-splitter  style="height:100%; width:100%;">
+          <el-splitter-panel v-model:size="splitSize">
+            <div class="doc-wrapper">
+              <FilePreview
+                v-if="fileData"
+                :file-id="fileId"
+                :file-type="fileData.fileType"
+                hide-header
+                class="file-preview-shell"
+              />
             </div>
-          </template>
-        </file-preview>
+          </el-splitter-panel>
+          <el-splitter-panel>
+            <div class="ai-wrapper">
+              <AIToolsPanel :file-id="fileId" @switch-translate="switchToTranslate" />
+            </div>
+          </el-splitter-panel>
+        </el-splitter>
       </div>
       <translation-workspace v-else :file-id="fileId" />
     </div>
@@ -81,15 +60,12 @@ import { useFilePreviewStore } from '../stores/filePreview';
 import { useAiToolsStore } from '../stores/aiTools';
 import FilePreview from '../components/preview/FilePreview.vue';
 import TranslationWorkspace from '../components/preview/TranslationWorkspace.vue';
-import SummaryPanel from '../components/ai/SummaryPanel.vue';
-import TagsPanel from '../components/ai/TagsPanel.vue';
-import NERPanel from '../components/ai/NERPanel.vue';
-import CustomExtractionPanel from '../components/ai/CustomExtractionPanel.vue';
-import DocumentQA from '../components/ai/DocumentQA.vue';
+import AIToolsPanel from '../components/ai/AIToolsPanel.vue';
 import { ChatLineSquare, Box, ChatRound, RefreshRight, ArrowLeft } from '@element-plus/icons-vue';
 import FileMetaInfo from '../components/preview/FileMetaInfo.vue';
+// 不需要显式局部注册 splitter，ElementPlus 全局已注册；如需按需可保留 import { ElSplitter } from 'element-plus'
 
-// 接收路由 props（通过 router 中 props 配置）
+// 接收路由 props
 const props = defineProps({
   fc: { type: String, default: '' },
   id: { type: [String, Number], default: '' },
@@ -106,54 +82,43 @@ const fileId = computed(() => props.id || route.params.id);
 const fileData = ref(null);
 const loading = ref(false);
 const contentMode = ref('preview');
-const hasPerm = ref(true); // 是否有预览权限
+const splitSize = ref("75%"); // 0-100 百分比（ElementPlus Splitter 默认使用百分比）
+const hasPerm = ref(true);
 const applying = ref(false);
-const applyStatus = ref('none'); // none | pending | approved
+const applyStatus = ref('none');
 
-// 返回按钮显示控制，兼容历史逻辑（存在 retureBtn 参数即可控制）
+// 返回按钮
 const showReturnBtn = computed(() => props.retureBtn !== false);
 
-// AI 工具
-const aiTools = [
-  { key: 'summary', label: '摘要', icon: ChatLineSquare },
-  { key: 'customExtraction', label: '自定义提取', icon: Box },
-  { key: 'qa', label: '问答', icon: ChatRound },
-  { key: 'translation', label: '翻译', icon: RefreshRight }
-];
-const activeAITool = ref('summary');
-
-const currentAIComponent = computed(() => {
-  switch (activeAITool.value) {
-    case 'customExtraction': return CustomExtractionPanel;
-    case 'qa': return DocumentQA;
-    case 'translation': return SummaryPanel; // 占位
-    default: return SummaryPanel;
-  }
-});
-
-function selectTool(key) { if (key === 'translation') { switchToTranslate(); return; } activeAITool.value = key; }
 function switchToTranslate() { contentMode.value = 'translate'; }
 function reload() { load(true); }
 function downloadFile() { filePreviewStore.downloadFile(fileId.value); }
 function goBack() { if (window.history.length > 1) router.back(); else router.push({ name: 'search' }).catch(()=>{}); }
 function openPath(path) { router.push({ name: 'search', query: { path: path || '' } }).catch(()=>{}); }
 
+// 防止 splitSize 越界导致面板不可见
+watch(splitSize, (v, ov) => {
+  if (v < 5) splitSize.value = 5;
+  else if (v > 95) splitSize.value = 95;
+});
+
 async function load(forceRefresh = false) {
-  if (!fileId.value) return;
+  if (!fileId.value && !props.file) {
+    fileData.value = { id: '', name: '未指定文件', fileType: '', hasAccess: true };
+    hasPerm.value = true;
+    return;
+  }
   try {
     loading.value = true;
-    // 使用传入文件（最小信息）直接渲染标题，避免空白
     if (props.file && !forceRefresh) {
       fileData.value = props.file;
     }
-    // 若尚无详细数据且 id 在 mock 范围内再拉取
     const numericId = Number(fileId.value);
     const canFetchMock = !isNaN(numericId) && numericId >= 1 && numericId <= 5;
     if (canFetchMock && (!props.file || forceRefresh)) {
       fileData.value = await filePreviewStore.loadFile(fileId.value);
     }
     if (!fileData.value) {
-      // 最后兜底，构造基本对象防止空白
       fileData.value = { id: fileId.value, name: '文件', fileType: '', hasAccess: false };
     }
     if (fileData.value && fileData.value.hasAccess === false) {
@@ -163,8 +128,8 @@ async function load(forceRefresh = false) {
       hasPerm.value = true;
       applyStatus.value = 'approved';
     }
+    console.debug('[PreviewView] loaded fileData:', fileData.value);
   } catch (err) {
-    // 降级：展示基本信息 + 申请入口
     console.warn('Preview load fallback:', err);
     if (!fileData.value) fileData.value = { id: fileId.value, name: '文件不可预览', fileType: '', hasAccess: false };
     hasPerm.value = false;
@@ -178,8 +143,7 @@ async function applyAccess() {
   try {
     await filePreviewStore.requestAccess(fileId.value, 'view', '需要预览权限');
     applyStatus.value = 'pending';
-  } catch { /* 忽略即可 */ }
-  finally { applying.value = false; }
+  } catch { /* 忽略 */ } finally { applying.value = false; }
 }
 
 onMounted(() => { load(); });
@@ -195,24 +159,16 @@ watch(() => route.params.id, () => load());
 .back-btn:active { transform:translateY(1px); }
 .back-btn :deep(.el-icon) { font-size:18px; margin-right:2px; }
 .back-btn .txt { letter-spacing:.5px; }
-/* 其余保持 */
 .mode-switch { display:flex; }
 .actions { display:flex; gap:8px; }
-.body-area { flex:1; display:flex; overflow:hidden; }
-.doc-wrapper { flex:1; display:flex; flex-direction:column; overflow:hidden; }
-.file-preview-shell { flex:1; }
-ai-side { width:380px; border-left:1px solid #ebeef5; display:flex; flex-direction:column; background:#fff; }
-.ai-tools-panel { display:flex; flex-direction:column; height:100%; }
-.tools-list { padding:12px 16px 8px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid #f0f2f5; }
-.tool-item { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:13px; color:#606266; transition:.15s; }
-.tool-item:hover { background:#f5f7fa; color:#1671f2; }
-.tool-item.active { background:#1671f2; color:#fff; box-shadow:0 4px 10px -2px rgba(22,113,242,.35); }
-.tool-label { flex:1; }
-.tool-content { flex:1; overflow:auto; padding:14px 16px 22px; display:flex; flex-direction:column; gap:14px; }
-.stack-panel { background:#fff; border:1px solid #ebeef5; border-radius:8px; padding:8px 10px; }
-.tool-placeholder { flex:1; display:flex; align-items:center; justify-content:center; }
-.tool-content::-webkit-scrollbar { width:8px; }
-.tool-content::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius:4px; }
+.body-area { flex:1; display:flex; overflow:hidden; min-height:0; }
+.split-wrapper { flex:1; min-height:0; height:100%; width:100%; display:flex; }
+/* 让 splitter 两侧区域都撑满高度 */
+:deep(.el-splitter) { --ep-splitter-border-color:#ebeef5; }
+:deep(.el-splitter__panel) { display:flex; flex-direction:column; min-width:0; }
+.doc-wrapper { width:100%; height:100%; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.file-preview-shell { flex:1; min-height:0; }
+.ai-wrapper { display:flex; flex-direction:column; height:100%; min-width:260px; max-width:520px; }
 .no-perm-wrapper { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
 .apply-actions { display:flex; gap:12px; }
 </style>
