@@ -29,6 +29,29 @@ const routes = [
         file: fileObj
       };
     }
+  },
+  // Forms management routes
+  {
+    path: '/forms',
+    name: 'forms',
+    component: () => import('../views/FormsView.vue')
+  },
+  {
+    path: '/forms/create',
+    name: 'forms-create',
+    component: () => import('../views/FormDesignerView.vue')
+  },
+  {
+    path: '/forms/edit/:id',
+    name: 'forms-edit',
+    component: () => import('../views/FormDesignerView.vue'),
+    props: true
+  },
+  // Extractions management routes
+  {
+    path: '/extractions',
+    name: 'extractions',
+    component: () => import('../views/ExtractionsView.vue')
   }
 ];
 

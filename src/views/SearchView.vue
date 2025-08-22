@@ -1,5 +1,7 @@
 <template>
-  <div class="search-container">
+  <div class="search-view">
+    <AppHeader />
+    <div class="search-container">
     <!-- Left sidebar with filters -->
     <div class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
       <filter-sidebar ref="filterSidebarRef" v-if="showFilters" />
@@ -58,6 +60,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -65,6 +68,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/search';
+import AppHeader from '../components/common/AppHeader.vue';
 import FilterSidebar from '../components/search/FilterSidebar.vue';
 import SearchBox from '../components/search/SearchBox.vue';
 import SearchResultTabs from '../components/search/SearchResultTabs.vue';
@@ -177,9 +181,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.search-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 .search-container {
   display: flex;
-  height: 100vh;
+  flex: 1;
   overflow: hidden;
 }
 
