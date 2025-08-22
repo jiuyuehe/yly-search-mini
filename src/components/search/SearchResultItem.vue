@@ -7,7 +7,7 @@
         @change="$emit('update:selected', $event)"
       />
       <div class="file-icon">
-        <div class="icon-placeholder">{{ getFileIcon(item.type) }}</div>
+        <img :src="fileIcon" alt="icon" class="file-icon-img" />
       </div>
       <div class="file-info">
         <h4 class="file-name" v-html="highlightName"></h4>
@@ -40,6 +40,8 @@
 
 <script setup>
 import { computed } from 'vue';
+import { parseftsIcon } from '../../filters/filters';
+
 const props = defineProps({
   item: { type: Object, required: true },
   selected: { type: Boolean, default: false },
@@ -47,56 +49,34 @@ const props = defineProps({
 });
 defineEmits(['click', 'update:selected']);
 
-function getFileIcon(type) {
-  switch (type) {
-    case 'document': return '📄';
-    case 'image': return '🖼️';
-    case 'multimedia': return '🎬';
-    case 'archive': return '📁';
-    default: return '📋';
-  }
-}
+const fileIcon = computed(() => {
+  const compat = { ...props.item };
+  if (!compat.fileName && props.item.name) compat.fileName = props.item.name;
+  try { return parseftsIcon(compat); } catch { return new URL('../../assets/ftsicon/unknown.png', import.meta.url).href; }
+});
 
 function formatFileSize(size) {
   if (!size) return '';
   const units = ['B', 'KB', 'MB', 'GB'];
-  let unitIndex = 0;
-  let fileSize = size;
-  
-  while (fileSize >= 1024 && unitIndex < units.length - 1) {
-    fileSize /= 1024;
-    unitIndex++;
-  }
-  
+  let unitIndex = 0; let fileSize = size;
+  while (fileSize >= 1024 && unitIndex < units.length - 1) { fileSize /= 1024; unitIndex++; }
   return `${fileSize.toFixed(1)} ${units[unitIndex]}`;
 }
+function formatDate(date) { if (!date) return ''; return new Date(date).toLocaleDateString('zh-CN'); }
 
-function formatDate(date) {
-  if (!date) return '';
-  return new Date(date).toLocaleDateString('zh-CN');
-}
-
-// 直接返回后端原始内容
 const rawPreview = computed(() => {
   if (!props.item) return '';
   return typeof props.item.preview === 'string' ? props.item.preview : '';
 });
 
-// 高亮文件名中与搜索词匹配的部分
 const highlightName = computed(() => {
   const name = props.item?.name || '';
   const q = (props.searchQuery || '').trim();
   if (!q) return name;
-  // 转义正则特殊字符
   const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   try {
-    return name.replace(new RegExp(escaped, 'gi'), 
-    m => `<span style="
-    background: #FBD9A7;
-    ">${m}</span>`);
-  } catch {
-    return name;
-  }
+    return name.replace(new RegExp(escaped, 'gi'), m => `<span style="background:#FBD9A7;">${m}</span>`);
+  } catch { return name; }
 });
 </script>
 
@@ -184,4 +164,6 @@ const highlightName = computed(() => {
   border-radius:3px;
   font-weight:600;
 }
+
+.file-icon-img { width:48px; height:48px; object-fit:contain; display:block; }
 </style>

@@ -36,7 +36,7 @@
             :item="item"
             v-model:selected="selectedItems[item.id]"
             :search-query="searchStore.query"
-            @click="navigateToPreview(item.id)"
+            @click="navigateToPreview(item)"
           />
           
           <el-empty v-if="searchResults.length === 0" description="No results found" />
@@ -71,6 +71,7 @@ import SearchResultTabs from '../components/search/SearchResultTabs.vue';
 import SearchResultItem from '../components/search/SearchResultItem.vue';
 import SearchPagination from '../components/search/SearchPagination.vue';
 import FilterToggleSummary from '../components/search/FilterToggleSummary.vue';
+import { toPreviewLite, normalizeFile } from '../constants/fileModel';
 
 const router = useRouter();
 const searchStore = useSearchStore();
@@ -92,10 +93,6 @@ const tabCounts = computed(() => searchStore.getTabCounts);
 const hasSelectedItems = computed(() => Object.values(selectedItems.value).some(item => item));
 
 // Methods
-function toggleFilters() {
-  showFilters.value = !showFilters.value;
-}
-
 function handleSearch(query, searchType, imageFile) {
   // 这里衔接：收到子组件事件后调用 Pinia 中的 search 动作
   // imageFile 在图片搜索模式下会被传递到 service 形成 multipart/form-data
@@ -108,8 +105,7 @@ function handleToggleFilters(show) {
 }
 
 function handleClearFilters() {
-  // 防御：若未挂载不报错
-  try { filterSidebarRef.value?.resetFilters?.(); } catch {}
+  try { filterSidebarRef.value?.resetFilters?.(); } catch { /* ignore reset error */ }
   // 重置 store
   searchStore.resetFilters();
 }
@@ -129,8 +125,20 @@ function handleRemoveFilter(tag) {
   searchStore.updateFilters(f);
 }
 
-function navigateToPreview(id) {
-  router.push({ name: 'preview', params: { id } });
+function navigateToPreview(file) {
+  if (!file) return;
+  const norm = normalizeFile(file);
+  const fc = norm.fileCategory;
+  const id = norm.fileId;
+  const fileLite = toPreviewLite(norm);
+  const encodeObj = (obj) => { try { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); } catch { return ''; } };
+  const fEncoded = encodeObj(fileLite);
+  router.push({
+    name: 'preview',
+    params: { fc, id },
+    query: { retureBtn: true, f: fEncoded },
+    state: { file: fileLite }
+  }).catch(()=>{});
 }
 
 function handleSizeChange(size) {

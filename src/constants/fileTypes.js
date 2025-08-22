@@ -78,3 +78,13 @@ export const FILE_TYPE = {
     shell: ['txt', 'md', 'c', 'vc', 'conf', 'java', 'php', 'py', 'js', 'm', 'h', 'mm', 'cpp', 'log','json'],
     pcb: ['pcb', 'prjpcb']
 }
+
+export function getFileExtenName(fileName) {
+  if (!fileName || typeof fileName !== 'string') return '';
+  // 去掉 URL 查询参数与哈希
+  const pure = fileName.split(/[?#]/)[0];
+  const last = pure.split('/').pop() || pure; // 兼容传入路径
+  const idx = last.lastIndexOf('.');
+  if (idx === -1) return '';
+  return last.slice(idx + 1).toLowerCase();
+}
