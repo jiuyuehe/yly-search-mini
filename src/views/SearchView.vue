@@ -130,9 +130,11 @@ function handleRemoveFilter(tag) {
 }
 
 function navigateToPreview(file) {
+  console.log("Navigating to preview for file:", file,file.fileCategory);
   if (!file) return;
   const norm = normalizeFile(file);
   const fc = norm.fileCategory;
+   console.log("const fc  file:", fc);
   const id = norm.fileId;
   const fileLite = toPreviewLite(norm);
   const encodeObj = (obj) => { try { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); } catch { return ''; } };

@@ -1,5 +1,6 @@
 import api from './api';
-import { DOC_TYPE_CODE, mapDocTypeCodeToTab, mapExtToTab } from '../constants/fileTypes';
+import { mapDocTypeCodeToTab, mapExtToTab } from '../constants/fileTypes';
+import { normalizeFile } from '../constants/fileModel';
 
 // Mock data for development
 const MOCK_DATA = {
@@ -97,49 +98,23 @@ const MOCK_DATA = {
   ]
 };
 
-function mapTypeByExt(name, docType) {
-  const ext = (name || '').split('.').pop().toLowerCase();
-  // 优先用后端 docType 数值
-  if (typeof docType === 'number') return mapDocTypeCodeToTab(docType);
-  // 兼容字符串数字
-  const num = Number(docType);
-  if (!isNaN(num) && num in DOC_TYPE_CODE) return mapDocTypeCodeToTab(num);
-  return mapExtToTab(ext);
-}
-
 function transformResponse(data) {
   const list = data?.fileList || [];
-  const results = list.map(f => {
-    const name = f.fileName || f.name || '';
-    const type = mapTypeByExt(name, f.docType);
-    const pathBase = f.filePath || f.rootPath || f.subPath || '';
-    const fullPath = pathBase && name ? pathBase.replace(/\/+$/,'/') + name : (pathBase || name);
-    const preview =
-      f.fileSummary ||
-      f.fileSummaryTranslate ||
-      f.fileContents ||
-      f.fileTranslate ||
-      '';
-    const tags = (f.fileSysTag || '')
-      .split(',')
-      .map(t => t.trim())
-      .filter(Boolean);
-    return {
-      id: f.fileId || f.id || f.fsFileId,
-      name,
-      type,
-      size: f.fileSize || 0,
-      modifiedTime: f.updateTime || f.dctermsModified || f.createTime || '',
-      creator: f.createrName || f.dcCreator || f.updateUserName || '',
-      path: fullPath || '',
-      preview,
-      tags,
-      score: f.score,
-      hasSensitiveInfo: false
-    };
+  // 标准化
+  const normalized = list.map(raw => {
+    const norm = normalizeFile(raw);
+    // 预览摘要补充（若标准化后没有）
+    if (!norm.preview) {
+      norm.preview = raw.fileSummary || raw.fileSummaryTranslate || raw.fileContents || raw.fileTranslate || '';
+    }
+    return norm;
   });
-
-  // 如果后端未返回 types，自行统计
+  // 计算前端分类 type（沿用旧字段名，便于 UI 继续工作）
+  const results = normalized.map(f => {
+    const tab = f.docType != null ? mapDocTypeCodeToTab(Number(f.docType)) : mapExtToTab(f.fileType);
+    return { ...f, type: tab };
+  });
+  // 统计 tabCounts（若后端未给 types）
   let tabCounts;
   if (data?.types && typeof data.types === 'object') {
     const types = data.types;
@@ -154,17 +129,9 @@ function transformResponse(data) {
   } else {
     const counter = { document:0, image:0, multimedia:0, archive:0, other:0 };
     results.forEach(r => { if (counter[r.type] != null) counter[r.type]++; else counter.other++; });
-    tabCounts = {
-      all: data?.total || results.length,
-      ...counter
-    };
+    tabCounts = { all: data?.total || results.length, ...counter };
   }
-
-  return {
-    results,
-    pagination: { total: data?.total || results.length },
-    tabCounts
-  };
+  return { results, pagination: { total: data?.total || results.length }, tabCounts };
 }
 
 class SearchService {
@@ -195,20 +162,12 @@ class SearchService {
       return { ...mapped, searchTime: apiData.searchTime };
     } catch (error) {
       console.warn('搜索接口失败，使用 mock 数据', error);
-      const list = MOCK_DATA.searchResults.slice(0, builtParams.limit);
-      return {
-        results: list,
-        pagination: { total: MOCK_DATA.searchResults.length },
-        tabCounts: {
-          all: MOCK_DATA.searchResults.length,
-          document: MOCK_DATA.searchResults.filter(r => r.type === 'document').length,
-          image: MOCK_DATA.searchResults.filter(r => r.type === 'image').length,
-          multimedia: MOCK_DATA.searchResults.filter(r => r.type === 'multimedia').length,
-          archive: MOCK_DATA.searchResults.filter(r => r.type === 'archive').length,
-          other: MOCK_DATA.searchResults.filter(r => r.type === 'other').length
-        },
-        searchTime: 0
-      };
+      // mock 数据也需要标准化以保持结构统一
+      const mappedMock = MOCK_DATA.searchResults.map(r => normalizeFile({ fileId: r.id, fileName: r.name, fileType: r.name.split('.').pop(), fileSize: r.size, updateTime: r.modifiedTime, createrName: r.creator, filePath: r.path, highlight: r.preview }));
+      const results = mappedMock.map(f => ({ ...f, type: mapExtToTab(f.fileType) }));
+      const tabCounts = { all: results.length, document:0, image:0, multimedia:0, archive:0, other:0 };
+      results.forEach(r => { if (tabCounts[r.type] != null) tabCounts[r.type]++; else tabCounts.other++; });
+      return { results, pagination: { total: results.length }, tabCounts, searchTime: 0 };
     }
   }
   

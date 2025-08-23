@@ -82,6 +82,8 @@
           @scroll="onSourceScroll"
           @mouseup="onTextSelection"
           @keyup="onTextSelection"
+          @mousemove="onEditorHover($event, 'source')"
+          @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')"
           :placeholder="'请输入要翻译的文本...'"
         ></div>
         <div v-if="translating" class="translation-progress">
@@ -102,6 +104,8 @@
           @scroll="onTargetScroll"
           @mouseup="onTextSelection"
           @keyup="onTextSelection"
+          @mousemove="onEditorHover($event, 'target')"
+          @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"
           :placeholder="'翻译结果将显示在这里...'"
         ></div>
       </div>
@@ -201,7 +205,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, watch } from 'vue';
+import { ref, reactive, onMounted, watch, onUnmounted, nextTick } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
 import { ElMessage } from 'element-plus';
 import { 
@@ -449,380 +453,180 @@ function onTargetScroll(event) {
 // Text selection and context menu
 function onTextSelection(event) {
   const selection = window.getSelection();
-  if (selection.toString().trim()) {
-    selectedText.value = selection.toString().trim();
-    selectedRange.value = selection.getRangeAt(0).cloneRange();
+  if (selection && selection.toString().trim()) {
+    const txt = selection.toString().trim();
+    selectedText.value = txt;
+    try { selectedRange.value = selection.getRangeAt(0).cloneRange(); } catch { /* ignore */ }
+    highlightSelectionBoth(txt);
     showContextMenuAt(event);
-    
-    // Highlight corresponding text in other panel
-    highlightCorrespondingText(selectedText.value);
   } else {
     hideContextMenu();
-    clearHighlights();
+    clearCrossHighlights();
   }
 }
 
+// ==== 新高亮实现（替换旧实现） START ====
+const CROSS_CLASS = 'cross-highlight';            // 悬停/句子同步黄色
+const SELECTION_CLASS = 'selection-highlight';    // 划词蓝色选中
+let hoverRaf = null;
+
+function unwrapSpans(editor, className) {
+  if (!editor) return;
+  editor.querySelectorAll('span.' + className).forEach(span => {
+    const text = document.createTextNode(span.textContent || '');
+    span.replaceWith(text);
+  });
+}
+function clearCrossHighlights() { unwrapSpans(sourceTextRef.value, CROSS_CLASS); unwrapSpans(targetTextRef.value, CROSS_CLASS); }
+function clearSelectionHighlights() { unwrapSpans(sourceTextRef.value, SELECTION_CLASS); unwrapSpans(targetTextRef.value, SELECTION_CLASS); }
+
+function getTextNodeByOffset(root, offset) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  let curOffset = 0; let node;
+  while ((node = walker.nextNode())) {
+    const len = node.nodeValue.length;
+    if (curOffset + len >= offset) {
+      return { node, offset: offset - curOffset };
+    }
+    curOffset += len;
+  }
+  return null;
+}
+function wrapRangeByText(editor, text, className) {
+  if (!editor || !text) return;
+  const content = editor.textContent;
+  const idx = content.indexOf(text);
+  if (idx === -1) return;
+  const startPos = getTextNodeByOffset(editor, idx);
+  const endPos = getTextNodeByOffset(editor, idx + text.length);
+  if (!startPos || !endPos) return;
+  const range = document.createRange();
+  range.setStart(startPos.node, startPos.offset);
+  range.setEnd(endPos.node, endPos.offset);
+  const span = document.createElement('span');
+  span.className = className;
+  try { range.surroundContents(span); } catch { /* ignore */ }
+}
+
+function highlightSentenceBoth(sentence) {
+  if (!sentence) return;
+  clearCrossHighlights();
+  wrapRangeByText(sourceTextRef.value, sentence, CROSS_CLASS);
+  // 简单策略：目标框中尝试同样句子；若未找到且存在映射，用映射
+  const mapped = textAlignmentMap.value[sentence.trim()] || sentence;
+  wrapRangeByText(targetTextRef.value, mapped, CROSS_CLASS);
+}
+
+function highlightSelectionBoth(text) {
+  if (!text) return;
+  clearSelectionHighlights();
+  wrapRangeByText(sourceTextRef.value, text, SELECTION_CLASS);
+  const mapped = textAlignmentMap.value[text.trim()] || text;
+  wrapRangeByText(targetTextRef.value, mapped, SELECTION_CLASS);
+}
+
+function getSentenceAtPoint(editor, clientX, clientY) {
+  if (!editor) return '';
+  const range = document.caretRangeFromPoint ? document.caretRangeFromPoint(clientX, clientY) : null;
+  if (!range) return '';
+  const pre = document.createRange();
+  pre.selectNodeContents(editor);
+  pre.setEnd(range.startContainer, range.startOffset);
+  const offset = pre.toString().length;
+  const full = editor.textContent || '';
+  const punct = /[.!?。！？]/;
+  let start = full.lastIndexOf('\n', offset - 1);
+  for (let i = offset - 1; i >= 0 && start < 0; i--) { if (punct.test(full[i])) { start = i; break; } }
+  let end = full.indexOf('\n', offset);
+  for (let i = offset; i < full.length && end < 0; i++) { if (punct.test(full[i])) { end = i + 1; break; } }
+  if (start < 0) start = 0; else start += 1;
+  if (end < 0) end = full.length;
+  return full.substring(start, end).trim();
+}
+
+function onEditorHover(e, which) {
+  if (hoverRaf) return;
+  hoverRaf = requestAnimationFrame(() => {
+    hoverRaf = null;
+    const editor = which === 'source' ? sourceTextRef.value : targetTextRef.value;
+    const sentence = getSentenceAtPoint(editor, e.clientX, e.clientY);
+    if (sentence) highlightSentenceBoth(sentence);
+  });
+}
+function onEditorContextMenu(e, which) {
+  const sel = window.getSelection();
+  if (!sel || !sel.toString().trim()) {
+    const editor = which === 'source' ? sourceTextRef.value : targetTextRef.value;
+    const sentence = getSentenceAtPoint(editor, e.clientX, e.clientY);
+    if (sentence) highlightSentenceBoth(sentence);
+  }
+  showContextMenuAt(e);
+}
+// ==== 新高亮实现 END ====
+
+// Load settings from localStorage
+function loadSettings() {
+  const saved = localStorage.getItem('translation_settings');
+  if (saved) {
+    try { Object.assign(settings, JSON.parse(saved)); } catch { /* ignore */ }
+  }
+}
+
+// Apply font size
+function applyFontSize() {
+  if (sourceTextRef.value) sourceTextRef.value.style.fontSize = settings.fontSize + 'px';
+  if (targetTextRef.value) targetTextRef.value.style.fontSize = settings.fontSize + 'px';
+}
+
+// Show context menu at specified event
 function showContextMenuAt(event) {
   showContextMenu.value = true;
   nextTick(() => {
-    contextMenuStyle.value = {
-      position: 'fixed',
-      left: `${event.clientX}px`,
-      top: `${event.clientY}px`,
-      zIndex: 9999
-    };
+    contextMenuStyle.value = { position:'fixed', left: event.clientX + 'px', top: event.clientY + 'px', zIndex: 9999 };
   });
 }
 
-function hideContextMenu() {
-  showContextMenu.value = false;
-  clearHighlights();
-}
+// Hide context menu
+function hideContextMenu() { showContextMenu.value = false; }
 
-// Highlight corresponding text in the other panel
-function highlightCorrespondingText(text) {
-  // This is a simplified implementation
-  // In a real app, you'd use more sophisticated text alignment
-  const correspondingText = textAlignmentMap.value[text];
-  if (correspondingText) {
-    // Add highlighting logic here
-    console.log('Highlighting corresponding text:', correspondingText);
-  }
-}
-
-function clearHighlights() {
-  // Clear all highlighting
-  // Implementation depends on how you handle highlighting
-}
-
-// Context menu actions
-async function lookupEncyclopedia() {
-  if (!selectedText.value) return;
-  
-  try {
-    // Open Wikipedia search in new tab
-    const query = encodeURIComponent(selectedText.value);
-    window.open(`https://zh.wikipedia.org/wiki/Special:Search?search=${query}`, '_blank');
-  } catch (error) {
-    ElMessage.error('百科查询失败');
-  }
-  hideContextMenu();
-}
-
-function markAsTerminology() {
-  if (!selectedText.value) return;
-  
-  // Save to localStorage
-  const terminologies = JSON.parse(localStorage.getItem('translation_terminologies') || '[]');
-  if (!terminologies.includes(selectedText.value)) {
-    terminologies.push(selectedText.value);
-    localStorage.setItem('translation_terminologies', JSON.stringify(terminologies));
-    
-    // Add visual marker (underline)
-    addTerminologyMarker();
-    ElMessage.success('已标记为术语');
-  }
-  hideContextMenu();
-}
-
-function markAsWarning() {
-  if (!selectedText.value) return;
-  
-  // Save to localStorage
-  const warnings = JSON.parse(localStorage.getItem('translation_warnings') || '[]');
-  if (!warnings.includes(selectedText.value)) {
-    warnings.push(selectedText.value);
-    localStorage.setItem('translation_warnings', JSON.stringify(warnings));
-    
-    // Add visual marker (warning icon)
-    addWarningMarker();
-    ElMessage.success('已标记为警告');
-  }
-  hideContextMenu();
-}
-
-function addCustomTag() {
-  showCustomTagDialog.value = true;
-  hideContextMenu();
-}
-
-function addTerminologyMarker() {
-  // Add underline style to selected text
-  if (selectedRange.value) {
-    const span = document.createElement('span');
-    span.className = 'terminology-marker';
-    span.style.textDecoration = 'underline';
-    span.style.textDecorationColor = '#409EFF';
-    try {
-      selectedRange.value.surroundContents(span);
-    } catch (e) {
-      // Handle case where range spans multiple elements
-      console.warn('Could not add terminology marker');
-    }
-  }
-}
-
-function addWarningMarker() {
-  // Add warning icon after selected text
-  if (selectedRange.value) {
-    const span = document.createElement('span');
-    span.className = 'warning-marker';
-    span.innerHTML = ' ⚠️';
-    span.style.color = '#E6A23C';
-    try {
-      selectedRange.value.insertNode(span);
-    } catch (e) {
-      console.warn('Could not add warning marker');
-    }
-  }
-}
-
-// Save custom tag
-function saveCustomTag() {
-  if (!customTagName.value.trim() || !selectedText.value) return;
-  
-  const customTags = JSON.parse(localStorage.getItem('translation_custom_tags') || '{}');
-  customTags[selectedText.value] = {
-    name: customTagName.value,
-    color: customTagColor.value,
-    timestamp: new Date().toISOString()
-  };
-  localStorage.setItem('translation_custom_tags', JSON.stringify(customTags));
-  
-  // Add visual marker
-  addCustomTagMarker();
-  
-  ElMessage.success('自定义标签已保存');
-  showCustomTagDialog.value = false;
-  customTagName.value = '';
-  customTagColor.value = '#409EFF';
-}
-
-function addCustomTagMarker() {
-  if (selectedRange.value) {
-    const span = document.createElement('span');
-    span.className = 'custom-tag-marker';
-    span.style.backgroundColor = customTagColor.value;
-    span.style.color = 'white';
-    span.style.padding = '2px 4px';
-    span.style.borderRadius = '3px';
-    span.style.fontSize = '12px';
-    span.innerHTML = selectedText.value + ` <small>${customTagName.value}</small>`;
-    try {
-      selectedRange.value.deleteContents();
-      selectedRange.value.insertNode(span);
-    } catch (e) {
-      console.warn('Could not add custom tag marker');
-    }
-  }
-}
-
-// Settings management
-function loadSettings() {
-  const savedSettings = localStorage.getItem('translation_settings');
-  if (savedSettings) {
-    Object.assign(settings, JSON.parse(savedSettings));
-  }
-}
-
-function saveSettings() {
-  localStorage.setItem('translation_settings', JSON.stringify(settings));
-  applyFontSize();
-  ElMessage.success('设置已保存');
-  showSettings.value = false;
-}
-
-function applyFontSize() {
-  if (sourceTextRef.value) {
-    sourceTextRef.value.style.fontSize = `${settings.fontSize}px`;
-  }
-  if (targetTextRef.value) {
-    targetTextRef.value.style.fontSize = `${settings.fontSize}px`;
-  }
-}
+// 组件卸载清理
+onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 </script>
 
 <style scoped>
-.advanced-translation-module {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #fff;
-}
-
-/* Top Toolbar */
-.translation-toolbar {
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f8f9fa;
-}
-
-.language-selectors {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.language-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.language-selector label {
-  font-size: 14px;
-  color: #606266;
-  white-space: nowrap;
-}
-
-.swap-languages {
-  display: flex;
-  align-items: center;
-}
-
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Translation Content */
-.translation-content {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.text-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #e5e7eb;
-}
-
-.text-panel:last-child {
-  border-right: none;
-}
-
-.panel-header {
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #fafafa;
-}
-
-.panel-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: #303133;
-}
-
-.char-count {
-  font-size: 12px;
-  color: #909399;
-}
-
-.text-editor {
-  flex: 1;
-  padding: 16px;
-  border: none;
-  outline: none;
-  resize: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-.text-editor:empty:before {
-  content: attr(placeholder);
-  color: #c0c4cc;
-  pointer-events: none;
-}
-
-.translation-progress {
-  padding: 8px 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-/* Context Menu */
-.context-menu {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 4px 0;
-  min-width: 120px;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #303133;
-  transition: background-color 0.2s;
-}
-
-.menu-item:hover {
-  background-color: #f5f7fa;
-}
-
-/* Terminology and warning markers */
-.terminology-marker {
-  text-decoration: underline;
-  text-decoration-color: #409EFF;
-  text-decoration-thickness: 2px;
-}
-
-.warning-marker {
-  color: #E6A23C;
-}
-
-.custom-tag-marker {
-  background-color: #409EFF;
-  color: white;
-  padding: 2px 4px;
-  border-radius: 3px;
-  font-size: 12px;
-}
-
-/* Settings */
-.setting-desc {
-  margin-left: 8px;
-  font-size: 12px;
-  color: #909399;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .translation-content {
-    flex-direction: column;
-  }
-  
-  .text-panel {
-    border-right: none;
-    border-bottom: 1px solid #e5e7eb;
-  }
-  
-  .text-panel:last-child {
-    border-bottom: none;
-  }
-  
-  .language-selectors {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
+/* 原样式恢复 + 补充 cross-highlight */
+.advanced-translation-module { display:flex; flex-direction:column; height:100%; background:#fff; }
+.translation-toolbar { height:50px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #e5e7eb; background:#f8f9fa; }
+.language-selectors { display:flex; align-items:center; gap:12px; }
+.language-selector { display:flex; align-items:center; gap:8px; }
+.language-selector label { font-size:14px; color:#606266; white-space:nowrap; }
+.swap-languages { display:flex; align-items:center; }
+.toolbar-actions { display:flex; align-items:center; gap:8px; }
+.translation-content { display:flex; flex:1; overflow:hidden; width:100%; min-width:0; }
+.text-panel { flex:1; display:flex; flex-direction:column; border-right:1px solid #e5e7eb; min-width:0; }
+.text-panel:last-child { border-right:none; }
+.panel-header { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #e5e7eb; background:#fafafa; }
+.panel-title { font-weight:600; font-size:14px; color:#303133; }
+.char-count { font-size:12px; color:#909399; }
+.text-editor { flex:1; padding:16px; border:none; outline:none; resize:none; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; font-size:14px; line-height:1.6; overflow:auto; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; min-width:0; box-sizing:border-box; }
+.text-editor:focus { outline:none; }
+.text-editor:empty:before { content:attr(placeholder); color:#c0c4cc; pointer-events:none; }
+.text-editor::-webkit-scrollbar { width:8px; }
+.translation-progress { padding:8px 16px; border-top:1px solid #e5e7eb; }
+.context-menu { background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.15); padding:4px 0; min-width:120px; }
+.menu-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; font-size:14px; color:#303133; transition:background-color .2s; }
+.menu-item:hover { background:#f5f7fa; }
+.terminology-marker { text-decoration:underline; text-decoration-color:#409EFF; text-decoration-thickness:2px; }
+.warning-marker { color:#E6A23C; }
+.custom-tag-marker { background:#409EFF; color:#fff; padding:2px 4px; border-radius:3px; font-size:12px; }
+.setting-desc { margin-left:8px; font-size:12px; color:#909399; }
+.cross-highlight { background:#ffe98a; border-radius:2px; padding:1px 0; }
+.selection-highlight { background:#b3d8ff; border-radius:2px; padding:1px 0; }
+.text-editor span { font:inherit; white-space:inherit; }
+@media (max-width:768px){
+  .translation-content { flex-direction:column; }
+  .text-panel { border-right:none; border-bottom:1px solid #e5e7eb; }
+  .text-panel:last-child { border-bottom:none; }
+  .language-selectors { flex-wrap:wrap; gap:8px; }
 }
 </style>

@@ -25,7 +25,8 @@ export const useSearchStore = defineStore('search', {
     pagination: { currentPage: 1, pageSize: 10, total: 0 },
     tabCounts: { all: 0, document: 0, image: 0, multimedia: 0, archive: 0, other: 0 },
     filterOptions: { fileSpaces: [], creators: [], tags: [], formats: [] },
-    activeTab: 'all'
+    activeTab: 'all',
+    _reqSeq: 0 // 并发请求序列号
   }),
   getters: {
     getFilteredResults: (state) => (tab) => { if (tab === 'all') return state.results; return state.results.filter(i => i.type === tab); },
@@ -70,7 +71,32 @@ export const useSearchStore = defineStore('search', {
       const docTypeParam = tabToDocTypeParam(this.activeTab); if (docTypeParam) base.docType = docTypeParam;
       return base;
     },
-    async search(query, searchType = 'fullText', imageFile = null) { this.loading = true; this.query = query; this.searchType = searchType; try { const params = this.buildParams(query, searchType); const [searchResp, aggCounts] = await Promise.all([ searchService.search(params, imageFile||null), searchService.getAggregationStats(params) ]); const { results, pagination, tabCounts } = searchResp; this.results = results; this.pagination.total = pagination.total; const merged = { ...tabCounts, ...aggCounts }; merged.all = tabCounts.all; this.tabCounts = merged; this.error = null; } catch (e) { this.error = e.message || '搜索失败'; } finally { this.loading = false; } },
+    async search(query, searchType = 'fullText', imageFile = null) {
+      const seq = ++this._reqSeq; // 本次请求序列
+      this.loading = true;
+      this.query = query;
+      this.searchType = searchType;
+      try {
+        const params = this.buildParams(query, searchType);
+        const [searchResp, aggCounts] = await Promise.all([
+          searchService.search(params, imageFile || null),
+          searchService.getAggregationStats(params)
+        ]);
+        // 只应用最新一次请求结果
+        if (seq !== this._reqSeq) return; // 已有更新的请求在进行，丢弃
+        const { results, pagination, tabCounts } = searchResp;
+        this.results = results;
+        this.pagination.total = pagination.total;
+        const merged = { ...tabCounts, ...aggCounts };
+        merged.all = tabCounts.all;
+        this.tabCounts = merged;
+        this.error = null;
+      } catch (e) {
+        if (seq === this._reqSeq) this.error = e.message || '搜索失败'; // 仅最新请求记录错误
+      } finally {
+        if (seq === this._reqSeq) this.loading = false;
+      }
+    },
     setActiveTab(tab) { this.activeTab = tab; this.pagination.currentPage = 1; this.search(this.query, this.searchType); },
     updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1; console.log('[Store] merged filters =>', this.filters); this.search(this.query, this.searchType); },
     updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType); },
