@@ -193,7 +193,6 @@ function updateArrayField(itemIndex, subFieldName, value) {
 }
 
 .object-field, .array-field {
-  border: 1px solid #e4e7ed;
   border-radius: 6px;
   padding: 15px;
   background-color: #fafbfc;
@@ -233,7 +232,6 @@ function updateArrayField(itemIndex, subFieldName, value) {
 }
 
 .array-item {
-  border: 1px solid #d3d4d6;
   border-radius: 6px;
   padding: 15px;
   background-color: white;
