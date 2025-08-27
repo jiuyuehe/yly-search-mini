@@ -56,6 +56,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { FILE_TYPE, getFileExtenName } from '../../constants/fileTypes';
 import { APPS_BASE } from '../../constants/server';
+import { getCT } from '../../services/api';
 
 const props = defineProps({
   fileId: { type: [String, Number], required: true },
@@ -99,10 +100,11 @@ function buildFromFileData() {
       if (fd.view) {
         url = /^https?:/i.test(fd.view) ? fd.view : `${APPS_BASE.replace(/\/$/, '')}${fd.view.startsWith('/') ? '' : '/'}${fd.view}`;
       } else {
-        url = `${APPS_BASE.replace(/\/$/, '')}/views.html?fi=${fi}&fc=${fc}&fn=${fn}`;
+        url = `${APPS_BASE.replace(/\/$/, '')}/views.html?fi=${fi}&fc=${fc}&fn=${fn}&ct=` + getCT();
       }
     }
   }
+  console.log('Preview URL:', previewUrl.value);
   previewUrl.value = url;
 }
 
