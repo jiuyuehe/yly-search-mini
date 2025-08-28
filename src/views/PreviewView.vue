@@ -9,7 +9,7 @@
       </el-button>
       <FileMetaInfo :file="fileData" @open-path="openPath" />
       <span class="flex-spacer"></span>
-      <div class="mode-switch" v-if="hasPerm">
+      <div class="mode-switch">
         <el-button-group>
           <el-button :type="contentMode === 'preview' ? 'primary' : 'default'"
             @click="contentMode = 'preview'">AI阅读</el-button>
@@ -22,13 +22,17 @@
         <el-button type="primary" @click="downloadFile">下载</el-button>
       </div>
     </div>
-    <div class="body-area" v-if="hasPerm">
-      <div v-if="contentMode !== 'translate'" class="split-wrapper">
+    <div class="body-area">
+      <!-- Preview Mode: Two panels (FilePreview + AIToolsPanel) -->
+      <div v-if="contentMode === 'preview'" class="split-wrapper">
         <el-splitter style="height:100%; width:100%;">
           <el-splitter-panel v-model:size="splitSize">
             <div class="doc-wrapper">
-              <FilePreview v-if="fileData" :file-id="fileId" :file-type="fileData.fileType" :file-data="fileData"
+              <FilePreview v-if="fileData && hasPerm" :file-id="fileId" :file-type="fileData.fileType" :file-data="fileData"
                 hide-header class="file-preview-shell" />
+              <div v-else class="no-access-placeholder">
+                <el-empty description="演示模式 - 文件预览区域" />
+              </div>
             </div>
           </el-splitter-panel>
           <el-splitter-panel>
@@ -38,11 +42,45 @@
           </el-splitter-panel>
         </el-splitter>
       </div>
+      
+      <!-- Text Mode: Three panels (FilePreview + TextPanel + AIToolsPanel) -->
+      <div v-else-if="contentMode === 'text'" class="split-wrapper">
+        <el-splitter style="height:100%; width:100%;">
+          <el-splitter-panel v-model:size="textModeSplitSize1">
+            <div class="doc-wrapper">
+              <FilePreview v-if="fileData && hasPerm" :file-id="fileId" :file-type="fileData.fileType" :file-data="fileData"
+                hide-header class="file-preview-shell" />
+              <div v-else class="no-access-placeholder">
+                <el-empty description="演示模式 - 文件预览区域" />
+              </div>
+            </div>
+          </el-splitter-panel>
+          <el-splitter-panel v-model:size="textModeSplitSize2">
+            <div class="text-wrapper">
+              <TextPanel 
+                title="文档文本"
+                :content="demoText"
+                :editable="false"
+                placeholder="文档文本内容将显示在这里..."
+                :enable-markdown="true"
+                @text-selected="onTextSelected"
+              />
+            </div>
+          </el-splitter-panel>
+          <el-splitter-panel>
+            <div class="ai-wrapper">
+              <AIToolsPanel :file-id="fileId" @switch-translate="switchToTranslate" />
+            </div>
+          </el-splitter-panel>
+        </el-splitter>
+      </div>
+      
+      <!-- Translation Mode: Two panels (TextPanel + TranslatePanel) -->
       <div v-else class="translate-full">
         <translation-workspace class="tw-root" :file-id="fileId" />
       </div>
     </div>
-    <FileAccessApply v-else :file-id="fileId" :file-category="props.fc || route.params.fc" :is-folder="false"
+    <FileAccessApply v-if="!hasPerm" :file-id="fileId" :file-category="props.fc || route.params.fc" :is-folder="false"
       @applied="reload" />
   </div>
 </template>
@@ -55,6 +93,7 @@ import { useAiToolsStore } from '../stores/aiTools';
 import FilePreview from '../components/preview/FilePreview.vue';
 import TranslationWorkspace from '../components/preview/TranslationWorkspace.vue';
 import AIToolsPanel from '../components/ai/AIToolsPanel.vue';
+import TextPanel from '../components/common/TextPanel.vue';
 import { ArrowLeft } from '@element-plus/icons-vue';
 import FileMetaInfo from '../components/preview/FileMetaInfo.vue';
 import { appsApi } from '../services/api';
@@ -79,8 +118,52 @@ const fileData = ref(null);
 const loading = ref(false);
 const contentMode = ref('preview');
 const splitSize = ref("75%"); // 0-100 百分比（ElementPlus Splitter 默认使用百分比）
+const textModeSplitSize1 = ref("40%"); // First panel size in text mode
+const textModeSplitSize2 = ref("30%"); // Second panel size in text mode  
 const hasPerm = ref(true);
 const applyStatus = ref('none');
+
+// Extracted text content
+const extractedText = computed(() => {
+  return fileData.value?.extractedText || '';
+});
+
+// Demo text for demonstration
+const demoText = ref(`# 项目需求文档
+
+这是一个**项目需求文档**的示例文本内容。包含了详细的功能需求说明、技术规范、用户界面设计要求等内容。
+
+## 主要功能模块
+
+1. **用户管理系统**
+   - 用户注册与登录
+   - 权限管理
+   - 用户配置文件
+
+2. **文件搜索与预览**
+   - 全文搜索功能
+   - 文件预览支持
+   - 批量操作
+
+3. **AI辅助分析工具**
+   - 文档摘要生成
+   - 关键词提取
+   - 实体识别
+
+4. **多语言翻译支持**
+   - 实时翻译
+   - 术语管理
+   - 翻译记忆
+
+## 技术要求
+
+- **前端**: Vue 3 + Element Plus
+- **后端**: Spring Boot  
+- **数据库**: MySQL
+- **缓存**: Redis
+
+*这是一个示例markdown文档，用于演示文本模式的功能。*
+`);
 
 // 返回按钮
 const showReturnBtn = computed(() => props.retureBtn !== false);
@@ -91,10 +174,26 @@ function downloadFile() { filePreviewStore.downloadFile(fileId.value); }
 function goBack() { if (window.history.length > 1) router.back(); else router.push({ name: 'search' }).catch(() => { }); }
 function openPath(path) { router.push({ name: 'search', query: { path: path || '' } }).catch(() => { }); }
 
+// Text selection handler for TextPanel
+function onTextSelected(text) {
+  console.log('Selected text:', text);
+  // Handle text selection if needed
+}
+
 // 防止 splitSize 越界导致面板不可见
 watch(splitSize, (v) => {
   if (v < 5) splitSize.value = 5;
   else if (v > 95) splitSize.value = 95;
+});
+
+watch(textModeSplitSize1, (v) => {
+  if (v < 10) textModeSplitSize1.value = 10;
+  else if (v > 70) textModeSplitSize1.value = 70;
+});
+
+watch(textModeSplitSize2, (v) => {
+  if (v < 10) textModeSplitSize2.value = 10;
+  else if (v > 60) textModeSplitSize2.value = 60;
 });
 
 const TEXT_TYPES = ['txt', 'md', 'json', 'xml', 'csv', 'log'];
@@ -328,6 +427,25 @@ watch(() => route.params.id, () => load());
   height: 100%;
   min-width: 260px;
   max-width: 520px;
+}
+
+.text-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 200px;
+  padding: 8px;
+}
+
+.no-access-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: #f8f9fa;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  margin: 8px;
 }
 
 .flex-spacer {
