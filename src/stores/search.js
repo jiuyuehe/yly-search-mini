@@ -6,6 +6,7 @@ export const useSearchStore = defineStore('search', {
   state: () => ({
     query: '',
     searchType: 'fullText',
+    precisionScore: 0.9, // 新增：精准搜索精度 0.6 ~ 1
     filters: {
       fileCategory: [],
       fileSpace: [],
@@ -51,10 +52,10 @@ export const useSearchStore = defineStore('search', {
         if (m.length === 2) {
           const toBytes = (v) => { if (v === '0' || v === '' || v == null) return 0; const num = parseFloat(v.replace(/([MG])$/i,'')); if (/M$/i.test(v)) return num * 1024 * 1024; if (/G$/i.test(v)) return num * 1024 * 1024 * 1024; return num; };
           const rawMin = m[0]; const rawMax = m[1];
-          const minBytes = rawMin === '0' ? 0 : toBytes(rawMin);
-          const maxBytes = rawMax === '0' ? undefined : toBytes(rawMax);
-          if (minBytes) minSize = Math.round(minBytes);
-          if (maxBytes) maxSize = Math.round(maxBytes);
+            const minBytes = rawMin === '0' ? 0 : toBytes(rawMin);
+            const maxBytes = rawMax === '0' ? undefined : toBytes(rawMax);
+            if (minBytes) minSize = Math.round(minBytes);
+            if (maxBytes) maxSize = Math.round(maxBytes);
         }
       }
       const extname = f.formats?.length ? f.formats.join(',') : '';
@@ -64,26 +65,41 @@ export const useSearchStore = defineStore('search', {
       const hasHistory = !!f.hasHistory;
       const folder = !!f.folder;
       let searchMode = 'keyword';
-      switch (searchType) { case 'semantic': searchMode = 'vector'; break; case 'image': searchMode = 'image'; break; case 'qa': searchMode = 'hybrid'; break; }
+      switch (searchType) {
+        case 'image': searchMode = 'image'; break;
+        case 'qa': searchMode = 'hybrid'; break;
+        case 'precision': searchMode = 'precision'; break;
+        default: searchMode = 'keyword';
+      }
       const base = { keyword: query, offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, fileSysTag, searchType: searchMode, searchMode };
       if (fileCategory) base.fileCategory = fileCategory;
       if (fileSizeStr) base.fileSize = fileSizeStr;
       const docTypeParam = tabToDocTypeParam(this.activeTab); if (docTypeParam) base.docType = docTypeParam;
+      // 精准搜索附加参数
+      if (searchType === 'precision') {
+        const ps = Number(this.precisionScore) || 0.9;
+        const bounded = Math.min(1, Math.max(0.6, ps));
+        const gap = Math.min(4, Math.max(0, Math.round((1 - bounded) * 10))); // 0~4
+        base.precisionScore = bounded;
+        base.gap = gap; // 提供给后端字间距（冗余）
+      }
       return base;
     },
-    async search(query, searchType = 'fullText', imageFile = null) {
+    async search(query, searchType = 'fullText', imageFile = null, options = null) {
       const seq = ++this._reqSeq; // 本次请求序列
       this.loading = true;
       this.query = query;
       this.searchType = searchType;
+      if (options && typeof options.precisionScore === 'number') {
+        this.precisionScore = options.precisionScore;
+      }
       try {
         const params = this.buildParams(query, searchType);
         const [searchResp, aggCounts] = await Promise.all([
           searchService.search(params, imageFile || null),
           searchService.getAggregationStats(params)
         ]);
-        // 只应用最新一次请求结果
-        if (seq !== this._reqSeq) return; // 已有更新的请求在进行，丢弃
+        if (seq !== this._reqSeq) return; // 只应用最新
         const { results, pagination, tabCounts } = searchResp;
         this.results = results;
         this.pagination.total = pagination.total;
@@ -92,7 +108,7 @@ export const useSearchStore = defineStore('search', {
         this.tabCounts = merged;
         this.error = null;
       } catch (e) {
-        if (seq === this._reqSeq) this.error = e.message || '搜索失败'; // 仅最新请求记录错误
+        if (seq === this._reqSeq) this.error = e.message || '搜索失败';
       } finally {
         if (seq === this._reqSeq) this.loading = false;
       }

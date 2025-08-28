@@ -147,7 +147,7 @@ export function normalizeFile(raw = {}) {
     preview: raw.preview || raw.highlight || '',
     tags: Array.isArray(raw.tags) ? raw.tags.slice() : [],
     aiMeta: raw.aiMeta || null,
-    thumbUrl: raw.thumbUrl || raw.fsFileThumb || '',
+    thumbUrl: raw.thumbUrl || raw.thumb || raw.fsFileThumb || '',
     // 附加
     highlight: raw.highlight || null,
     esId: raw.esId || raw.esid || null,
