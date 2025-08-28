@@ -6,7 +6,7 @@ const USER_INFO_KEY = 'userInfo';
 
 function getCtFromCookie() {
   const match = document.cookie.match(/(?:^|; )ct=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) :"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjk5LCJ0aW1lIjoxNzU1OTQ3NzgyLCJrZXkiOiIxMjM0NTY3NC4yIiwiaXAiOiIxOTIuMTY4LjI1MC4xMTQiLCJkZXZpY2UiOiJ3ZWIiLCJpYXQiOjE3NTU5NDc3ODJ9.Pc0IBpV7aRTYTNzqzgjLwNXRaadUc_j947dcCnIBoq0";
+  return match ? decodeURIComponent(match[1]) : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjk5LCJ0aW1lIjoxNzU2MjAyMDE4LCJrZXkiOiIxMjM0NTY3NC4yIiwiaXAiOiIxOTIuMTY4LjI1MC4xMTQiLCJkZXZpY2UiOiJ3ZWIiLCJpYXQiOjE3NTYyMDIwMTh9._TS6e9XVUHX2pXs6AOHlJuatdOOXo1W6PCHML9W4Btw";
 }
 
 export function getCT() {
@@ -47,7 +47,6 @@ function attachCt(config) {
   ins.interceptors.response.use(
     res => res.data,
     err => {
-      // 标准化错误对象，避免上层拿不到 http 状态码
       const standardError = (() => {
         if (err && err.response) {
           const { status, data, config } = err.response;
@@ -55,18 +54,19 @@ function attachCt(config) {
             httpStatus: status,
             url: config?.url,
             method: config?.method,
-            code: data?.status || status, // 后端业务码或直接 http 状态
+            code: data?.status || status,
             message: data?.msg || data?.message || err.message || '请求失败',
-            data,
-            response: err.response, // 兼容旧代码 err.response?.status 判断
+            serverMsg: data?.msg, // 保留后端原始 msg
+            backendStatus: data?.status, // 业务状态码
+            data: data?.data !== undefined ? data.data : data,
+            response: err.response,
             original: err
           };
         }
-        // 无 response，多半是网络/超时/跨域等
         return {
           httpStatus: 0,
           code: 'NETWORK_ERROR',
-          message: err?.message || '网络异常',
+            message: err?.message || '网络异常',
           data: null,
           response: null,
           original: err
@@ -80,19 +80,28 @@ function attachCt(config) {
 let _authInited = false;
 export async function fetchUserInfo() {
   try {
+    // 修正重复前缀，原 /apps/apps/user -> /apps/user
     const res = await appsApi.get('/apps/user');
+    console.log(res);
     if (res && res.status === 'ok') {
       setUserInfo(res.data || {});
       return res.data;
     }
     if (res && res.status === 'err_token') {
       clearCT();
-      ElMessage.error('登录已过期，请刷新或重新登录');
-      return null;
+      throw { code: 'err_token', httpStatus: 401, message: res.msg || '登录已过期' };
     }
     return null;
   } catch (e) {
-    console.warn('[auth] fetchUserInfo failed', e);
+    // 适配标准化错误 & 旧结构
+    if (e.code === 'err_token' || e.httpStatus === 401 || e.httpStatus === 403) {
+      clearCT();
+      ElMessage.error(e.message || '登录已过期或无权限');
+    } else if (e.httpStatus === 0) {
+      ElMessage.error('网络异常，无法获取用户信息');
+    } else {
+      console.warn('[auth] fetchUserInfo failed', e);
+    }
     return null;
   }
 }

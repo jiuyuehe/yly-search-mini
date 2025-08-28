@@ -10,6 +10,8 @@ export const useAiToolsStore = defineStore('aiTools', {
     qaHistory: [],
     translatedText: '',
     extractedText: '',
+    classificationResults: [],
+    classificationForms: [],
     streaming: false,
     loading: {
       summary: false,
@@ -18,7 +20,9 @@ export const useAiToolsStore = defineStore('aiTools', {
       customExtraction: false,
       qa: false,
       translation: false,
-      extraction: false
+      extraction: false,
+      classification: false,
+      classificationForms: false
     },
     error: null
   }),
@@ -137,6 +141,51 @@ export const useAiToolsStore = defineStore('aiTools', {
       }
     },
     
+    async classifyDocument(fileId) {
+      this.loading.classification = true;
+      
+      try {
+        const res = await aiService.classifyDocument(fileId);
+        this.classificationResults = res;
+        return res;
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.loading.classification = false;
+      }
+    },
+    
+    async loadClassificationForms() {
+      this.loading.classificationForms = true;
+      
+      try {
+        this.classificationForms = await aiService.getClassificationForms();
+        return this.classificationForms;
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.loading.classificationForms = false;
+      }
+    },
+    
+    async addClassificationForm(name) {
+      const created = await aiService.createClassificationForm(name);
+      await this.loadClassificationForms();
+      return created;
+    },
+    
+    async updateClassificationForm(id, patch) {
+      const updated = await aiService.updateClassificationForm(id, patch);
+      await this.loadClassificationForms();
+      return updated;
+    },
+    
+    async deleteClassificationForm(id) {
+      await aiService.deleteClassificationForm(id);
+      await this.loadClassificationForms();
+      return true;
+    },
+    
     clearAll() {
       this.summary = '';
       this.tags = [];
@@ -145,6 +194,7 @@ export const useAiToolsStore = defineStore('aiTools', {
       this.qaHistory = [];
       this.translatedText = '';
       this.extractedText = '';
+      this.classificationResults = [];
     }
   }
 });

@@ -40,17 +40,17 @@ import TagsPanel from '../ai/TagsPanel.vue'
 import NERPanel from '../ai/NERPanel.vue'
 import CustomExtractionPanel from '../ai/CustomExtractionPanel.vue'
 import DocumentQA from '../ai/DocumentQA.vue'
-import { ChatLineSquare, Box, ChatRound, RefreshRight } from '@element-plus/icons-vue'
+import ClassificationPanel from '../ai/ClassificationPanel.vue'
+import { ChatLineSquare, Box, ChatRound, RefreshRight, List } from '@element-plus/icons-vue'
 
-const props = defineProps({
-  fileId: { type: [String, Number], required: true }
-})
+defineProps({ fileId: { type: [String, Number], required: true } })
 const emit = defineEmits(['switch-translate'])
 
 const tools = [
   { key: 'summary', label: '摘要', icon: ChatLineSquare },
   { key: 'customExtraction', label: '自定义提取', icon: Box },
   { key: 'qa', label: '问答', icon: ChatRound },
+  { key: 'classification', label: '文档分类', icon: List },
   { key: 'translation', label: '翻译', icon: RefreshRight }
 ]
 
@@ -60,6 +60,7 @@ const currentComp = computed(() => {
   switch (active.value) {
     case 'customExtraction': return CustomExtractionPanel
     case 'qa': return DocumentQA
+    case 'classification': return ClassificationPanel
     default: return SummaryPanel
   }
 })

@@ -52,6 +52,23 @@ const MOCK_AI_DATA = {
   }
 };
 
+const CLASSIFICATION_KEY = 'ai_doc_classification_forms_v1';
+const DEFAULT_CLASSIFICATION_FORMS = [
+  '计划','总结','通知','公告','合同','发票','报价单','采购单','请示','批复','会议纪要','简报','报告','方案','预算','财务报表','工作日志','周报','月报','年报','招聘简章','培训材料','流程文档','规范','需求文档','设计文档','测试用例','用户手册','技术白皮书','市场分析'
+].map((n,i)=>({ id:i+1, name:n, enabled:true }));
+
+function loadForms() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CLASSIFICATION_KEY) || 'null');
+    if (Array.isArray(raw) && raw.length) return raw;
+  } catch (e) { /* ignore parse */ }
+  localStorage.setItem(CLASSIFICATION_KEY, JSON.stringify(DEFAULT_CLASSIFICATION_FORMS));
+  return [...DEFAULT_CLASSIFICATION_FORMS];
+}
+function saveForms(list) {
+  try { localStorage.setItem(CLASSIFICATION_KEY, JSON.stringify(list)); } catch (e) { /* ignore save */ }
+}
+
 class AIService {
   async getSummary(fileId, onChunk) {
     try {
@@ -68,136 +85,21 @@ class AIService {
       }
       
       return summary;
-    } catch (error) {
-      console.warn('AI Summary API not available, using mock data');
-      return MOCK_AI_DATA.summaries[fileId] || '暂无摘要信息';
-    }
+    } catch (e) { console.warn('AI Summary API not available, using mock data'); return MOCK_AI_DATA.summaries[fileId] || '暂无摘要信息'; }
   }
   
-  async getTags(fileId) {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      return MOCK_AI_DATA.tags[fileId] || [];
-    } catch (error) {
-      console.warn('AI Tags API not available, using mock data');
-      return MOCK_AI_DATA.tags[fileId] || [];
-    }
-  }
-  
-  async getNEREntities(fileId) {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 400));
-      return MOCK_AI_DATA.nerEntities[fileId] || { persons: [], organizations: [], locations: [], dates: [] };
-    } catch (error) {
-      console.warn('AI NER API not available, using mock data');
-      return MOCK_AI_DATA.nerEntities[fileId] || { persons: [], organizations: [], locations: [], dates: [] };
-    }
-  }
-  
-  async extractCustomInfo(fileId, template) {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      // Mock custom extraction based on template
-      const mockResults = {
-        contract: {
-          parties: ['甲方：XX公司', '乙方：YY公司'],
-          amount: '100万元',
-          date: '2024-01-15',
-          duration: '12个月'
-        },
-        invoice: {
-          number: 'INV-2024-001',
-          amount: '50000元',
-          date: '2024-01-15',
-          vendor: 'ABC供应商'
-        }
-      };
-      
-      return mockResults[template.type] || {};
-    } catch (error) {
-      console.warn('AI Extract API not available, using mock data');
-      return {};
-    }
-  }
-
-  // New method for form-based extraction
-  async extractWithForm(fileId, formStructure, aiModel = 'gpt-4') {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock form-based extraction results
-      const mockFormResults = {
-        1: { // Contract form
-          甲方: {
-            companyName: '示例科技有限公司',
-            负责人: '李经理',
-            联系方式: '13900139000'
-          },
-          购买产品: [
-            {
-              产品名称: '企业邮箱服务',
-              数量: 100,
-              价格: 50.0
-            },
-            {
-              产品名称: '云存储服务',
-              数量: 500,
-              价格: 2.0
-            }
-          ],
-          合同详情: {
-            总价: 6000.0,
-            服务器周期: '1年',
-            交付周期: '7天'
-          }
-        },
-        2: { // Invoice form
-          发票号码: 'INV-2024-0088',
-          开票日期: '2024-01-20',
-          销售方: '北京软件技术公司',
-          购买方: '示例科技有限公司',
-          金额: 25000.0,
-          税率: 0.13,
-          备注: '技术服务费'
-        },
-        3: { // Quote form
-          报价单号: 'QT-2024-0055',
-          报价日期: '2024-01-18',
-          客户名称: '上海创新公司',
-          报价项目: [
-            {
-              项目名称: 'ERP系统开发',
-              单价: 120000.0,
-              数量: 1,
-              小计: 120000.0
-            },
-            {
-              项目名称: '系统集成服务',
-              单价: 30000.0,
-              数量: 1,
-              小计: 30000.0
-            }
-          ],
-          总金额: 150000.0,
-          有效期: '60天'
-        }
-      };
-
-      // Generate realistic data based on form structure
-      if (formStructure && formStructure.fields) {
-        const result = this.generateMockDataFromFormStructure(formStructure, fileId);
-        return result;
-      }
-
-      // Fallback to predefined mock data
-      return mockFormResults[fileId] || this.generateGenericMockData(formStructure);
-    } catch (error) {
-      console.warn('Form-based AI Extract API not available, using mock data');
-      throw error;
-    }
-  }
-
-  // Generate mock data based on form structure
+  async getTags(fileId) { try { await new Promise(r=>setTimeout(r,300)); return MOCK_AI_DATA.tags[fileId] || []; } catch (e) { console.warn('AI Tags API not available, using mock data'); return MOCK_AI_DATA.tags[fileId] || []; } }
+  async getNEREntities(fileId) { try { await new Promise(r=>setTimeout(r,400)); return MOCK_AI_DATA.nerEntities[fileId] || { persons: [], organizations: [], locations: [], dates: [] }; } catch (e) { console.warn('AI NER API not available, using mock data'); return MOCK_AI_DATA.nerEntities[fileId] || { persons: [], organizations: [], locations: [], dates: [] }; } }
+  async extractCustomInfo(fileId, template) { try { await new Promise(r=>setTimeout(r,600)); const mockResults={ contract:{ parties:['甲方：XX公司','乙方：YY公司'], amount:'100万元', date:'2024-01-15', duration:'12个月' }, invoice:{ number:'INV-2024-001', amount:'50000元', date:'2024-01-15', vendor:'ABC供应商' } }; return mockResults[template.type] || {}; } catch (e) { console.warn('AI Extract API not available, using mock data'); return {}; } }
+  async extractWithForm(fileId, formStructure, _aiModel='gpt-4') { try { await new Promise(r=>setTimeout(r,1000)); if (formStructure && formStructure.fields) { return this.generateMockDataFromFormStructure(formStructure, fileId); } return { message:'无法生成符合表单结构的数据', formName: formStructure?.formName || '未知表单' }; } catch (e) { console.warn('Form-based AI Extract API not available, using mock data'); throw e; } }
+  async askQuestion(fileId, question, onChunk) { try { const answers=[ '根据文档内容，这个问题的答案是：','首先，我们需要分析文档中的相关信息。','通过对文档的理解，可以得出以下结论：',`关于"${question}"这个问题，文档中提到了相关的内容和解决方案。`]; const answer=answers[Math.random()*answers.length|0] + ' 这是一个基于文档内容生成的模拟回答，展示了AI问答功能的工作方式。'; if (onChunk){ const words=answer.split(''); for (let i=0;i<words.length;i++){ await new Promise(r=>setTimeout(r,80)); onChunk(words.slice(0,i+1).join('')); } } return answer; } catch (e) { console.warn('AI QA API not available, using mock data'); return '这是一个模拟的问答回复。'; } }
+  async translateText(text, targetLanguage, onChunk) { try { const translations=MOCK_AI_DATA.translations[targetLanguage] || {}; let translatedText = translations[text] || `[${targetLanguage.toUpperCase()}] ${text}`; if (translatedText === `[${targetLanguage.toUpperCase()}] ${text}`) { switch(targetLanguage){ case 'en': translatedText=`Translated to English: ${text}`; break; case 'ja': translatedText=`日本語に翻訳: ${text}`; break; case 'ko': translatedText=`한국어로 번역: ${text}`; break; default: translatedText=`Translated text: ${text}`; }} if (onChunk){ const words=translatedText.split(''); for (let i=0;i<words.length;i++){ await new Promise(r=>setTimeout(r,60)); onChunk(words.slice(0,i+1).join('')); } } return translatedText; } catch (e) { console.warn('AI Translation API not available, using mock data'); return `Mock translation: ${text}`; } }
+  async extractText(fileId) { try { await new Promise(r=>setTimeout(r,500)); const mockTexts={ 1:'这是从PDF文件中提取的文本内容。包含了项目需求的详细描述，技术规范，以及实施方案等重要信息。\n\n主要章节包括：\n1. 项目概述\n2. 功能需求\n3. 技术架构\n4. 实施计划\n\n这些内容为项目的顺利进行提供了重要的参考依据。', 2:'从图片中识别的文字内容：设计标准、UI规范、图标库等相关设计要素。', 3:'音频转文字：会议主要讨论了项目进度、技术难点和解决方案等议题。' }; return mockTexts[fileId] || '暂无可提取的文本内容'; } catch (e) { console.warn('Text extraction API not available, using mock data'); return '模拟提取的文本内容'; } }
+  async classifyDocument(fileId, _contentHint='') { try { await new Promise(r=>setTimeout(r,600)); const forms=loadForms().filter(f=>f.enabled); if (!forms.length) return []; const picks=forms.sort(()=>Math.random()-0.5).slice(0, Math.min(5, forms.length)); let remaining=1.0; const results=picks.map((f,idx)=>{ const score = idx===picks.length-1 ? remaining : +(Math.random()*remaining*0.6+0.05).toFixed(3); remaining = +(remaining - score).toFixed(3); return { category:f.name, score:score }; }); const total=results.reduce((s,r)=>s+r.score,0)||1; return results.map(r=>({ ...r, score:+(r.score/total).toFixed(4) })).sort((a,b)=>b.score-a.score); } catch (e) { console.warn('classifyDocument mock fallback', e); return []; } }
+  async getClassificationForms() { return loadForms(); }
+  async createClassificationForm(name) { const list=loadForms(); const id=Date.now(); list.push({ id, name, enabled:true }); saveForms(list); return { id, name }; }
+  async updateClassificationForm(id, patch) { const list=loadForms(); const idx=list.findIndex(i=>i.id===id); if (idx>-1) { list[idx]={ ...list[idx], ...patch }; saveForms(list); return list[idx]; } throw new Error('Not found'); }
+  async deleteClassificationForm(id) { const list=loadForms().filter(i=>i.id!==id); saveForms(list); return true; }
   generateMockDataFromFormStructure(formStructure, fileId) {
     const mockData = {};
     
@@ -294,89 +196,6 @@ class AIService {
       message: '无法生成符合表单结构的数据',
       formName: formStructure?.formName || '未知表单'
     };
-  }
-  
-  async askQuestion(fileId, question, onChunk) {
-    try {
-      // Mock Q&A response
-      const answers = [
-        '根据文档内容，这个问题的答案是：',
-        '首先，我们需要分析文档中的相关信息。',
-        '通过对文档的理解，可以得出以下结论：',
-        `关于"${question}"这个问题，文档中提到了相关的内容和解决方案。`
-      ];
-      
-      const answer = answers[Math.floor(Math.random() * answers.length)] + 
-                    ' 这是一个基于文档内容生成的模拟回答，展示了AI问答功能的工作方式。';
-      
-      if (onChunk) {
-        const words = answer.split('');
-        for (let i = 0; i < words.length; i++) {
-          await new Promise(resolve => setTimeout(resolve, 80));
-          onChunk(words.slice(0, i + 1).join(''));
-        }
-      }
-      
-      return answer;
-    } catch (error) {
-      console.warn('AI QA API not available, using mock data');
-      return '这是一个模拟的问答回复。';
-    }
-  }
-  
-  async translateText(text, targetLanguage, onChunk) {
-    try {
-      // Mock translation
-      const translations = MOCK_AI_DATA.translations[targetLanguage] || {};
-      let translatedText = translations[text] || `[${targetLanguage.toUpperCase()}] ${text}`;
-      
-      // If not found in mock data, create a simple mock translation
-      if (translatedText === `[${targetLanguage.toUpperCase()}] ${text}`) {
-        switch (targetLanguage) {
-          case 'en':
-            translatedText = `Translated to English: ${text}`;
-            break;
-          case 'ja':
-            translatedText = `日本語に翻訳: ${text}`;
-            break;
-          case 'ko':
-            translatedText = `한국어로 번역: ${text}`;
-            break;
-          default:
-            translatedText = `Translated text: ${text}`;
-        }
-      }
-      
-      if (onChunk) {
-        const words = translatedText.split('');
-        for (let i = 0; i < words.length; i++) {
-          await new Promise(resolve => setTimeout(resolve, 60));
-          onChunk(words.slice(0, i + 1).join(''));
-        }
-      }
-      
-      return translatedText;
-    } catch (error) {
-      console.warn('AI Translation API not available, using mock data');
-      return `Mock translation: ${text}`;
-    }
-  }
-  
-  async extractText(fileId) {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const mockTexts = {
-        1: '这是从PDF文件中提取的文本内容。包含了项目需求的详细描述，技术规范，以及实施方案等重要信息。\n\n主要章节包括：\n1. 项目概述\n2. 功能需求\n3. 技术架构\n4. 实施计划\n\n这些内容为项目的顺利进行提供了重要的参考依据。',
-        2: '从图片中识别的文字内容：设计标准、UI规范、图标库等相关设计要素。',
-        3: '音频转文字：会议主要讨论了项目进度、技术难点和解决方案等议题。'
-      };
-      
-      return mockTexts[fileId] || '暂无可提取的文本内容';
-    } catch (error) {
-      console.warn('Text extraction API not available, using mock data');
-      return '模拟提取的文本内容';
-    }
   }
 }
 
