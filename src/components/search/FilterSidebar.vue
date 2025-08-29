@@ -40,8 +40,7 @@
         </div>
         <div v-show="expandedSections.creators" class="section-content">
           <el-select
-            v-model="filters.creators"
-            multiple
+            v-model="filters.creator"
             filterable
             remote
             reserve-keyword
@@ -58,16 +57,8 @@
               :value="item.value"
             />
           </el-select>
-          <div class="chosen-tags" v-if="filters.creators.length">
-            <el-tag
-              v-for="c in filters.creators"
-              :key="c"
-              closable
-              size="small"
-              @close="removeCreator(c)"
-            >
-              {{ findCreatorLabel(c) }}
-            </el-tag>
+          <div class="chosen-tags" v-if="filters.creator">
+            <el-tag closable size="small" @close="clearCreator">{{ findCreatorLabel(filters.creator) }}</el-tag>
           </div>
         </div>
       </div>
@@ -212,6 +203,7 @@
 import { ref, reactive, watch } from 'vue';
 import { ArrowDown } from '@element-plus/icons-vue';
 import { useSearchStore } from '../../stores/search';
+import { searchService } from '../../services/search';
 
 const searchStore = useSearchStore();
 
@@ -227,7 +219,7 @@ const expandedSections = reactive({
 
 const filters = reactive({
   fileCategory: [],
-  creators: [],
+  creator: '',
   timeRange: 'all',
   customTimeRange: null,
   fileSize: [],
@@ -267,23 +259,6 @@ const creatorOptions = ref([]); // 当前搜索到的创建者候选
 const tagOptions = ref([]);     // 当前搜索到的标签候选
 const loadingCreators = ref(false);
 const loadingTags = ref(false);
-
-// 模拟后端接口 - 创建者
-function mockFetchCreators(keyword) {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      const base = [
-        { label: 'Alice Smith', value: '98' },
-        { label: 'Bob Johnson', value: '99' },
-        { label: 'Carol Wilson', value: '100' },
-        { label: 'David Chen', value: '101' },
-        { label: 'Emma Li', value: '102' }
-      ];
-      if (!keyword) return resolve(base.slice(0, 5));
-      resolve(base.filter(i => i.label.toLowerCase().includes(keyword.toLowerCase())));
-    }, 300);
-  });
-}
 // 模拟后端接口 - 标签
 function mockFetchTags(keyword) {
   return new Promise(resolve => {
@@ -303,9 +278,15 @@ function mockFetchTags(keyword) {
 
 async function querySearchCreators(query) {
   loadingCreators.value = true;
-  creatorOptions.value = await mockFetchCreators(query);
+  const all = await searchService.getCreators();
+  // 本地过滤（后端接口无关键字参数）
+  const q = (query || '').trim().toLowerCase();
+  let filtered = all;
+  if (q) filtered = all.filter(u => u.label.toLowerCase().includes(q) || String(u.value).includes(q));
+  // 限制最多 50 条避免下拉过长
+  creatorOptions.value = filtered.slice(0, 50);
   loadingCreators.value = false;
-  // 将新获取的选项合并到全局映射（供 FilterToggleSummary 展示 label）
+  // 合并到全局映射方便其他组件展示
   creatorOptions.value.forEach(o => {
     if (!searchStore.filterOptions.creators.find(c => c.value === o.value)) {
       searchStore.filterOptions.creators.push(o);
@@ -332,7 +313,7 @@ function findTagLabel(val) {
   const item = [...tagOptions.value, ...(searchStore.filterOptions.tags||[])].find(i => i.value === val);
   return item?.label || val;
 }
-function removeCreator(v) { filters.creators = filters.creators.filter(c => c !== v); }
+function clearCreator() { filters.creator = ''; }
 function removeTagValue(v) { filters.tags = filters.tags.filter(t => t !== v); }
 
 function toggleSection(section) {
@@ -342,7 +323,7 @@ function toggleSection(section) {
 function resetFilters() {
   Object.assign(filters, {
     fileCategory: [],
-    creators: [],
+  creator: '',
     timeRange: 'all',
     customTimeRange: null,
     fileSize: [],
@@ -358,7 +339,7 @@ defineExpose({ resetFilters /*, getCurrentFilters: () => ({...filters}) */ });
 watch(filters, (newFilters) => {
   const payload = {
     fileCategory: [...newFilters.fileCategory],
-    creators: [...newFilters.creators],
+  creators: newFilters.creator ? [newFilters.creator] : [],
     timeRange: newFilters.timeRange,
     customTimeRange: newFilters.customTimeRange,
     fileSize: [...newFilters.fileSize],

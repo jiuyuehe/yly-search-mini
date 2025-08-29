@@ -33,7 +33,7 @@
         <!-- Search results -->
         <div class="search-results">
           <search-result-item 
-            v-for="(item, index) in searchResults" 
+            v-for="(item) in searchResults" 
             :key="item.id" 
             :item="item"
             v-model:selected="selectedItems[item.id]"

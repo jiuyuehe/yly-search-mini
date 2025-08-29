@@ -38,7 +38,7 @@ export const appsApi = axios.create({
 
 function attachCt(config) {
   const ct = getCT();
-  if (ct) config.headers['ct'] = ct; else config.headers['ct'] = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjk5LCJ0aW1lIjoxNzU1OTQ3NzgyLCJrZXkiOiIxMjM0NTY3NC4yIiwiaXAiOiIxOTIuMTY4LjI1MC4xMTQiLCJkZXZpY2UiOiJ3ZWIiLCJpYXQiOjE3NTU5NDc3ODJ9.Pc0IBpV7aRTYTNzqzgjLwNXRaadUc_j947dcCnIBoq0';
+  config.headers['ct'] = ct; 
   return config;
 }
 

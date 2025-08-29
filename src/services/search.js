@@ -175,6 +175,23 @@ class SearchService {
     // 可调用后端专用接口，这里直接 mock
     return MOCK_DATA.filterOptions;
   }
+
+  // 获取创建者列表（用户列表），后端接口: /admin-api/rag/documents/users
+  async getCreators(force = false) {
+    if (!force && this._cachedCreators && Array.isArray(this._cachedCreators)) return this._cachedCreators;
+    try {
+      const root = await api.get('/admin-api/documents/users');
+      if (root?.code !== 0) throw new Error(root?.msg || '获取用户失败');
+      const raw = Array.isArray(root.data) ? root.data : [];
+      const mapped = raw.map(u => ({ value: String(u.userId), label: u.userName || ('用户' + u.userId) }));
+      this._cachedCreators = mapped;
+      return mapped;
+    } catch (e) {
+      console.warn('获取创建者列表失败，使用已有或空列表', e);
+      this._cachedCreators = this._cachedCreators || [];
+      return this._cachedCreators;
+    }
+  }
   
   async getFileCount(_filters) {
     // 保留 mock
