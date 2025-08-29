@@ -18,6 +18,9 @@
             <el-option label="Deutsch" value="de" />
             <el-option label="日本語" value="ja" />
             <el-option label="Русский" value="ru" />
+            <el-option label="Italiano" value="it" />
+            <el-option label="한국어" value="ko" />
+            <el-option label="Português" value="pt" />
           </el-select>
         </div>
         <div class="swap-languages">
@@ -44,6 +47,9 @@
             <el-option label="Deutsch" value="de" />
             <el-option label="日本語" value="ja" />
             <el-option label="Русский" value="ru" />
+            <el-option label="Italiano" value="it" />
+            <el-option label="한국어" value="ko" />
+            <el-option label="Português" value="pt" />
           </el-select>
         </div>
       </div>
@@ -56,6 +62,13 @@
           :disabled="!sourceText.trim()"
         >
           翻译
+        </el-button>
+        <el-button 
+          size="small" 
+          @click="showTerminologyManager = true"
+        >
+          <el-icon><Collection /></el-icon>
+          术语库
         </el-button>
         <el-button 
           size="small" 
@@ -201,6 +214,133 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- Terminology Manager Dialog -->
+    <el-dialog v-model="showTerminologyManager" title="术语库管理" width="800px">
+      <div class="terminology-manager">
+        <div class="terminology-toolbar">
+          <el-button 
+            type="primary" 
+            size="small" 
+            @click="showAddTermDialog = true"
+          >
+            <el-icon><Plus /></el-icon>
+            添加术语
+          </el-button>
+          <el-button 
+            size="small" 
+            @click="exportTerminology"
+          >
+            <el-icon><Download /></el-icon>
+            导出
+          </el-button>
+          <el-button 
+            size="small" 
+            @click="importTerminology"
+          >
+            <el-icon><Upload /></el-icon>
+            导入
+          </el-button>
+        </div>
+        
+        <el-table 
+          :data="terminologyList" 
+          height="400" 
+          style="width: 100%"
+        >
+          <el-table-column prop="type" label="类型" width="80">
+            <template #default="scope">
+              <el-tag 
+                :type="getTermTypeTagType(scope.row.type)"
+                size="small"
+              >
+                {{ getTermTypeLabel(scope.row.type) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="originalText" label="原文内容" width="200" />
+          <el-table-column prop="translatedText" label="译文内容" width="200" />
+          <el-table-column prop="language" label="语种" width="100">
+            <template #default="scope">
+              {{ getLanguageLabel(scope.row.language) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120">
+            <template #default="scope">
+              <el-button 
+                size="small" 
+                type="text" 
+                @click="editTerminology(scope.row)"
+              >
+                编辑
+              </el-button>
+              <el-button 
+                size="small" 
+                type="text" 
+                @click="deleteTerminology(scope.row.id)"
+                style="color: #f56c6c"
+              >
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showTerminologyManager = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- Add/Edit Terminology Dialog -->
+    <el-dialog v-model="showAddTermDialog" :title="editingTerm ? '编辑术语' : '添加术语'" width="500px">
+      <el-form :model="terminologyForm" label-width="100px">
+        <el-form-item label="类型">
+          <el-select v-model="terminologyForm.type" placeholder="选择类型">
+            <el-option label="术语" value="terminology" />
+            <el-option label="记忆" value="memory" />
+            <el-option label="语料" value="corpus" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="原文内容">
+          <el-input 
+            v-model="terminologyForm.originalText" 
+            type="textarea" 
+            :rows="3"
+            placeholder="输入原文内容" 
+          />
+        </el-form-item>
+        <el-form-item label="译文内容">
+          <el-input 
+            v-model="terminologyForm.translatedText" 
+            type="textarea" 
+            :rows="3"
+            placeholder="输入译文内容" 
+          />
+        </el-form-item>
+        <el-form-item label="语种">
+          <el-select v-model="terminologyForm.language" placeholder="选择语种">
+            <el-option label="中文" value="zh" />
+            <el-option label="English" value="en" />
+            <el-option label="Français" value="fr" />
+            <el-option label="Español" value="es" />
+            <el-option label="Deutsch" value="de" />
+            <el-option label="日本語" value="ja" />
+            <el-option label="Русский" value="ru" />
+            <el-option label="Italiano" value="it" />
+            <el-option label="한국어" value="ko" />
+            <el-option label="Português" value="pt" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showAddTermDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveTerminology">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -214,7 +354,11 @@ import {
   Search, 
   Warning, 
   Document as Tag,
-  Star as BookmarkIcon
+  Star as BookmarkIcon,
+  Collection,
+  Plus,
+  Download,
+  Upload
 } from '@element-plus/icons-vue';
 
 const props = defineProps({
@@ -270,6 +414,40 @@ const settings = reactive({
 const showCustomTagDialog = ref(false);
 const customTagName = ref('');
 const customTagColor = ref('#409EFF');
+
+// Terminology management
+const showTerminologyManager = ref(false);
+const showAddTermDialog = ref(false);
+const editingTerm = ref(null);
+const terminologyList = ref([
+  {
+    id: 1,
+    type: 'terminology',
+    originalText: 'artificial intelligence',
+    translatedText: '人工智能',
+    language: 'zh'
+  },
+  {
+    id: 2,
+    type: 'memory',
+    originalText: 'machine learning',
+    translatedText: '机器学习',
+    language: 'zh'
+  },
+  {
+    id: 3,
+    type: 'corpus',
+    originalText: 'neural network',
+    translatedText: '神经网络',
+    language: 'zh'
+  }
+]);
+const terminologyForm = reactive({
+  type: 'terminology',
+  originalText: '',
+  translatedText: '',
+  language: 'zh'
+});
 
 // Auto translate timer
 let autoTranslateTimer = null;
@@ -589,6 +767,126 @@ function showContextMenuAt(event) {
 // Hide context menu
 function hideContextMenu() { showContextMenu.value = false; }
 
+// Terminology Management Functions
+function getTermTypeLabel(type) {
+  const labels = {
+    terminology: '术语',
+    memory: '记忆',
+    corpus: '语料'
+  };
+  return labels[type] || type;
+}
+
+function getTermTypeTagType(type) {
+  const types = {
+    terminology: 'primary',
+    memory: 'success',
+    corpus: 'warning'
+  };
+  return types[type] || 'info';
+}
+
+function getLanguageLabel(lang) {
+  const labels = {
+    zh: '中文',
+    en: 'English',
+    fr: 'Français',
+    es: 'Español',
+    de: 'Deutsch',
+    ja: '日本語',
+    ru: 'Русский',
+    it: 'Italiano',
+    ko: '한국어',
+    pt: 'Português'
+  };
+  return labels[lang] || lang;
+}
+
+function editTerminology(term) {
+  editingTerm.value = term;
+  Object.assign(terminologyForm, term);
+  showAddTermDialog.value = true;
+}
+
+function deleteTerminology(id) {
+  const index = terminologyList.value.findIndex(t => t.id === id);
+  if (index > -1) {
+    terminologyList.value.splice(index, 1);
+    ElMessage.success('术语删除成功');
+  }
+}
+
+function saveTerminology() {
+  if (!terminologyForm.originalText || !terminologyForm.translatedText) {
+    ElMessage.error('请填写完整信息');
+    return;
+  }
+  
+  if (editingTerm.value) {
+    // Edit existing term
+    const index = terminologyList.value.findIndex(t => t.id === editingTerm.value.id);
+    if (index > -1) {
+      terminologyList.value[index] = { ...terminologyForm, id: editingTerm.value.id };
+      ElMessage.success('术语更新成功');
+    }
+  } else {
+    // Add new term
+    const newTerm = {
+      ...terminologyForm,
+      id: Date.now()
+    };
+    terminologyList.value.push(newTerm);
+    ElMessage.success('术语添加成功');
+  }
+  
+  // Reset form
+  terminologyForm.type = 'terminology';
+  terminologyForm.originalText = '';
+  terminologyForm.translatedText = '';
+  terminologyForm.language = 'zh';
+  editingTerm.value = null;
+  showAddTermDialog.value = false;
+}
+
+function exportTerminology() {
+  const data = JSON.stringify(terminologyList.value, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `terminology_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  ElMessage.success('术语库导出成功');
+}
+
+function importTerminology() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (Array.isArray(data)) {
+            terminologyList.value = data;
+            ElMessage.success('术语库导入成功');
+          } else {
+            ElMessage.error('文件格式不正确');
+          }
+        } catch (error) {
+          ElMessage.error('文件解析失败');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+  input.click();
+}
+
 // 组件卸载清理
 onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 </script>
@@ -623,6 +921,17 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .cross-highlight { background:#ffe98a; border-radius:2px; padding:1px 0; }
 .selection-highlight { background:#b3d8ff; border-radius:2px; padding:1px 0; }
 .text-editor span { font:inherit; white-space:inherit; }
+
+/* Terminology Manager Styles */
+.terminology-manager { width: 100%; }
+.terminology-toolbar { 
+  display: flex; 
+  gap: 8px; 
+  margin-bottom: 16px; 
+  padding-bottom: 12px; 
+  border-bottom: 1px solid #e5e7eb; 
+}
+
 @media (max-width:768px){
   .translation-content { flex-direction:column; }
   .text-panel { border-right:none; border-bottom:1px solid #e5e7eb; }
