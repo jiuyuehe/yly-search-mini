@@ -123,7 +123,6 @@ function updateFieldValue(fieldName, value) {
   padding: 15px;
   background-color: #fafafa;
   border-radius: 6px;
-  border: 1px solid #f0f0f0;
 }
 
 .preview-note {

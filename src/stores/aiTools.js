@@ -28,14 +28,13 @@ export const useAiToolsStore = defineStore('aiTools', {
   }),
   
   actions: {
-    async getSummary(fileId) {
+    async getSummary(fileId, targetLanguage='中文', length=200) {
       this.loading.summary = true;
       this.streaming = true;
       this.summary = '';
-      
       try {
-        await aiService.getSummary(fileId, (chunk) => {
-          this.summary += chunk;
+        await aiService.getSummary(fileId, targetLanguage, length, (chunk) => {
+          this.summary = chunk; // 已在 service 累计，这里直接替换最新片段
         });
         return this.summary;
       } catch (error) {
@@ -95,7 +94,7 @@ export const useAiToolsStore = defineStore('aiTools', {
       
       try {
         await aiService.askQuestion(fileId, question, (chunk) => {
-          answer += chunk;
+          answer = chunk;
         });
         
         this.qaHistory.push({ question, answer });
@@ -111,12 +110,10 @@ export const useAiToolsStore = defineStore('aiTools', {
     async translateText(text, targetLanguage) {
       this.loading.translation = true;
       this.streaming = true;
-      this.translatedText = '';
-      
+      this.translatedText='';
+
       try {
-        await aiService.translateText(text, targetLanguage, (chunk) => {
-          this.translatedText += chunk;
-        });
+        await aiService.translateText(text, targetLanguage, (chunk)=>{ this.translatedText = chunk; });
         return this.translatedText;
       } catch (error) {
         this.error = error.message;

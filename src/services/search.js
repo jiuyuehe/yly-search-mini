@@ -30,71 +30,11 @@ const MOCK_DATA = {
   },
   
   searchResults: [
-    {
-      id: 1,
-      name: '项目需求文档.pdf',
-      type: 'document',
-      size: 2048000,
-      modifiedTime: '2024-01-15T10:30:00Z',
-      creator: '张三',
-      path: '/projects/doc/requirements.pdf',
-      preview: '这是一个项目需求文档，包含了详细的功能需求和技术规范...',
-      tags: ['项目', '重要'],
-      score: 0.95,
-      hasSensitiveInfo: false
-    },
-    {
-      id: 2,
-      name: '设计图标准.png',
-      type: 'image',
-      size: 1536000,
-      modifiedTime: '2024-01-14T15:20:00Z',
-      creator: '李四',
-      path: '/design/ui/icons.png',
-      preview: '',
-      tags: ['设计'],
-      score: 0.87,
-      hasSensitiveInfo: false
-    },
-    {
-      id: 3,
-      name: '会议录音.mp4',
-      type: 'multimedia',
-      size: 52428800,
-      modifiedTime: '2024-01-13T09:00:00Z',
-      creator: '王五',
-      path: '/meetings/2024/jan/meeting.mp4',
-      preview: '',
-      tags: ['会议'],
-      score: 0.72,
-      hasSensitiveInfo: true
-    },
-    {
-      id: 4,
-      name: '数据备份.zip',
-      type: 'archive',
-      size: 104857600,
-      modifiedTime: '2024-01-12T18:45:00Z',
-      creator: '张三',
-      path: '/backup/data_backup.zip',
-      preview: '',
-      tags: ['备份'],
-      score: 0.68,
-      hasSensitiveInfo: false
-    },
-    {
-      id: 5,
-      name: '配置文件.json',
-      type: 'other',
-      size: 4096,
-      modifiedTime: '2024-01-11T14:30:00Z',
-      creator: '李四',
-      path: '/config/app.json',
-      preview: '{ "app": { "name": "YLY Search", "version": "1.0.0" } }',
-      tags: ['配置'],
-      score: 0.55,
-      hasSensitiveInfo: false
-    }
+    { id: 1, name: '项目需求文档.pdf', type: 'document', size: 2048000, modifiedTime: '2024-01-15T10:30:00Z', creator: '张三', path: '/projects/doc/requirements.pdf', preview: '这是一个项目需求文档，包含了详细的功能需求和技术规范...', tags: ['项目', '重要'], score: 0.95, hasSensitiveInfo: false },
+    { id: 2, name: '设计图标准.png', type: 'image', size: 1536000, modifiedTime: '2024-01-14T15:20:00Z', creator: '李四', path: '/design/ui/icons.png', preview: '', tags: ['设计'], score: 0.87, hasSensitiveInfo: false, thumbUrl: '' },
+    { id: 3, name: '会议录音.mp4', type: 'multimedia', size: 52428800, modifiedTime: '2024-01-13T09:00:00Z', creator: '王五', path: '/meetings/2024/jan/meeting.mp4', preview: '', tags: ['会议'], score: 0.72, hasSensitiveInfo: true },
+    { id: 4, name: '数据备份.zip', type: 'archive', size: 104857600, modifiedTime: '2024-01-12T18:45:00Z', creator: '张三', path: '/backup/data_backup.zip', preview: '', tags: ['备份'], score: 0.68, hasSensitiveInfo: false },
+    { id: 5, name: '配置文件.json', type: 'other', size: 4096, modifiedTime: '2024-01-11T14:30:00Z', creator: '李四', path: '/config/app.json', preview: '{ "app": { "name": "YLY Search", "version": "1.0.0" } }', tags: ['配置'], score: 0.55, hasSensitiveInfo: false }
   ]
 };
 
@@ -107,6 +47,12 @@ function transformResponse(data) {
     if (!norm.preview) {
       norm.preview = raw.fileSummary || raw.fileSummaryTranslate || raw.fileContents || raw.fileTranslate || '';
     }
+    // 保留后端缩略图字段到统一 thumbUrl（normalize 已处理，若后端提供其他命名确保赋值）
+    if (!norm.thumbUrl) {
+      norm.thumbUrl = raw.thumbUrl || raw.thumb || raw.fsFileThumb || '';
+    }
+    // 分值
+    if (raw.score != null && norm.score == null) norm.score = raw.score;
     return norm;
   });
   // 计算前端分类 type（沿用旧字段名，便于 UI 继续工作）
@@ -145,13 +91,11 @@ class SearchService {
         Object.entries(rest).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') form.append(k, v); });
         form.append('offset', offset);
         form.append('limit', limit);
-        form.append('image', imageFile); // 若后端字段不同请调整
+        form.append('image', imageFile); // 图片搜索: 后端字段如不同请调整
         root = await api.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' } });
       } else {
         const formData = new URLSearchParams();
-        Object.entries({ ...rest, offset, limit }).forEach(([k, v]) => {
-          if (v !== undefined && v !== null && v !== '') formData.append(k, v);
-        });
+        Object.entries({ ...rest, offset, limit }).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') formData.append(k, v); });
         root = await api.post(url, formData, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
       }
       // axios 拦截器已返回 data，root 即 { code, data, msg }
@@ -163,7 +107,7 @@ class SearchService {
     } catch (error) {
       console.warn('搜索接口失败，使用 mock 数据', error);
       // mock 数据也需要标准化以保持结构统一
-      const mappedMock = MOCK_DATA.searchResults.map(r => normalizeFile({ fileId: r.id, fileName: r.name, fileType: r.name.split('.').pop(), fileSize: r.size, updateTime: r.modifiedTime, createrName: r.creator, filePath: r.path, highlight: r.preview }));
+      const mappedMock = MOCK_DATA.searchResults.map(r => normalizeFile({ fileId: r.id, fileName: r.name, fileType: r.name.split('.').pop(), fileSize: r.size, updateTime: r.modifiedTime, createrName: r.creator, filePath: r.path, highlight: r.preview, score: r.score, thumbUrl: r.thumbUrl }));
       const results = mappedMock.map(f => ({ ...f, type: mapExtToTab(f.fileType) }));
       const tabCounts = { all: results.length, document:0, image:0, multimedia:0, archive:0, other:0 };
       results.forEach(r => { if (tabCounts[r.type] != null) tabCounts[r.type]++; else tabCounts.other++; });

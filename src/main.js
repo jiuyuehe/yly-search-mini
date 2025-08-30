@@ -13,6 +13,8 @@ app.use(createPinia());
 app.use(router);
 app.use(ElementPlus);
 
-initAuth().finally(() => {
+// initAuth().catch(e => {
+//   console.warn('Auth failed, continuing anyway:', e);
+// }).finally(() => {
   app.mount('#app');
-});
+// });
