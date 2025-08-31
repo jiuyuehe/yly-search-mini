@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { searchService } from '../services/search';
+import { imageSearchService } from '../services/imageSearch';
 import { tabToDocTypeParam } from '../constants/fileTypes';
 
 export const useSearchStore = defineStore('search', {
@@ -33,7 +34,8 @@ export const useSearchStore = defineStore('search', {
     getFilteredResults: (state) => (tab) => { if (tab === 'all') return state.results; return state.results.filter(i => i.type === tab); },
     getTotalCount: (s) => s.pagination.total,
     getTabCounts: (s) => s.tabCounts,
-    getFilterOptions: (s) => s.filterOptions
+    getFilterOptions: (s) => s.filterOptions,
+    isImageSearch: (s) => s.searchType === 'image'
   },
   actions: {
     async loadInitialData() { try { const fo = await searchService.getFilterOptions(); this.filterOptions = fo; await this.search('', 'fullText'); } catch (e) { this.error = e.message; } },
@@ -95,10 +97,21 @@ export const useSearchStore = defineStore('search', {
       }
       try {
         const params = this.buildParams(query, searchType);
-        const [searchResp, aggCounts] = await Promise.all([
-          searchService.search(params, imageFile || null),
-          searchService.getAggregationStats(params)
-        ]);
+        let searchResp, aggCounts;
+        
+        if (searchType === 'image') {
+          // 使用图片搜索服务
+          searchResp = await imageSearchService.searchByVisual(params, imageFile);
+          // 图片搜索不需要聚合统计，因为结果都是图片
+          aggCounts = {};
+        } else {
+          // 使用常规搜索服务
+          [searchResp, aggCounts] = await Promise.all([
+            searchService.search(params, imageFile || null),
+            searchService.getAggregationStats(params)
+          ]);
+        }
+        
         if (seq !== this._reqSeq) return; // 只应用最新
         const { results, pagination, tabCounts } = searchResp;
         this.results = results;

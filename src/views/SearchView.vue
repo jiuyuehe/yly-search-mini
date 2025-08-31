@@ -23,21 +23,23 @@
           @remove="handleRemoveFilter"
         />
         
-        <!-- Search result tabs -->
+        <!-- Search result tabs (hidden for image search) -->
         <search-result-tabs 
+          v-if="!searchStore.isImageSearch"
           :activeTab="activeTab" 
           :counts="tabCounts" 
           @tab-change="handleTabChange" 
         />
         
         <!-- Search results -->
-        <div class="search-results">
+        <div class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }">
           <search-result-item 
             v-for="item in searchResults" 
             :key="item.id" 
             :item="item"
             v-model:selected="selectedItems[item.id]"
             :search-query="searchStore.query"
+            :display-mode="searchStore.isImageSearch ? 'grid' : 'list'"
             @click="navigateToPreview(item)"
           />
           
@@ -190,5 +192,6 @@ onMounted(() => {
 .search-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px 0 0 0; }
 .search-content-inner { width: 900px; max-width: 100%; margin: 0 auto; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 20px; }
 .search-results { flex: 1; overflow-y: auto; padding: 10px 0; }
+.search-results.grid-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
 .search-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; border-top: 1px solid #ebeef5; }
 </style>
