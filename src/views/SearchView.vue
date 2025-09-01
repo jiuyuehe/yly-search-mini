@@ -2,6 +2,7 @@
   <div class="search-view">
     <AppHeader />
     <div class="search-container">
+  <ExportDialog v-model="showExportDialog" :ids="exportIds" />
     <!-- Left sidebar with filters -->
     <div class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
       <filter-sidebar ref="filterSidebarRef" v-if="showFilters" />
@@ -38,7 +39,7 @@
             :item="item"
             v-model:selected="selectedItems[item.id]"
             :search-query="searchStore.query"
-            @click="navigateToPreview(item)"
+            @click="navigateToPreview(item, $event)"
           />
           
           <el-empty v-if="searchResults.length === 0" description="No results found" />
@@ -47,8 +48,8 @@
         <!-- Pagination and action buttons -->
         <div class="search-footer">
           <div class="selection-actions" v-if="hasSelectedItems">
-            <el-button type="primary" @click="downloadSelected">Download Selected</el-button>
-            <el-button @click="exportSelected">Export Results</el-button>
+            <el-button type="primary" @click="downloadSelected">导出选中文件</el-button>
+            <el-button @click="exportSelected">导出结果集</el-button>
           </div>
           <search-pagination 
             v-model:currentPage="currentPage"
@@ -66,21 +67,23 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useSearchStore } from '../stores/search';
 import AppHeader from '../components/common/AppHeader.vue';
 import FilterSidebar from '../components/search/FilterSidebar.vue';
+    import ExportDialog from '../components/search/ExportDialog.vue';
 import SearchBox from '../components/search/SearchBox.vue';
 import SearchResultTabs from '../components/search/SearchResultTabs.vue';
 import SearchResultItem from '../components/search/SearchResultItem.vue';
 import SearchPagination from '../components/search/SearchPagination.vue';
 import FilterToggleSummary from '../components/search/FilterToggleSummary.vue';
-import { toPreviewLite, normalizeFile } from '../constants/fileModel';
+import { normalizeFile } from '../constants/fileModel';
+import { navigateToPreview as goPreview } from '../services/navigation';
 
-const router = useRouter();
 const searchStore = useSearchStore();
 
 // UI state
+    const showExportDialog = ref(false);
+    const exportIds = ref([]);
 const showFilters = ref(true);
 const activeTab = ref('all');
 const currentPage = ref(1);
@@ -128,22 +131,11 @@ function handleRemoveFilter(tag) {
   searchStore.updateFilters(f);
 }
 
-function navigateToPreview(file) {
-  console.log("Navigating to preview for file:", file,file.fileCategory);
+function navigateToPreview(file, evt) {
   if (!file) return;
   const norm = normalizeFile(file);
-  const fc = norm.fileCategory;
-   console.log("const fc  file:", fc);
-  const id = norm.fileId;
-  const fileLite = toPreviewLite(norm);
-  const encodeObj = (obj) => { try { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); } catch { return ''; } };
-  const fEncoded = encodeObj(fileLite);
-  router.push({
-    name: 'preview',
-    params: { fc, id },
-    query: { retureBtn: true, f: fEncoded },
-    state: { file: fileLite }
-  }).catch(()=>{});
+  const newTab = evt && (evt.ctrlKey || evt.metaKey || evt.button === 1);
+  goPreview(norm, { newTab });
 }
 
 function handleSizeChange(size) {
@@ -163,7 +155,8 @@ function downloadSelected() {
 
 function exportSelected() {
   const ids = getSelectedIds();
-  searchStore.exportResults(ids);
+  exportIds.value = ids;
+  showExportDialog.value = true;
 }
 
 function getSelectedIds() {

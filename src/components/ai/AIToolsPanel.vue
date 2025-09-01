@@ -17,6 +17,7 @@
         <component
           :is="currentComp"
           :file-id="fileId"
+          :file="file"
           class="single-panel"
         />
       </div>
@@ -35,19 +36,22 @@ import NERPanel from '../ai/NERPanel.vue'
 import CustomExtractionPanel from '../ai/CustomExtractionPanel.vue'
 import DocumentQA from '../ai/DocumentQA.vue'
 import ClassificationPanel from '../ai/ClassificationPanel.vue'
-import { ChatLineSquare, Box, ChatRound, RefreshRight, List } from '@element-plus/icons-vue'
+import RelatedPanel from '../ai/RelatedPanel.vue'
+import { ChatLineSquare, Box, ChatRound, RefreshRight, List, Link } from '@element-plus/icons-vue'
 
-defineProps({ fileId: { type: [String, Number], required: true } })
+defineProps({ fileId: { type: [String, Number], required: true }, file: { type: Object, default: null } })
 const emit = defineEmits(['switch-translate'])
 
 const tools = [
   { key: 'summary', label: '摘要', icon: ChatLineSquare },
   { key: 'tags', label: '标签', icon: Box },
   { key: 'ner', label: '实体', icon: ChatRound },
-  { key: 'customExtraction', label: '自定义提取', icon: Box },
+  // { key: 'translation', label: '翻译', icon: RefreshRight },
   { key: 'qa', label: '问答', icon: ChatRound },
+  { key: 'customExtraction', label: '自定义提取', icon: Box },
   { key: 'classification', label: '文档分类', icon: List },
-  { key: 'translation', label: '翻译', icon: RefreshRight }
+  { key: 'related', label: '关联推荐', icon: Link },
+
 ]
 
 const active = ref('summary')
@@ -57,7 +61,8 @@ const currentComp = computed(() => {
     case 'summary': return SummaryPanel
     case 'tags': return TagsPanel
     case 'ner': return NERPanel
-    case 'customExtraction': return CustomExtractionPanel
+  case 'customExtraction': return CustomExtractionPanel
+  case 'related': return RelatedPanel
     case 'qa': return DocumentQA
     case 'classification': return ClassificationPanel
     default: return SummaryPanel

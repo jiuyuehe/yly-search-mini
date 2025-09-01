@@ -1,42 +1,9 @@
-import api from './api';
+import api, { appsApi } from './api';
+import { ElMessage } from 'element-plus';
 import { mapDocTypeCodeToTab, mapExtToTab } from '../constants/fileTypes';
 import { normalizeFile } from '../constants/fileModel';
 
 // Mock data for development
-const MOCK_DATA = {
-  filterOptions: {
-    fileSpaces: [
-      { value: 'workspace1', label: '工作空间1' },
-      { value: 'workspace2', label: '工作空间2' },
-      { value: 'workspace3', label: '个人空间' }
-    ],
-    creators: [
-      { value: 'user1', label: '张三' },
-      { value: 'user2', label: '李四' },
-      { value: 'user3', label: '王五' }
-    ],
-    tags: [
-      { value: 'tag1', label: '重要' },
-      { value: 'tag2', label: '紧急' },
-      { value: 'tag3', label: '项目' }
-    ],
-    formats: [
-      { value: 'pdf', label: 'PDF' },
-      { value: 'doc', label: 'Word文档' },
-      { value: 'xls', label: 'Excel表格' },
-      { value: 'ppt', label: 'PPT演示' },
-      { value: 'txt', label: '文本文件' }
-    ]
-  },
-  
-  searchResults: [
-    { id: 1, name: '项目需求文档.pdf', type: 'document', size: 2048000, modifiedTime: '2024-01-15T10:30:00Z', creator: '张三', path: '/projects/doc/requirements.pdf', preview: '这是一个项目需求文档，包含了详细的功能需求和技术规范...', tags: ['项目', '重要'], score: 0.95, hasSensitiveInfo: false },
-    { id: 2, name: '设计图标准.png', type: 'image', size: 1536000, modifiedTime: '2024-01-14T15:20:00Z', creator: '李四', path: '/design/ui/icons.png', preview: '', tags: ['设计'], score: 0.87, hasSensitiveInfo: false, thumbUrl: '' },
-    { id: 3, name: '会议录音.mp4', type: 'multimedia', size: 52428800, modifiedTime: '2024-01-13T09:00:00Z', creator: '王五', path: '/meetings/2024/jan/meeting.mp4', preview: '', tags: ['会议'], score: 0.72, hasSensitiveInfo: true },
-    { id: 4, name: '数据备份.zip', type: 'archive', size: 104857600, modifiedTime: '2024-01-12T18:45:00Z', creator: '张三', path: '/backup/data_backup.zip', preview: '', tags: ['备份'], score: 0.68, hasSensitiveInfo: false },
-    { id: 5, name: '配置文件.json', type: 'other', size: 4096, modifiedTime: '2024-01-11T14:30:00Z', creator: '李四', path: '/config/app.json', preview: '{ "app": { "name": "YLY Search", "version": "1.0.0" } }', tags: ['配置'], score: 0.55, hasSensitiveInfo: false }
-  ]
-};
 
 function transformResponse(data) {
   const list = data?.fileList || [];
@@ -82,7 +49,7 @@ function transformResponse(data) {
 
 class SearchService {
   async search(builtParams, imageFile = null) {
-    const url = '/admin-api/documents/search';
+    const url = '/admin-api/rag/documents/search';
     const { offset, limit, ...rest } = builtParams;
     try {
       let root;
@@ -105,26 +72,23 @@ class SearchService {
       const mapped = transformResponse(apiData);
       return { ...mapped, searchTime: apiData.searchTime };
     } catch (error) {
-      console.warn('搜索接口失败，使用 mock 数据', error);
-      // mock 数据也需要标准化以保持结构统一
-      const mappedMock = MOCK_DATA.searchResults.map(r => normalizeFile({ fileId: r.id, fileName: r.name, fileType: r.name.split('.').pop(), fileSize: r.size, updateTime: r.modifiedTime, createrName: r.creator, filePath: r.path, highlight: r.preview, score: r.score, thumbUrl: r.thumbUrl }));
-      const results = mappedMock.map(f => ({ ...f, type: mapExtToTab(f.fileType) }));
-      const tabCounts = { all: results.length, document:0, image:0, multimedia:0, archive:0, other:0 };
-      results.forEach(r => { if (tabCounts[r.type] != null) tabCounts[r.type]++; else tabCounts.other++; });
-      return { results, pagination: { total: results.length }, tabCounts, searchTime: 0 };
+      console.warn('搜索接口失败', error);
+      const msg = error?.message || '搜索失败';
+      ElMessage.error(msg);
+      throw error;
     }
   }
   
   async getFilterOptions() {
-    // 可调用后端专用接口，这里直接 mock
-    return MOCK_DATA.filterOptions;
+    // TODO: 替换为真实后端接口; 暂时返回空结构
+    return { fileSpaces: [], creators: [], tags: [], formats: [] };
   }
 
   // 获取创建者列表（用户列表），后端接口: /admin-api/rag/documents/users
   async getCreators(force = false) {
     if (!force && this._cachedCreators && Array.isArray(this._cachedCreators)) return this._cachedCreators;
     try {
-      const root = await api.get('/admin-api/documents/users');
+      const root = await api.get('/admin-api/rag/documents/users');
       if (root?.code !== 0) throw new Error(root?.msg || '获取用户失败');
       const raw = Array.isArray(root.data) ? root.data : [];
       const mapped = raw.map(u => ({ value: String(u.userId), label: u.userName || ('用户' + u.userId) }));
@@ -138,37 +102,131 @@ class SearchService {
   }
   
   async getFileCount(_filters) {
-    // 保留 mock
-    return { count: MOCK_DATA.searchResults.length };
+    // TODO: 若有真实接口替换，此处返回 0
+    return { count: 0 };
   }
   
   async downloadFiles(fileIds) {
+    // 批量下载：提交压缩任务 -> 轮询进度 -> 获取下载地址
     try {
-      console.log('Downloading files:', fileIds);
-      // Mock download implementation
-      alert(`正在下载 ${fileIds.length} 个文件...`);
-      return Promise.resolve();
-    } catch (error) {
-      console.warn('Download failed:', error);
-      throw error;
+      if (!Array.isArray(fileIds) || !fileIds.length) { ElMessage.warning('请先选择文件'); return; }
+      // 需要原始文件对象，调用方应在 window.__SEARCH_RESULTS__ 暂存；否则仅用 id 构建 payload
+      const source = Array.isArray(window.__SEARCH_RESULTS__) ? window.__SEARCH_RESULTS__ : [];
+      const idSet = new Set(fileIds);
+      const picked = source.filter(r => idSet.has(r.id));
+      const filesPayload = picked.map(f => {
+        if (f.fileCategory === 'nas') {
+          return { fileCategory: 'nas', nasCode: f.nasId || '', nasFilePath: f.subPath || '' };
+        }
+        return { fileCategory: f.fileCategory || 'public', fileId: f.fileId || f.id };
+      });
+      if (!filesPayload.length) {
+        // fallback 仅 id
+        filesPayload.push(...fileIds.map(id => ({ fileCategory: 'public', fileId: id })));
+      }
+  const root = await appsApi.post('/files/zip-down/task', { files: filesPayload });
+  const taskId = root?.data?.taskId || root?.taskId; // apps 返回 {status, data:{taskId}}
+  if (!taskId || root?.status !== 'ok') { ElMessage.error('创建压缩任务失败'); return; }
+      const notify = ElMessage({ type:'info', message:'文件压缩中... 0%', duration:0, grouping:true, showClose:true });
+      let attempts = 0;
+      const maxAttempts = 150; // ~5分钟 (150 * 2s)
+      const poll = async () => {
+        attempts++;
+        if (attempts > maxAttempts) {
+          notify.close && notify.close();
+          ElMessage.error('压缩超时，已停止');
+          return;
+        }
+        try {
+          const prog = await appsApi.get('/files/zip-down/task', { params: { task_id: taskId } });
+          const info = prog?.data?.result || prog?.result;
+          const innerStatus = prog?.data?.status || prog?.status; // 内层任务状态
+          const errorMsg = prog?.data?.errorMsg || prog?.errorMsg;
+          if (innerStatus === 'fail' || errorMsg) {
+            notify.close && notify.close();
+            ElMessage.error(errorMsg || '压缩失败');
+            return;
+          }
+          if (info?.downloadUrl) {
+            notify.close && notify.close();
+            const a = document.createElement('a');
+            a.href = info.downloadUrl; // 若需拼接域名可在此处理
+            a.download = '下载文件.zip';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            ElMessage.success('压缩完成，开始下载');
+          } else {
+            const percent = info?.fileDownloadProgressShow || info?.progress || '...';
+            notify.message = '文件压缩中... ' + percent;
+            setTimeout(poll, 2000);
+          }
+        } catch {
+          notify.message = '查询进度失败，重试中...';
+          setTimeout(poll, 3000);
+        }
+      };
+      poll();
+    } catch (e) {
+      console.warn('批量下载失败', e);
+      ElMessage.error(e.message || '下载失败');
     }
   }
   
   async exportResults(fileIds) {
+    // 前端生成 CSV，无需后端
     try {
-      console.log('Exporting results:', fileIds);
-      // Mock export implementation
-      alert(`正在导出 ${fileIds.length} 个文件结果...`);
-      return Promise.resolve();
-    } catch (error) {
-      console.warn('Export failed:', error);
-      throw error;
+      let rows = [];
+      // 允许传入对象数组或仅 id 数组；若是对象数组直接使用
+      if (Array.isArray(fileIds) && fileIds.length && typeof fileIds[0] === 'object') {
+        rows = fileIds;
+      } else {
+        // 如果只是 id 数组，尝试从 window.__SEARCH_RESULTS__（可由外部临时挂载）获取
+        if (Array.isArray(window.__SEARCH_RESULTS__)) {
+          rows = window.__SEARCH_RESULTS__.filter(r => fileIds.includes(r.id));
+        } else {
+          ElMessage.warning('缺少导出数据源');
+          return;
+        }
+      }
+      if (!rows.length) { ElMessage.warning('没有可导出的数据'); return; }
+      const headers = ['文件名称','文件大小','文件路径','创建人','上传时间','更新人','更新时间','空间','中文摘要','译文摘要','AI标签','系统标签','文件实体','文本翻译','属性','文件内容'];
+      const escapeCsv = (str) => { if (str == null) return '""'; const s = String(str).replace(/"/g,'""'); return '"'+s+'"'; };
+      const formatSize = (sz) => { if (!sz && sz!==0) return ''; const units=['B','KB','MB','GB','TB']; let v=Number(sz); let i=0; while(v>=1024 && i<units.length-1){ v/=1024; i++; } return (v.toFixed(i?2:0))+units[i]; };
+      let csv = headers.map(h=>escapeCsv(h)).join(',') + '\n';
+      rows.forEach(r => {
+        csv += [
+          escapeCsv(r.fileName||r.name||''),
+          escapeCsv(formatSize(r.fileSize)),
+          escapeCsv(r.filePath||''),
+          escapeCsv(r.createrName||''),
+          escapeCsv(r.createTime||''),
+          escapeCsv(r.updateUserName||''),
+          escapeCsv(r.updateTime||''),
+          escapeCsv(r.fileCategory||''),
+          escapeCsv(r.fileSummary||''),
+          escapeCsv(r.fileSummaryTranslate||''),
+          escapeCsv(r.fileAiTag||''),
+          escapeCsv(r.fileSysTag||''),
+          escapeCsv(r.fileEntities||''),
+          escapeCsv(r.fileTranslate||''),
+          escapeCsv(r.userCustomAttributes||''),
+          escapeCsv(r.fileContents||'')
+        ].join(',') + '\n';
+      });
+      const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = '文件导出_' + new Date().toLocaleDateString() + '.csv';
+      document.body.appendChild(link); link.click(); setTimeout(()=>{ URL.revokeObjectURL(link.href); document.body.removeChild(link); }, 120);
+      ElMessage.success('导出完成');
+    } catch (e) {
+      console.warn('前端导出失败', e);
+      ElMessage.error(e.message || '导出失败');
     }
   }
 
   // 新增：获取聚合统计（与搜索参数一致）
   async getAggregationStats(builtParams) {
-    const url = '/admin-api/documents/aggregations/stats';
+    const url = '/admin-api/rag/documents/aggregations/stats';
     try {
       const formData = new URLSearchParams();
       Object.entries(builtParams).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') formData.append(k, v); });

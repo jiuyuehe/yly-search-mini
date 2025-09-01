@@ -53,6 +53,10 @@
           </el-select>
         </div>
       </div>
+      <div class="lang-display">{{ languageSummary }}</div>
+      <div v-if="translating" class="top-progress">
+        <el-progress :percentage="translationProgress" :stroke-width="6" style="width:160px" />
+      </div>
       <div class="toolbar-actions">
         <el-button 
           type="primary" 
@@ -62,6 +66,14 @@
           :disabled="!sourceText.trim()"
         >
           翻译
+        </el-button>
+        <el-button
+          v-if="translating"
+          type="danger"
+          size="small"
+          @click="cancelTranslation"
+        >
+          取消
         </el-button>
         <el-button 
           size="small" 
@@ -85,7 +97,7 @@
       <div class="text-panel source-panel">
         <div class="panel-header">
           <span class="panel-title">源文本</span>
-          <span class="char-count">{{ sourceText.length }}/10000</span>
+          <span class="char-count">{{ sourceText.length }}</span>
         </div>
         <div 
           ref="sourceTextRef"
@@ -99,28 +111,19 @@
           @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')"
           :placeholder="'请输入要翻译的文本...'"
         ></div>
-        <div v-if="translating" class="translation-progress">
-          <el-progress :percentage="translationProgress" size="small" />
-        </div>
       </div>
-
       <div class="text-panel target-panel">
         <div class="panel-header">
-          <span class="panel-title">翻译结果</span>
+          <span class="panel-title">译文</span>
           <span class="char-count">{{ translatedText.length }}</span>
         </div>
         <div 
           ref="targetTextRef"
-          class="text-editor" 
-          contenteditable
-          @input="onTargetTextInput"
-          @scroll="onTargetScroll"
-          @mouseup="onTextSelection"
-          @keyup="onTextSelection"
+          class="text-editor target" 
+          :class="{loading: translating}"
           @mousemove="onEditorHover($event, 'target')"
           @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"
-          :placeholder="'翻译结果将显示在这里...'"
-        ></div>
+        >{{ translatedText }}</div>
       </div>
     </div>
 
@@ -152,11 +155,10 @@
     <!-- Settings Modal -->
     <el-dialog v-model="showSettings" title="翻译设置" width="600px">
       <el-form :model="settings" label-width="120px">
-        <el-form-item label="翻译模型">
-          <el-select v-model="settings.translationModel" placeholder="选择翻译模型">
-            <el-option label="GPT-4" value="gpt-4" />
-            <el-option label="Claude-3" value="claude-3" />
-            <el-option label="Google Translate" value="google" />
+        <el-form-item label="翻译接口">
+          <el-select v-model="settings.provider" placeholder="选择翻译接口">
+            <el-option label="系统内置API" value="builtin" />
+            <el-option label="讯飞翻译API" value="xunfei" />
           </el-select>
         </el-form-item>
         <el-form-item label="主题">
@@ -362,17 +364,18 @@ import {
 } from '@element-plus/icons-vue';
 
 const props = defineProps({
-  fileId: {
-    type: String,
-    required: true
-  },
-  initialSourceText: {
-    type: String,
-    default: ''
-  }
+  fileId: { type: String, required: true },
+  esId: { type: String, default: '' },
+  active: { type: Boolean, default: false },
+  initialSourceText: { type: String, default: '' },
+  initialTranslation: { type: String, default: '' }
 });
 
 const emit = defineEmits(['text-extracted']);
+  // Expose methods for parent components (e.g., re-translate trigger)
+  defineExpose({
+    translateText
+  });
 
 // Store
 const aiStore = useAiToolsStore();
@@ -383,16 +386,19 @@ const targetTextRef = ref(null);
 const contextMenuRef = ref(null);
 
 // Language settings
-const sourceLanguage = ref('auto');
-const targetLanguage = ref('en');
+const sourceLanguage = ref('en'); // 默认英文
+const targetLanguage = ref('zh'); // 默认中文
 
 // Text content
 const sourceText = ref('');
 const translatedText = ref('');
+let initTried = false;
 
 // Translation state
 const translating = ref(false);
 const translationProgress = ref(0);
+const cancelRequested = ref(false);
+const sentenceTranslations = ref([]); // 存放每句译文
 
 // Context menu
 const showContextMenu = ref(false);
@@ -403,12 +409,17 @@ const selectedRange = ref(null);
 // Settings
 const showSettings = ref(false);
 const settings = reactive({
-  translationModel: 'gpt-4',
+  provider: 'builtin', // builtin | xunfei
   theme: 'light',
   fontSize: 14,
   autoTranslate: false,
   translateDelay: 500
 });
+
+// 语言名称映射与摘要显示
+import { computed } from 'vue';
+const languageNameMap = { auto:'自动检测', zh:'中文', en:'English', fr:'Français', es:'Español', de:'Deutsch', ja:'日本語', ru:'Русский', it:'Italiano', ko:'한국어', pt:'Português' };
+const languageSummary = computed(()=>`${languageNameMap[sourceLanguage.value]||sourceLanguage.value} → ${languageNameMap[targetLanguage.value]||targetLanguage.value}`);
 
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
@@ -456,23 +467,68 @@ let autoTranslateTimer = null;
 const textAlignmentMap = ref({});
 
 onMounted(async () => {
-  // Initialize source text from props or extract from file
+  loadSettings();
+  applyFontSize();
+  document.addEventListener('click', hideContextMenu);
+  if (props.active) { await initLoad(); }
+});
+watch(()=>props.fileId, ()=>{ initTried=false; if (props.active) initLoad(); });
+watch(()=>props.active, (v)=>{ if (v) { initLoad(); } });
+
+async function initLoad(){
+  if (initTried) return; initTried = true;
+  // 初始化源文本
   if (props.initialSourceText) {
     sourceText.value = props.initialSourceText;
-    updateSourceTextContent();
   } else if (props.fileId) {
     await extractTextFromFile();
   }
-  
-  // Load settings from localStorage
-  loadSettings();
-  
-  // Apply font size
-  applyFontSize();
-  
-  // Add click listener to hide context menu
-  document.addEventListener('click', hideContextMenu);
-});
+  updateSourceTextContent();
+  // 初始化已存在翻译
+  if (props.initialTranslation) {
+    translatedText.value = props.initialTranslation;
+    updateTargetTextContent();
+  }
+  detectSourceLang();
+  await loadCachedOrTranslate();
+}
+
+function detectSourceLang(){
+  if (sourceLanguage.value !== 'auto') return; // 只有 auto 才自动检测
+  const txt = sourceText.value || '';
+  if (!txt.trim()) return;
+  const chineseChars = (txt.match(/[\u4e00-\u9fa5]/g)||[]).length;
+  const ratio = chineseChars / Math.max(1, txt.length);
+  if (ratio > 0.25) { // 阈值稍微提高，避免少量汉字干扰
+    sourceLanguage.value='zh';
+    if (targetLanguage.value==='zh') targetLanguage.value='en';
+  } else {
+    sourceLanguage.value='en';
+    if (targetLanguage.value==='en') targetLanguage.value='zh';
+  }
+}
+
+async function loadCachedOrTranslate(){
+  if (!props.active) return; // 仅在激活时执行
+  if (!sourceText.value.trim()) return;
+  try {
+    const esId = props.esId || props.fileId; // 正确传递 esId
+    if (esId) {
+      const { aiService } = await import('../../services/aiService');
+      const cached = await aiService.fetchCachedTranslation(esId);
+      if (cached && cached.translation) {
+        translatedText.value = cached.translation;
+        emit('translated', translatedText.value);
+        updateTargetTextContent();
+        return;
+      }
+    }
+    if (sourceLanguage.value === targetLanguage.value) {
+  translatedText.value = sourceText.value; emit('translated', translatedText.value); updateTargetTextContent(); return;
+    }
+    await translateText();
+  } catch (e) { console.warn('loadCachedOrTranslate failed', e); }
+}
 
 // Watch for auto translate
 watch(sourceText, () => {
@@ -517,9 +573,7 @@ function onSourceTextInput(event) {
 }
 
 // Target text input handler  
-function onTargetTextInput(event) {
-  translatedText.value = event.target.innerText || '';
-}
+// onTargetTextInput 移除（译文外部展示）
 
 // Language change handlers
 function onSourceLanguageChange() {
@@ -529,9 +583,9 @@ function onSourceLanguageChange() {
 }
 
 function onTargetLanguageChange() {
-  if (settings.autoTranslate && sourceText.value.trim()) {
-    translateText();
-  }
+  if (!sourceText.value.trim()) return;
+  // 切换语言时重新查缓存或生成（仅激活状态）
+  loadCachedOrTranslate();
 }
 
 // Swap languages
@@ -553,54 +607,127 @@ function swapLanguages() {
 
 // Main translation function
 async function translateText() {
+  if (translating.value) return; // 避免重复触发
   if (!sourceText.value.trim()) {
     ElMessage.warning('请输入要翻译的文本');
     return;
+  }
+  if (sourceLanguage.value === targetLanguage.value) {
+    translatedText.value = sourceText.value; updateTargetTextContent(); return;
   }
   
   translating.value = true;
   translationProgress.value = 0;
   translatedText.value = '';
+  cancelRequested.value = false;
+  sentenceTranslations.value = [];
   
   try {
-    // Split text into sentences for streaming
-    const sentences = splitIntoSentences(sourceText.value);
-    let translatedSentences = [];
+    // 按段落拆分（空行分隔）
+    const paragraphs = splitIntoParagraphs(sourceText.value);
+    let translatedParagraphs = [];
     
-    for (let i = 0; i < sentences.length; i++) {
-      const sentence = sentences[i];
-      if (sentence.trim()) {
-        let sentenceTranslation = '';
-        
-        await aiStore.translateText(sentence, targetLanguage.value, (chunk) => {
-          sentenceTranslation = chunk;
-          translatedSentences[i] = sentenceTranslation;
-          translatedText.value = translatedSentences.join(' ');
+    if (settings.provider === 'builtin') {
+      const { aiService } = await import('../../services/aiService');
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (cancelRequested.value) break;
+        const paragraph = paragraphs[i];
+        sentenceTranslations.value[i] = '';
+        if (paragraph.trim()) {
+          await aiService.translateText(paragraph, targetLanguage.value, (chunk) => {
+            sentenceTranslations.value[i] = chunk;
+            translatedParagraphs[i] = chunk;
+            translatedText.value = sentenceTranslations.value.join('\n\n');
+            emit('translated', translatedText.value);
+            updateTargetTextContent();
+          });
+          translationProgress.value = Math.round(((i + 1) / paragraphs.length) * 100);
+        }
+      }
+    } else if (settings.provider === 'xunfei') {
+      // 调用讯飞批量接口一次性翻译整段
+      try {
+        const { aiService } = await import('../../services/aiService');
+        const xfResPromise = aiService.translateWithXunfei(sourceText.value, sourceLanguage.value === 'auto' ? '' : sourceLanguage.value, targetLanguage.value);
+        const xfRes = await xfResPromise;
+        if (cancelRequested.value) throw new Error('cancelled');
+        if (xfRes?.sentences && Array.isArray(xfRes.sentences)) {
+          translatedParagraphs = xfRes.sentences.map(s=>s.target || s.tgt || s.translation || '');
+          sentenceTranslations.value = [...translatedParagraphs];
+          translatedText.value = translatedParagraphs.join('\n\n');
+          emit('translated', translatedText.value);
           updateTargetTextContent();
-        });
-        
-        // Update progress
-        translationProgress.value = Math.round(((i + 1) / sentences.length) * 100);
+          translationProgress.value = 100;
+        } else if (xfRes?.text) {
+          translatedText.value = xfRes.text;
+          emit('translated', translatedText.value);
+          updateTargetTextContent();
+          translationProgress.value = 100;
+        } else {
+          throw new Error('讯飞返回结构不符合预期');
+        }
+      } catch (e) {
+        console.warn('Xunfei translate failed fallback to builtin', e);
+        const { aiService: aiSvcFallback } = await import('../../services/aiService');
+        for (let i = 0; i < paragraphs.length; i++) {
+          if (cancelRequested.value) break;
+          const paragraph = paragraphs[i];
+          sentenceTranslations.value[i] = '';
+          if (paragraph.trim()) {
+            await aiSvcFallback.translateText(paragraph, targetLanguage.value, (chunk) => {
+              sentenceTranslations.value[i] = chunk;
+              translatedParagraphs[i] = chunk;
+              translatedText.value = sentenceTranslations.value.join('\n\n');
+              emit('translated', translatedText.value);
+              updateTargetTextContent();
+            });
+            translationProgress.value = Math.round(((i + 1) / paragraphs.length) * 100);
+          }
+        }
       }
     }
     
-    // Build text alignment map for synchronized highlighting
-    buildTextAlignmentMap(sentences, translatedSentences);
+    // Build text alignment map for synchronized highlighting (按段落)
+    buildTextAlignmentMap(paragraphs, translatedParagraphs);
     
-    ElMessage.success('翻译完成');
+    if (cancelRequested.value) {
+      ElMessage.info('翻译已取消');
+    } else {
+      try {
+        const esId = props.esId || props.fileId;
+        if (esId) {
+          const { aiService } = await import('../../services/aiService');
+          await aiService.saveTranslation(esId, translatedText.value, targetLanguage.value);
+        }
+      } catch (e) { console.warn('save translation cache failed', e); }
+      ElMessage.success('翻译完成');
+    }
   } catch (error) {
     ElMessage.error('翻译失败，请重试');
     console.error('Translation failed:', error);
   } finally {
     translating.value = false;
-    translationProgress.value = 100;
+    if (!cancelRequested.value) translationProgress.value = 100; else translationProgress.value = Math.min(99, translationProgress.value);
   }
 }
 
-// Split text into sentences
-function splitIntoSentences(text) {
-  // Simple sentence splitting (can be enhanced with NLP libraries)
-  return text.split(/[.!?。！？]+/).filter(s => s.trim());
+function cancelTranslation(){
+  if (!translating.value) return;
+  cancelRequested.value = true;
+  ElMessage.info('正在取消翻译...');
+}
+
+// Split text into paragraphs (空行或连续换行分隔)
+function splitIntoParagraphs(text) {
+  if (!text) return [];
+  // 先归一化换行
+  const norm = text.replace(/\r\n/g,'\n');
+  const parts = norm.split(/\n{2,}/).map(p=>p.trim()).filter(Boolean);
+  if (parts.length <= 1) {
+    // 如果没有空行，用单换行尝试聚合；保持与原行一致
+    return norm.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  }
+  return parts;
 }
 
 // Build text alignment map for synchronized highlighting
@@ -621,12 +748,7 @@ function onSourceScroll(event) {
   }
 }
 
-function onTargetScroll(event) {
-  if (sourceTextRef.value) {
-    const scrollPercentage = event.target.scrollTop / (event.target.scrollHeight - event.target.clientHeight);
-    sourceTextRef.value.scrollTop = scrollPercentage * (sourceTextRef.value.scrollHeight - sourceTextRef.value.clientHeight);
-  }
-}
+// onTargetScroll 移除（译文外部展示）
 
 // Text selection and context menu
 function onTextSelection(event) {
@@ -690,17 +812,12 @@ function highlightSentenceBoth(sentence) {
   if (!sentence) return;
   clearCrossHighlights();
   wrapRangeByText(sourceTextRef.value, sentence, CROSS_CLASS);
-  // 简单策略：目标框中尝试同样句子；若未找到且存在映射，用映射
-  const mapped = textAlignmentMap.value[sentence.trim()] || sentence;
-  wrapRangeByText(targetTextRef.value, mapped, CROSS_CLASS);
 }
 
 function highlightSelectionBoth(text) {
   if (!text) return;
   clearSelectionHighlights();
   wrapRangeByText(sourceTextRef.value, text, SELECTION_CLASS);
-  const mapped = textAlignmentMap.value[text.trim()] || text;
-  wrapRangeByText(targetTextRef.value, mapped, SELECTION_CLASS);
 }
 
 function getSentenceAtPoint(editor, clientX, clientY) {
@@ -877,7 +994,7 @@ function importTerminology() {
           } else {
             ElMessage.error('文件格式不正确');
           }
-        } catch (error) {
+        } catch {
           ElMessage.error('文件解析失败');
         }
       };
@@ -900,8 +1017,9 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .language-selector label { font-size:14px; color:#606266; white-space:nowrap; }
 .swap-languages { display:flex; align-items:center; }
 .toolbar-actions { display:flex; align-items:center; gap:8px; }
+.lang-display { font-size:13px; color:#606266; margin-left:12px; padding:4px 8px; background:#ffffffcc; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,.04); white-space:nowrap; }
 .translation-content { display:flex; flex:1; overflow:hidden; width:100%; min-width:0; }
-.text-panel { flex:1; display:flex; flex-direction:column; border-right:1px solid #e5e7eb; min-width:0; }
+.text-panel { flex:1 1 50%; display:flex; flex-direction:column; border-right:1px solid #e5e7eb; min-width:0; }
 .text-panel:last-child { border-right:none; }
 .panel-header { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #e5e7eb; background:#fafafa; }
 .panel-title { font-weight:600; font-size:14px; color:#303133; }
@@ -910,7 +1028,8 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .text-editor:focus { outline:none; }
 .text-editor:empty:before { content:attr(placeholder); color:#c0c4cc; pointer-events:none; }
 .text-editor::-webkit-scrollbar { width:8px; }
-.translation-progress { padding:8px 16px; border-top:1px solid #e5e7eb; }
+.top-progress { margin-left:16px; }
+.translation-progress { padding:4px 16px; }
 .context-menu { background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.15); padding:4px 0; min-width:120px; }
 .menu-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; font-size:14px; color:#303133; transition:background-color .2s; }
 .menu-item:hover { background:#f5f7fa; }

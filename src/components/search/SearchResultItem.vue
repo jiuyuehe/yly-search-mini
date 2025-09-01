@@ -41,6 +41,7 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import { goCloudPath } from '../../services/navigation';
 import FileMetaInfo from '../preview/FileMetaInfo.vue';
 import { parseftsIcon } from '../../filters/filters';
 
@@ -49,7 +50,7 @@ const props = defineProps({
   selected: { type: Boolean, default: false },
   searchQuery: { type: String, default: '' }
 });
-const emit = defineEmits(['click', 'update:selected', 'open-path']);
+const _emit = defineEmits(['click', 'update:selected']);
 
 const metaFile = computed(() => ({
   name: props.item.name || props.item.fileName,
@@ -58,10 +59,12 @@ const metaFile = computed(() => ({
   modifiedTime: props.item.updateTime || props.item.modifiedTime,
   size: props.item.size || props.item.fileSize,
   filePath: props.item.filePath || props.item.path || '',
-  fileType: props.item.fileType || props.item.type || ''
+  fileType: props.item.fileType || props.item.type || '',
+  fileCategory: props.item.fileCategory || props.item.fc || ''
 }));
 
-function openPath(p) { emit('open-path', p); }
+
+function openPath() { goCloudPath(props.item); }
 
 const rawPreview = computed(() => (props.item && typeof props.item.preview === 'string') ? props.item.preview : '');
 
@@ -95,4 +98,5 @@ const displayScore = computed(() => {
 .thumb { width:100%; height:100%; object-fit:cover; transition:.25s; }
 .thumb:hover { transform:scale(1.06); }
 .score-line { display:flex; align-items:center; gap:6px; }
+/* path-line styles removed; path now displayed inside FileMetaInfo */
 </style>
