@@ -1,4 +1,4 @@
-import api from './api';
+import { appsApi } from './api';
 
 // Mock data for file preview
 const MOCK_FILE_DATA = {
@@ -81,8 +81,8 @@ class FileService {
       }
       
       return fileData;
-    } catch (error) {
-      console.warn('API not available, using mock data');
+    } catch (e) {
+      console.warn('API not available, using mock data', e);
       const fileData = MOCK_FILE_DATA[fileId];
       if (!fileData) {
         throw new Error('文件不存在');
@@ -101,9 +101,9 @@ class FileService {
         alert(`正在下载文件 ID: ${fileId}`);
       }
       return Promise.resolve();
-    } catch (error) {
-      console.warn('Download failed:', error);
-      throw error;
+    } catch (e) {
+      console.warn('Download failed:', e);
+      throw e;
     }
   }
   
@@ -113,10 +113,21 @@ class FileService {
       console.log('Access requested for file:', fileId, 'Type:', requestType, 'Reason:', reason);
       alert(`已提交访问申请，文件ID: ${fileId}`);
       return { success: true, message: '访问申请已提交' };
-    } catch (error) {
-      console.warn('Access request failed:', error);
-      throw error;
+    } catch (e) {
+      console.warn('Access request failed:', e);
+      throw e;
     }
+  }
+
+  // 批量压缩下载任务提交
+  async fileZipDownTask(files) {
+    // files: [{ fileCategory:'nas', nasCode, nasFilePath } | { fileCategory:'public', fileId }]
+    return appsApi.post('/files/zip-down/task', { files });
+  }
+
+  // 查询压缩任务进度 / 获取下载地址
+  async getZipDownTaskUrl(taskId) {
+    return appsApi.get('/files/zip-down/task', { params: { task_id: taskId } });
   }
 }
 

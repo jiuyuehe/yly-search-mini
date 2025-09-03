@@ -63,12 +63,15 @@ const props = defineProps({
   fileData: { type: Object, default: null },
   fileType: { type: String, default: '' },
   showAISide: { type: Boolean, default: true },
-  hideHeader: { type: Boolean, default: false }
+  hideHeader: { type: Boolean, default: false },
+  externalPreviewUrl: { type: String, default: '' }
 });
 
 const loading = ref(false);
 const error = ref(null);
 const previewUrl = ref('');
+let lastBuildKey = '';
+let initialBuilt = false;
 const textContent = ref('');
 const localFileData = ref(props.fileData);
 
@@ -91,8 +94,17 @@ function buildFromFileData() {
     textContent.value = localFileData.value.extractedText || localFileData.value.text || '';
   }
   const fd = localFileData.value;
-  let url = fd.viewUrl || fd.previewUrl || ''; // 去掉 fd.file 以防止触发下载
-  if (isOfficeDoc.value) {
+  let url = props.externalPreviewUrl || fd.viewUrl || fd.previewUrl || '';
+  // 若后端仅返回 file 字段，且是可直接内嵌的类型（图片 / 文本 / pdf 等），将其作为预览地址使用
+  if (!url && fd.file) {
+    // 仅对图片与 PDF 直接内联，其它 office 文档统一走 views.html 预览，避免浏览器直接下载
+    const inlineImage = FILE_TYPE.pic.includes(ext.value);
+    const inlinePdf = ext.value === 'pdf';
+    if (inlineImage || inlinePdf) {
+      url = /^https?:/i.test(fd.file) ? fd.file : `${APPS_BASE.replace(/\/$/, '')}${fd.file.startsWith('/') ? '' : '/'}${fd.file}`;
+    }
+  }
+  if (isOfficeDoc.value && !props.externalPreviewUrl) {
     const fi = fd.fileId || fd.id || props.fileId;
     const fc = fd.fileCategory || fd.fc || fd.category || '';
     const fn = encodeURIComponent(fd.fileName || fd.name || 'file');
@@ -104,8 +116,16 @@ function buildFromFileData() {
       }
     }
   }
-  console.log('Preview URL:', previewUrl.value);
-  previewUrl.value = url;
+  const buildKey = `${ext.value}|${url}`;
+  if (buildKey !== lastBuildKey) {
+    lastBuildKey = buildKey;
+    // 若第一次构建且 url 为空则跳过日志
+    previewUrl.value = url;
+    if (url && (!initialBuilt || previewUrl.value !== url)) {
+      console.log('[FilePreview] built previewUrl:', previewUrl.value, 'ext=', ext.value);
+    }
+    initialBuilt = true;
+  }
 }
 
 watch(() => props.fileData, (v) => {
@@ -124,8 +144,9 @@ async function loadPreview() {
 
 function retryPreview() { loadPreview(); }
 
-onMounted(loadPreview);
-watch(() => props.fileId, () => loadPreview());
+onMounted(() => { if (!props.fileData) loadPreview(); else buildFromFileData(); });
+// 仅当没有传入 fileData 时才根据 fileId 触发加载（预留远程加载场景）
+watch(() => props.fileId, () => { if (!props.fileData) loadPreview(); });
 </script>
 
 <style scoped>

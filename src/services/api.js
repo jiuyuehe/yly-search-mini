@@ -6,7 +6,7 @@ const USER_INFO_KEY = 'userInfo';
 
 function getCtFromCookie() {
   const match = document.cookie.match(/(?:^|; )ct=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjk5LCJ0aW1lIjoxNzU2MjAyMDE4LCJrZXkiOiIxMjM0NTY3NC4yIiwiaXAiOiIxOTIuMTY4LjI1MC4xMTQiLCJkZXZpY2UiOiJ3ZWIiLCJpYXQiOjE3NTYyMDIwMTh9._TS6e9XVUHX2pXs6AOHlJuatdOOXo1W6PCHML9W4Btw";
+  return match ? decodeURIComponent(match[1]):"";
 }
 
 export function getCT() {
@@ -25,20 +25,30 @@ export function getUserInfo() {
 // 基础搜索后端实例（保持原 /api 前缀）
 export const searchApi = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 120000,
   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
 });
 
 // 存储/应用服务器实例（/apps 前缀绝对地址）
 export const appsApi = axios.create({
   baseURL: '/apps',
-  timeout: 30000,
+  timeout: 120000,
   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
 });
 
 function attachCt(config) {
   const ct = getCT();
-  config.headers['ct'] = ct; 
+  if (ct) config.headers['ct'] = ct;
+  // inject userId header if available
+  try {
+    const user = getUserInfo();
+    if (user && (user.id || user.userId)) {
+      const uid = user.id || user.userId;
+      if (uid !== undefined && uid !== null && uid !== '') {
+        if (!config.headers['X-User-Id']) config.headers['X-User-Id'] = uid;
+      }
+    }
+  } catch { /* ignore */ }
   return config;
 }
 
@@ -80,8 +90,8 @@ function attachCt(config) {
 let _authInited = false;
 export async function fetchUserInfo() {
   try {
-    // 修正重复前缀，原 /apps/apps/user -> /apps/user
-    const res = await appsApi.get('/apps/user');
+  // apps 前缀接口使用 appsApi，避免重复 /apps/apps；直接请求 /user
+  const res = await appsApi.get('/user');
     console.log(res);
     if (res && res.status === 'ok') {
       setUserInfo(res.data || {});

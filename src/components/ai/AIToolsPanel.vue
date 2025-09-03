@@ -17,6 +17,7 @@
         <component
           :is="currentComp"
           :file-id="fileId"
+          :file="file"
           class="single-panel"
         />
       </div>
@@ -28,36 +29,41 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import SummaryPanel from '../ai/SummaryPanel.vue'
 import TagsPanel from '../ai/TagsPanel.vue'
 import NERPanel from '../ai/NERPanel.vue'
 import CustomExtractionPanel from '../ai/CustomExtractionPanel.vue'
 import DocumentQA from '../ai/DocumentQA.vue'
 import ClassificationPanel from '../ai/ClassificationPanel.vue'
-import { ChatLineSquare, Box, ChatRound, RefreshRight, List } from '@element-plus/icons-vue'
+import RelatedPanel from '../ai/RelatedPanel.vue'
+import { ChatLineSquare, Box, ChatRound, List, Link, Document } from '@element-plus/icons-vue'
+import MetadataPanel from '../ai/MetadataPanel.vue'
 
-defineProps({ fileId: { type: [String, Number], required: true } })
+defineProps({ fileId: { type: [String, Number], required: true }, file: { type: Object, default: null } })
 const emit = defineEmits(['switch-translate'])
 
 const tools = [
+  { key: 'metadata', label: '元数据', icon: Document },
   { key: 'summary', label: '摘要', icon: ChatLineSquare },
   { key: 'tags', label: '标签', icon: Box },
   { key: 'ner', label: '实体', icon: ChatRound },
-  { key: 'customExtraction', label: '自定义提取', icon: Box },
   { key: 'qa', label: '问答', icon: ChatRound },
+  { key: 'customExtraction', label: '自定义提取', icon: Box },
   { key: 'classification', label: '文档分类', icon: List },
-  { key: 'translation', label: '翻译', icon: RefreshRight }
+  { key: 'related', label: '关联推荐', icon: Link },
 ]
 
 const active = ref('summary')
 
 const currentComp = computed(() => {
   switch (active.value) {
-    case 'summary': return SummaryPanel
+  case 'metadata': return MetadataPanel
+  case 'summary': return SummaryPanel
     case 'tags': return TagsPanel
     case 'ner': return NERPanel
-    case 'customExtraction': return CustomExtractionPanel
+  case 'customExtraction': return CustomExtractionPanel
+  case 'related': return RelatedPanel
     case 'qa': return DocumentQA
     case 'classification': return ClassificationPanel
     default: return SummaryPanel
@@ -72,32 +78,61 @@ function handleSelect(key) {
   }
   active.value = key
 }
+
+function handleActivateNER(){
+  active.value = 'ner'
+}
+
+function handleActivateTags(){
+  active.value = 'tags'
+}
+
+function handleActivateQA(){
+  active.value = 'qa'
+}
+
+onMounted(()=>{ 
+  window.addEventListener('activate-ner', handleActivateNER)
+  window.addEventListener('refresh-tags', handleActivateTags)
+  window.addEventListener('activate-tags', handleActivateTags)
+  window.addEventListener('activate-qa', handleActivateQA)
+})
+onBeforeUnmount(()=>{ 
+  window.removeEventListener('activate-ner', handleActivateNER)
+  window.removeEventListener('refresh-tags', handleActivateTags)
+  window.removeEventListener('activate-tags', handleActivateTags)
+  window.removeEventListener('activate-qa', handleActivateQA)
+})
 </script>
 
 <style scoped>
 .ai-side { width:100%; height:100%; display:flex; flex-direction:column; background:#fff; border-left:1px solid #ebeef5; }
 .ai-tools-panel { display:flex; flex-direction:column; height:100%; }
-.tools-list { 
-  padding:12px 16px 8px; 
-  display:grid; 
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
-  gap:8px; 
-  border-bottom:1px solid #f0f2f5; 
+.tools-list {
+  padding:12px 16px 8px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  border-bottom:1px solid #f0f2f5;
 }
 .tool-item { 
-  display:flex; 
-  flex-direction:column; 
-  align-items:center; 
-  gap:4px; 
-  padding:12px 8px; 
-  border-radius:8px; 
-  cursor:pointer; 
-  font-size:12px; 
-  color:#606266; 
-  transition:.15s; 
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  padding:12px 8px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:12px;
+  color:#606266;
+  transition:.15s;
   text-align:center;
   min-height:60px;
   justify-content:center;
+  box-sizing:border-box;
+  flex:1 0 calc(25% - 8px);
+  max-width:calc(25% - 8px);
+  min-width:100px;
 }
 .tool-item:hover { background:#f5f7fa; color:var(--el-color-primary); }
 .tool-item.active { background:var(--el-color-primary); color:#fff; box-shadow:0 4px 10px -2px rgba(22,113,242,.35); }

@@ -23,7 +23,6 @@
     <div class="forms-list" v-loading="formsStore.loading.list">
       <el-table
         :data="filteredForms"
-        @row-click="selectForm"
         row-key="id"
         highlight-current-row
       >
@@ -31,7 +30,7 @@
           <template #default="{ row }">
             <div class="form-name">
               <strong>{{ row.name }}</strong>
-              <div class="form-description">{{ row.structure.formName }}</div>
+              <div class="form-description">{{ row.description || row.structure.formName }}</div>
             </div>
           </template>
         </el-table-column>
@@ -50,7 +49,7 @@
         
         <el-table-column label="操作" width="200" align="center">
           <template #default="{ row }">
-            <el-button size="small" @click.stop="selectForm(row)">选择</el-button>
+            <el-button v-if="selectable" size="small" type="primary" @click.stop="selectForm(row)">选择</el-button>
             <el-button size="small" @click.stop="editForm(row.id)">编辑</el-button>
             <el-button 
               size="small" 
@@ -84,7 +83,7 @@
       />
       <template #footer>
         <el-button @click="showFormDetail = false">关闭</el-button>
-        <el-button type="primary" @click="confirmSelectForm">选择此表单</el-button>
+        <el-button v-if="selectable" type="primary" @click="confirmSelectForm">选择此表单</el-button>
       </template>
     </el-dialog>
   </div>
@@ -99,6 +98,10 @@ import { useFormsStore } from '../../stores/forms';
 import FormPreview from '../forms/FormPreview.vue';
 
 const emit = defineEmits(['form-selected']);
+
+const _props = defineProps({
+  selectable: { type: Boolean, default: false }
+});
 
 const router = useRouter();
 const formsStore = useFormsStore();

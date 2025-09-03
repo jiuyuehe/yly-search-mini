@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { searchService } from '../services/search';
 import { imageSearchService } from '../services/imageSearch';
 import { tabToDocTypeParam } from '../constants/fileTypes';
+import { ElMessage } from 'element-plus';
 
 export const useSearchStore = defineStore('search', {
   state: () => ({
@@ -35,7 +36,13 @@ export const useSearchStore = defineStore('search', {
     getTotalCount: (s) => s.pagination.total,
     getTabCounts: (s) => s.tabCounts,
     getFilterOptions: (s) => s.filterOptions,
-    isImageSearch: (s) => s.searchType === 'image'
+    isImageSearch: (s) => s.searchType === 'image',
+    // 供导出/弹窗快速按 id 访问
+    itemsById: (s) => {
+      const map = {};
+      for (const r of s.results) { if (r && r.id != null) map[r.id] = r; }
+      return map;
+    }
   },
   actions: {
     async loadInitialData() { try { const fo = await searchService.getFilterOptions(); this.filterOptions = fo; await this.search('', 'fullText'); } catch (e) { this.error = e.message; } },
@@ -131,7 +138,49 @@ export const useSearchStore = defineStore('search', {
     updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType); },
     updatePageSize(s) { this.pagination.pageSize = s; this.pagination.currentPage = 1; this.search(this.query, this.searchType); },
     async downloadFiles(ids) { try { await searchService.downloadFiles(ids); } catch (e) { this.error = e.message; } },
-    async exportResults(ids) { try { await searchService.exportResults(ids); } catch (e) { this.error = e.message; } },
+    async exportResults(ids) {
+      try {
+        const rows = Array.isArray(ids) && ids.length ? ids.map(id => this.results.find(r => r.id === id)).filter(Boolean) : this.results;
+        if (!rows.length) { ElMessage.warning('没有可导出的数据'); return; }
+        // 构建 CSV
+        const headers = ['文件名称','文件大小','文件路径','创建人','上传时间','更新人','更新时间','空间','中文摘要','译文摘要','AI标签','系统标签','文件实体','文本翻译','属性','文件内容'];
+        const escapeCsv = (str) => { if (str == null) return '""'; const s = String(str).replace(/"/g,'""'); return '"' + s + '"'; };
+        const formatSize = (sz) => { if (!sz && sz!==0) return ''; const units=['B','KB','MB','GB','TB']; let v=Number(sz); let i=0; while(v>=1024 && i<units.length-1){ v/=1024; i++; } return (v.toFixed(i?2:0)) + units[i]; };
+        let csv = headers.map(h=>escapeCsv(h)).join(',') + '\n';
+        rows.forEach(r => {
+          csv += [
+            escapeCsv(r.fileName||r.name||''),
+            escapeCsv(formatSize(r.fileSize)),
+            escapeCsv(r.filePath||''),
+            escapeCsv(r.createrName||''),
+            escapeCsv(r.createTime||''),
+            escapeCsv(r.updateUserName||''),
+            escapeCsv(r.updateTime||''),
+            escapeCsv(r.fileCategory||''),
+            escapeCsv(r.fileSummary||''),
+            escapeCsv(r.fileSummaryTranslate||''),
+            escapeCsv(r.fileAiTag||''),
+            escapeCsv(r.fileSysTag||''),
+            escapeCsv(r.fileEntities||''),
+            escapeCsv(r.fileTranslate||''),
+            escapeCsv(r.userCustomAttributes||''),
+            escapeCsv(r.fileContents||'')
+          ].join(',') + '\n';
+        });
+        const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = '文件导出_' + new Date().toLocaleDateString() + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(()=>{ URL.revokeObjectURL(link.href); document.body.removeChild(link); }, 120);
+        ElMessage.success('导出完成');
+      } catch (e) {
+        console.warn('前端导出失败', e);
+        this.error = e.message || '导出失败';
+        ElMessage.error(this.error);
+      }
+    },
     resetFilters() { this.filters = { fileCategory: [], fileSpace: [], creators: [], tags: [], formats: [], timeRange: 'all', customTimeRange: null, fileSize: [], hasHistory: false, folder: false, fileAiTag: '', fileSysTag: '', extname: '' }; this.pagination.currentPage = 1; this.search(this.query, this.searchType); }
   }
 });

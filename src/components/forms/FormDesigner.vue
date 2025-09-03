@@ -94,6 +94,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useFormsStore } from '../../stores/forms';
+import { formsService } from '../../services/formsService';
 import FieldDesigner from './FieldDesigner.vue';
 import FormPreview from './FormPreview.vue';
 
@@ -248,26 +249,26 @@ function validateForm() {
 
 async function saveForm() {
   if (!validateForm()) return;
-  
+
   loading.save = true;
-  
   try {
-    const formPayload = {
+    const payload = {
       name: formData.name,
       structure: formData.structure
     };
-    
+
     if (isEdit.value) {
-      await formsStore.updateForm(route.params.id, formPayload);
+      await formsService.updateForm(route.params.id, payload);
       ElMessage.success('表单更新成功');
     } else {
-      await formsStore.createForm(formPayload);
+      await formsService.createForm(payload);
       ElMessage.success('表单创建成功');
     }
-    
+    // refresh store list to sync local cache
+    await formsStore.loadForms();
     router.push('/forms');
   } catch (error) {
-    ElMessage.error('保存失败: ' + error.message);
+    ElMessage.error('保存失败: ' + (error.message || error));
   } finally {
     loading.save = false;
   }

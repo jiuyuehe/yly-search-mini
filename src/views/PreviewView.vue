@@ -1,178 +1,213 @@
 <template>
   <div class="new-preview-layout">
-    <div class="top-bar" v-if="fileData">
-      <el-button class="back-btn" v-if="showReturnBtn" @click="goBack">
-        <el-icon>
-          <ArrowLeft />
-        </el-icon>
-        <span class="txt">返回搜索</span>
-      </el-button>
-      <FileMetaInfo :file="fileData" @open-path="openPath" />
-      <span class="flex-spacer"></span>
-      <div class="mode-switch">
-        <el-button-group>
-          <el-button :type="contentMode === 'preview' ? 'primary' : 'default'"
-            @click="contentMode = 'preview'">AI阅读</el-button>
-          <el-button :type="contentMode === 'text' ? 'primary' : 'default'" @click="contentMode = 'text'">文本模式</el-button>
-          <el-button :type="contentMode === 'translate' ? 'primary' : 'default'" @click="switchToTranslate">翻译模式</el-button>
-        </el-button-group>
-      </div>
-      <div class="actions" v-if="hasPerm">
-        <el-button @click="reload" :loading="loading">刷新</el-button>
-        <el-button type="primary" @click="downloadFile">下载</el-button>
-      </div>
-    </div>
+    <PreviewHeader
+      v-if="fileData"
+      :file="fileData"
+      :show-preview="showPreview"
+      :show-text="showText"
+      :is-translate="contentMode === 'translate'"
+      :has-perm="hasPerm"
+      :loading="loading"
+      :show-return="showReturnBtn"
+      @back="goBack"
+      @toggle-preview="togglePreview"
+      @toggle-text="toggleText"
+      @translate="switchToTranslate"
+      @reload="reload"
+  @download="downloadFile"
+  @download-finish="onDownloadFinish"
+  @download-error="onDownloadError"
+    />
     <div class="body-area">
-      <!-- Preview Mode: Two panels (FilePreview + AIToolsPanel) -->
-      <div v-if="contentMode === 'preview'" class="split-wrapper">
+      <!-- Translation workspace full screen -->
+    <div v-show="contentMode === 'translate'" class="translate-full">
+        <translation-workspace
+          class="tw-root"
+          :file-id="fileId"
+          :es-id="fileData?.esId || fileData?.esid || ''"
+          :active="contentMode === 'translate'"
+          :initial-source-text="fileData?.fileContents || fileData?.extractedText || ''"
+          :initial-translation="fileData?.fileTranslate || ''"
+        />
+      </div>
+      <!-- Unified splitter with collapsible panels to preserve component instances -->
+      <div v-show="contentMode !== 'translate'" class="split-wrapper">
         <el-splitter style="height:100%; width:100%;">
-          <el-splitter-panel v-model:size="splitSize">
-            <div class="doc-wrapper">
-              <FilePreview v-if="fileData && hasPerm" :file-id="fileId" :file-type="fileData.fileType" :file-data="fileData"
-                hide-header class="file-preview-shell" />
-              <div v-else class="no-access-placeholder">
-                <el-empty description="演示模式 - 文件预览区域" />
-              </div>
+          <el-splitter-panel :size="previewSize" :class="{ collapsed: !showPreview }">
+            <div class="doc-wrapper" v-show="showPreview">
+              <div v-if="notFound && !loading" class="not-found">文件不存在或已删除</div>
+              <template v-else-if="hasPerm">
+                <DocPreviewPane :file="fileData" :loading="loading" class="file-preview-shell" />
+              </template>
+              <FileAccessApply v-else :file-id="fileId" :file-category="props.fc || route.params.fc" :is-folder="false" @applied="reload" />
+            </div>
+          </el-splitter-panel>
+          <el-splitter-panel :size="textPanelSize" :class="{ collapsed: !showText }">
+            <div class="text-wrapper" v-show="showText">
+              <TextPanel title="文档文本" :content="textPanelContent" :editable="false" :file="fileData" :file-id="fileId" placeholder="文档文本内容将显示在这里..." :enable-markdown="true" @text-selected="onTextSelected" />
             </div>
           </el-splitter-panel>
           <el-splitter-panel>
             <div class="ai-wrapper">
-              <AIToolsPanel :file-id="fileId" @switch-translate="switchToTranslate" />
+              <AIToolsPanel :file-id="fileId" :file="fileData" @switch-translate="switchToTranslate" />
             </div>
           </el-splitter-panel>
         </el-splitter>
-      </div>
-      
-      <!-- Text Mode: Three panels (FilePreview + TextPanel + AIToolsPanel) -->
-      <div v-else-if="contentMode === 'text'" class="split-wrapper">
-        <el-splitter style="height:100%; width:100%;">
-          <el-splitter-panel v-model:size="textModeSplitSize1">
-            <div class="doc-wrapper">
-              <FilePreview v-if="fileData && hasPerm" :file-id="fileId" :file-type="fileData.fileType" :file-data="fileData"
-                hide-header class="file-preview-shell" />
-              <div v-else class="no-access-placeholder">
-                <el-empty description="演示模式 - 文件预览区域" />
-              </div>
-            </div>
-          </el-splitter-panel>
-          <el-splitter-panel v-model:size="textModeSplitSize2">
-            <div class="text-wrapper">
-              <TextPanel 
-                title="文档文本"
-                :content="demoText"
-                :editable="false"
-                placeholder="文档文本内容将显示在这里..."
-                :enable-markdown="true"
-                @text-selected="onTextSelected"
-              />
-            </div>
-          </el-splitter-panel>
-          <el-splitter-panel>
-            <div class="ai-wrapper">
-              <AIToolsPanel :file-id="fileId" @switch-translate="switchToTranslate" />
-            </div>
-          </el-splitter-panel>
-        </el-splitter>
-      </div>
-      
-      <!-- Translation Mode: Two panels (TextPanel + TranslatePanel) -->
-      <div v-else class="translate-full">
-        <translation-workspace class="tw-root" :file-id="fileId" />
       </div>
     </div>
-    <FileAccessApply v-if="!hasPerm" :file-id="fileId" :file-category="props.fc || route.params.fc" :is-folder="false"
-      @applied="reload" />
+    
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useFilePreviewStore } from '../stores/filePreview';
 import { useAiToolsStore } from '../stores/aiTools';
-import FilePreview from '../components/preview/FilePreview.vue';
+import DocPreviewPane from '../components/preview/DocPreviewPane.vue';
 import TranslationWorkspace from '../components/preview/TranslationWorkspace.vue';
 import AIToolsPanel from '../components/ai/AIToolsPanel.vue';
 import TextPanel from '../components/common/TextPanel.vue';
-import { ArrowLeft } from '@element-plus/icons-vue';
-import FileMetaInfo from '../components/preview/FileMetaInfo.vue';
-import { appsApi } from '../services/api';
+import PreviewHeader from '../components/preview/PreviewHeader.vue';
+import { getCT } from '../services/api';
+import { previewService } from '../services/preview';
 import FileAccessApply from '../components/preview/FileAccessApply.vue';
+import { FILE_TYPE, getFileExtenName } from '../constants/fileTypes';
+import { downloadFileByMeta } from '../services/download';
+import { APPS_BASE } from '../constants/server';
 // 不需要显式局部注册 splitter，ElementPlus 全局已注册；如需按需可保留 import { ElSplitter } from 'element-plus'
 
 // 接收路由 props
 const props = defineProps({
   fc: { type: String, default: '' },
-  id: { type: [String, Number], default: '' },
-  retureBtn: { type: Boolean, default: true },
-  file: { type: Object, default: null }
+  fi: { type: [String, Number], default: '' }, // 非 nas 场景 fileId
+  fsi: { type: [String, Number], default: '' }, // 非 nas fsFileId
+  nsi: { type: [String, Number], default: '' }, // nas 场景 nasId
+  subp: { type: String, default: '' }, // nas 场景 子路径
+  retureBtn: { type: Boolean, default: true }
 });
 
 const route = useRoute();
 const router = useRouter();
-const filePreviewStore = useFilePreviewStore();
 useAiToolsStore();
 
-const fileId = computed(() => props.id || route.params.id);
+// 非 nas 场景：使用 fi；nas 场景：等待基础信息返回的 fileId
+const fileId = computed(() => {
+  if ((props.fc || route.params.fc) === 'nas') return fileData.value?.fileId || '';
+  return props.fi || route.params.fi || '';
+});
 const fileData = ref(null);
 const loading = ref(false);
-const contentMode = ref('preview');
-const splitSize = ref("75%"); // 0-100 百分比（ElementPlus Splitter 默认使用百分比）
-const textModeSplitSize1 = ref("40%"); // First panel size in text mode
-const textModeSplitSize2 = ref("30%"); // Second panel size in text mode  
-const hasPerm = ref(true);
+const contentMode = ref('default'); // default / translate
+// visibility states
+const showPreview = ref(true);
+const showText = ref(false);
+// size state (numeric percentages, converted to % strings in template)
+const PREVIEW_MAX = 50; // 预览最大 50%
+const TOOLS_MIN = 15;   // 工具栏最小 15%
+const previewSizeNum = ref(50); // 初始保持不超过最大值，避免首次布局异常
+const textSizeNum = ref(0); // 默认隐藏时占宽 0
+let prevPreviewSize = 60;
+let prevTextSize = 25; // 记住上次展开宽度
+let destroyed = false; // 组件销毁标记
+const previewSize = computed(() => previewSizeNum.value + '%');
+const textPanelSize = computed(() => textSizeNum.value + '%');
+const hasPerm = ref(true); // 初始默认可预览，若返回无权限再切换为 false
 const applyStatus = ref('none');
+const notFound = ref(false); // 文件不存在标记
+// 移除复杂的重新渲染 key，直接依赖响应式属性
 
-// Extracted text content
-const extractedText = computed(() => {
-  return fileData.value?.extractedText || '';
-});
 
-// Demo text for demonstration
-const demoText = ref(`# 项目需求文档
-
-这是一个**项目需求文档**的示例文本内容。包含了详细的功能需求说明、技术规范、用户界面设计要求等内容。
-
-## 主要功能模块
-
-1. **用户管理系统**
-   - 用户注册与登录
-   - 权限管理
-   - 用户配置文件
-
-2. **文件搜索与预览**
-   - 全文搜索功能
-   - 文件预览支持
-   - 批量操作
-
-3. **AI辅助分析工具**
-   - 文档摘要生成
-   - 关键词提取
-   - 实体识别
-
-4. **多语言翻译支持**
-   - 实时翻译
-   - 术语管理
-   - 翻译记忆
-
-## 技术要求
-
-- **前端**: Vue 3 + Element Plus
-- **后端**: Spring Boot  
-- **数据库**: MySQL
-- **缓存**: Redis
-
-*这是一个示例markdown文档，用于演示文本模式的功能。*
-`);
+// 文本面板内容: 优先 fileContents -> extractedText
+const textPanelContent = computed(() => fileData.value?.fileContents || fileData.value?.extractedText || '');
 
 // 返回按钮
 const showReturnBtn = computed(() => props.retureBtn !== false);
 
 function switchToTranslate() { contentMode.value = 'translate'; }
+function togglePreview() {
+  if (contentMode.value === 'translate') { contentMode.value='default'; showPreview.value = true; adjustSizes(); return; }
+  if (showPreview.value) { prevPreviewSize = previewSizeNum.value; showPreview.value = false; previewSizeNum.value = 0; }
+  else { showPreview.value = true; previewSizeNum.value = prevPreviewSize || 60; }
+  adjustSizes();
+}
+function toggleText() {
+  if (contentMode.value === 'translate') { contentMode.value='default'; showText.value = true; adjustSizes(); return; }
+  if (showText.value) { prevTextSize = textSizeNum.value; showText.value = false; textSizeNum.value = 0; }
+  else { showText.value = true; textSizeNum.value = prevTextSize || 25; }
+  adjustSizes();
+}
+function adjustSizes() {
+  const hasPreview = showPreview.value;
+  const hasText = showText.value;
+
+  if (!hasPreview && !hasText) {
+    previewSizeNum.value = 0;
+    textSizeNum.value = 0;
+    return; // tools 占满 100%
+  }
+
+  if (hasPreview && hasText) {
+    // 三栏: 预览与文本等宽, 预览不超 PREVIEW_MAX, 工具 >= TOOLS_MIN
+    const eachLimit = Math.min(PREVIEW_MAX, (100 - TOOLS_MIN) / 2);
+    previewSizeNum.value = eachLimit;
+    textSizeNum.value = eachLimit;
+    // 工具宽度 = 100 - 2*eachLimit, 已满足 >= TOOLS_MIN
+  } else if (hasPreview && !hasText) {
+    // 仅预览 + 工具
+    const maxPreview = Math.min(PREVIEW_MAX, 100 - TOOLS_MIN);
+    // 若之前尺寸存在且 >0 则沿用，限制最大值
+    let target = prevPreviewSize || maxPreview;
+    target = Math.min(target, maxPreview);
+    if (target < 20) target = Math.min(60, maxPreview); // 给一个合理初始
+    previewSizeNum.value = target;
+    // 工具得到剩余，不小于 TOOLS_MIN
+  } else if (!hasPreview && hasText) {
+    // 仅文本 + 工具
+    let target = prevTextSize || (100 - TOOLS_MIN);
+    if (target > 100 - TOOLS_MIN) target = 100 - TOOLS_MIN;
+    if (target < 30) target = 40; // 合理初始
+    textSizeNum.value = target;
+  }
+
+  // Clamp 预览
+  if (previewSizeNum.value > PREVIEW_MAX) previewSizeNum.value = PREVIEW_MAX;
+
+  // 防止两者之和 >= 100
+  const sum = previewSizeNum.value + textSizeNum.value;
+  if (sum >= 100 - TOOLS_MIN) {
+    // 分配空间, 确保 tools >= TOOLS_MIN
+    const available = 100 - TOOLS_MIN;
+    if (hasPreview && hasText) {
+      const each = Math.min(PREVIEW_MAX, available / 2);
+      previewSizeNum.value = each;
+      textSizeNum.value = each;
+    } else if (hasPreview) {
+      previewSizeNum.value = Math.min(previewSizeNum.value, available);
+    } else if (hasText) {
+      textSizeNum.value = Math.min(textSizeNum.value, available);
+    }
+  }
+}
+watch(() => contentMode.value, v => { if (v !== 'translate') { /* revert to default mode */ } });
 function reload() { load(true); }
-function downloadFile() { filePreviewStore.downloadFile(fileId.value); }
+function downloadFile(ctx) {
+  // ctx: { done, fail }
+  if (!hasPerm.value || !fileData.value) { ctx?.fail && ctx.fail(new Error('无权限或无文件')); return; }
+  const f = fileData.value;
+  // 若已有直接 downloadUrl 则直接拼接 ct 触发
+  (async () => {
+    try {
+      await downloadFileByMeta(f);
+      ctx?.done && ctx.done();
+    } catch (e) {
+      console.warn('[PreviewView] download failed', e);
+      ctx?.fail && ctx.fail(e);
+    }
+  })();
+}
+function onDownloadFinish(){ /* 可加入提示 */ }
+function onDownloadError(_e){ /* 可加消息提示 */ }
 function goBack() { if (window.history.length > 1) router.back(); else router.push({ name: 'search' }).catch(() => { }); }
-function openPath(path) { router.push({ name: 'search', query: { path: path || '' } }).catch(() => { }); }
 
 // Text selection handler for TextPanel
 function onTextSelected(text) {
@@ -181,19 +216,12 @@ function onTextSelected(text) {
 }
 
 // 防止 splitSize 越界导致面板不可见
-watch(splitSize, (v) => {
-  if (v < 5) splitSize.value = 5;
-  else if (v > 95) splitSize.value = 95;
-});
+// 移除旧的基于字符串的限制逻辑, 统一由 adjustSizes 控制
+watch([showPreview, showText], () => adjustSizes());
 
-watch(textModeSplitSize1, (v) => {
-  if (v < 10) textModeSplitSize1.value = 10;
-  else if (v > 70) textModeSplitSize1.value = 70;
-});
-
-watch(textModeSplitSize2, (v) => {
-  if (v < 10) textModeSplitSize2.value = 10;
-  else if (v > 60) textModeSplitSize2.value = 60;
+// 监听 previewUrl 出现后仅做尺寸微调
+watch(() => fileData.value?.previewUrl, (val, oldVal) => {
+  if (val && val !== oldVal) nextTick(() => adjustSizes());
 });
 
 const TEXT_TYPES = ['txt', 'md', 'json', 'xml', 'csv', 'log'];
@@ -211,84 +239,205 @@ function decodeBufferToText(buf) {
   } catch { return ''; }
 }
 
-async function load(forceRefresh = false) {
-  if (!fileId.value && !props.file) {
-    fileData.value = { id: '', name: '未指定文件', fileType: '', hasAccess: true };
-    hasPerm.value = true;
-    return;
-  }
+async function load() {
   loading.value = true;
-  if (props.file && !forceRefresh) fileData.value = props.file;
-
-  const fc = props.fc || route.params.fc;
-  const fid = fileId.value;
-  const preExt = (fileData.value?.fileType || props.file?.fileType || '').toLowerCase();
-  const expectTextStream = isTextExt(preExt);
-
-  if (fc && fid) {
+  notFound.value = false;
+  // 若外部直接传入 file 且不强制刷新，直接使用
+  {
+    // 1. 获取基础信息（不再使用外部传入 file）
     try {
-      const resp = await appsApi.get('/apps/file/view', { params: { fc, fi: fid }, responseType: expectTextStream ? 'arraybuffer' : undefined });
-
-      console.log("resp:", resp);
-
-      if (expectTextStream && resp instanceof ArrayBuffer) {
-        const text = decodeBufferToText(resp);
-        let parsed; try { parsed = JSON.parse(text); } catch { /* not json */ }
-        if (parsed?.status === 'err_no_permission') throw { response: { status: 403, data: parsed } };
-        fileData.value = { ...(fileData.value || {}), id: fid, fileType: preExt || 'txt', extractedText: text, hasAccess: true };
-        hasPerm.value = true; applyStatus.value = 'approved';
-        return;
+      const fc = props.fc || route.params.fc;
+      if (fc) {
+        const params = { fc };
+        if (fc === 'nas') {
+          params.nsi = props.nsi || route.params.nsi;
+          params.nsubp = props.subp || route.params.subp;
+          if (!params.nsi) throw new Error('缺少 nsi');
+        } else {
+          params.fi = props.fi || route.params.fi;
+          if (!params.fi) throw new Error('缺少 fi');
+          if (props.fsi || route.params.fsi) params.fsi = props.fsi || route.params.fsi;
+        }
+        const base = await previewService.getBasicInfo(params);
+        let mergedBase = {
+          id: base.fileId || params.fi || '',
+          fileId: base.fileId || params.fi || '',
+          name: base.fileName,
+          fileName: base.fileName,
+          fileType: (base.fileExt || base.fileType || '').toLowerCase(),
+          hasAccess: true,
+          ...base
+        };
+        // 若 esId 缺失，按规则生成
+  if (!mergedBase.esId && !mergedBase.esid) {
+          try {
+            if ((mergedBase.fileCategory || params.fc) === 'nas' || mergedBase.nasId) {
+              if (mergedBase.nasId && mergedBase.nasFileId) {
+    const gen = `${mergedBase.nasId}-${mergedBase.nasFileId}`;
+    mergedBase.esId = gen;
+    mergedBase.esid = gen;
+              }
+            } else {
+              if (mergedBase.fileId && mergedBase.fileCategory && mergedBase.fsFileId) {
+    const gen = `${mergedBase.fileId}${String(mergedBase.fileCategory).toLowerCase()}${mergedBase.fsFileId}`;
+    mergedBase.esId = gen;
+    mergedBase.esid = gen;
+              }
+            }
+          } catch { /* silent */ }
+        }
+  // 若仅有其中之一，补齐别名
+  if (mergedBase.esId && !mergedBase.esid) mergedBase.esid = mergedBase.esId;
+  if (mergedBase.esid && !mergedBase.esId) mergedBase.esId = mergedBase.esid;
+        fileData.value = mergedBase;
+        hasPerm.value = true;
       }
-
-      if (resp?.status === 'err_no_permission') {
-        throw { response: { status: 403, data: resp } };
-      }
-      if (resp?.status === 'ok') {
-        const view = resp.data || {};
-        const { buildAppsUrl } = await import('../constants/server.js');
-        const ext = (view.fileType || view.ext || view.extname || fileData.value?.fileType || preExt || '').toLowerCase();
-        const merged = { ...(fileData.value || {}), ...view, id: fid, fileType: ext };
-        // 只将 view 字段作为预览 URL，避免 file(下载接口) 触发浏览器直接下载
-        if (view.view) merged.viewUrl = buildAppsUrl(view.view);
-        // file 始终作为下载地址保留
-        if (view.file) merged.downloadUrl = buildAppsUrl(view.file);
-        if (view.thumb) merged.thumbUrl = buildAppsUrl(view.thumb);
-        if (isTextExt(ext) && !merged.extractedText && typeof view.content === 'string') merged.extractedText = view.content;
-        merged.hasAccess = true;
-        fileData.value = merged;
-        hasPerm.value = true; applyStatus.value = 'approved';
-        return;
-      }
-      throw new Error('unexpected response');
-    } catch (err) {
-      console.warn('[PreviewView] load error', err);
-      // 标准化无权限判断：支持拦截器包装后的 httpStatus / code / response.status
-      const httpStatus = err?.httpStatus || err?.response?.status || err?.status;
-      const bizCode = err?.code || err?.response?.data?.status;
-      if (httpStatus === 403 || bizCode === 'err_no_permission' || bizCode === 403 || (err?.response?.data?.status === 'err_no_permission')) {
-        // 标记无访问权限，显示 FileAccessApply 组件
-        hasPerm.value = false;
-        applyStatus.value = 'none';
-        fileData.value = fileData.value || { id: fid, name: '文件', fileType: preExt || '', hasAccess: false };
-      } else {
-        // 其它错误：保持已有数据或占位，不弹出申请（可能是网络/服务器错误）
-        if (!fileData.value) fileData.value = { id: fid, name: '文件', fileType: preExt || '', hasAccess: false };
-        // 若明确不是权限问题，保持原 hasAccess 状态；若 hasAccess 为 false 仍会显示申请组件
-        hasPerm.value = fileData.value.hasAccess !== false;
-      }
+    } catch (e) {
+      console.warn('[PreviewView] 基础信息获取失败', e);
+      // 404 或业务失败视为文件不存在
+      notFound.value = true;
+      fileData.value = { id: props.fi || '', fileId: props.fi || '', name: '文件不存在', fileType: '', hasAccess: false };
+      loading.value = false;
+      return;
     }
   }
 
-  if (!fileData.value) fileData.value = { id: fid, name: '文件', fileType: preExt || '', hasAccess: false };
-  if (fileData.value.hasAccess === false) {
-    hasPerm.value = false;
-    applyStatus.value = fileData.value.applyStatus || 'none';
-  }
+  // 若标记不存在，停止
+  if (notFound.value) { loading.value = false; return; }
 
+  // 2. 基础信息成功后，再获取预览地址（原逻辑）
+  try {
+  const fc = props.fc || route.params.fc;
+  const fid = fileData.value?.fileId;
+  const extNow = (fileData.value?.fileType || '').toLowerCase();
+  // 仅当有 fc / fid (nas 也会返回 fileId 但接口使用 nasFilePath) 才继续
+  if (!fc) { loading.value = false; return; }
+  let resp;
+  if (fc === 'nas') {
+    const nasFilePath = fileData.value?.subPath || fileData.value?.filePath;
+    const nasId = fileData.value?.nasId;
+    if (!nasId || !nasFilePath) { loading.value = false; return; }
+    // 轮询获取在线预览地址
+    try {
+  const { link } = await previewService.waitNasPreviewLink({ nasId, nasFilePath, shouldStop: () => destroyed });
+      const merged = { ...(fileData.value || {}), previewUrl: link, viewUrl: link, hasAccess: true };
+      fileData.value = merged;
+      hasPerm.value = true; applyStatus.value = 'approved';
+      nextTick(() => adjustSizes());
+    } catch (e) {
+      console.warn('[PreviewView] NAS 预览获取失败', e);
+      // 失败不改变权限，除非后端明确权限错误
+    } finally {
+      loading.value = false;
+    }
+    return; // NAS 分支结束
+  } else {
+  // 不强制 arraybuffer，后端对文本可能直接返回字符串
+  resp = await previewService.getFileView({ fc, fi: fid });
+  }
+    console.log('resp:', resp);
+    // 优先处理后端直接返回原始文本/数字/布尔（无包装结构），不依赖扩展名
+    if (['string','number','boolean'].includes(typeof resp)) {
+      const raw = String(resp);
+      fileData.value = { ...(fileData.value || {}), extractedText: raw, fileContents: raw, hasAccess: true };
+      hasPerm.value = true; applyStatus.value = 'approved';
+      return;
+    }
+    // 若返回 ArrayBuffer，尝试解码 -> JSON or 纯文本
+    if (resp instanceof ArrayBuffer) {
+      const decoded = decodeBufferToText(resp) || '';
+      let parsed = null;
+      try { parsed = JSON.parse(decoded); } catch { /* not json */ }
+      if (parsed?.status === 'err_no_permission') {
+        throw { response: { status: 403, data: parsed } };
+      }
+      if (parsed?.status === 'ok') {
+        resp = parsed; // 继续下面 ok 分支逻辑
+      } else {
+        // 视为纯文本
+        fileData.value = { ...(fileData.value || {}), extractedText: decoded, fileContents: decoded, hasAccess: true };
+        hasPerm.value = true; applyStatus.value = 'approved';
+        return;
+      }
+    }
+    // 若是包装对象但仅携带 content 字段且无 view/viewUrl，且扩展推断为文本，判定为纯文本内容
+    if (resp && typeof resp === 'object' && resp.status === 'ok' && resp.data && typeof resp.data.content === 'string' && !resp.data.view && !resp.data.viewUrl) {
+      const extGuess = extNow || getFileExtenName(fileData.value?.fileName || fileData.value?.name || '');
+      if (isTextExt(extGuess)) {
+        const txt = resp.data.content;
+        fileData.value = { ...(fileData.value || {}), extractedText: txt, fileContents: txt, hasAccess: true };
+        hasPerm.value = true; applyStatus.value = 'approved';
+        return;
+      }
+    }
+
+    if (resp?.status === 'err_no_permission') {
+      throw { response: { status: 403, data: resp } };
+    }
+    if (resp?.status === 'ok') {
+      const view = resp.data || {};
+      const { buildAppsUrl } = await import('../constants/server.js');
+      const ext = (view.fileType || view.ext || view.extname || fileData.value?.fileType || extNow || '').toLowerCase();
+      const merged = { ...(fileData.value || {}), ...view, fileType: ext };
+      if (view.view && /\.html?($|\?)/i.test(view.view)) {
+        merged.viewUrl = buildAppsUrl(view.view);
+        console.log('[PreviewView] use backend html viewUrl:', merged.viewUrl);
+      }
+      if (view.file) merged.downloadUrl = buildAppsUrl(view.file);
+      if (view.thumb) merged.thumbUrl = buildAppsUrl(view.thumb);
+      if (isTextExt(ext) && typeof view.content === 'string') {
+        if (!merged.extractedText) merged.extractedText = view.content;
+        if (!merged.fileContents) merged.fileContents = view.content;
+      }
+      merged.hasAccess = true;
+      merged.previewUrl = buildPreviewUrl(merged);
+      console.log('[PreviewView] built previewUrl:', merged.previewUrl, 'ext=', ext);
+      nextTick(() => { adjustSizes(); });
+      fileData.value = merged;
+      hasPerm.value = true; applyStatus.value = 'approved';
+      return;
+    }
+    throw new Error('unexpected response');
+  } catch (err) {
+    console.warn('[PreviewView] 预览地址获取失败', err);
+    const httpStatus = err?.httpStatus || err?.response?.status || err?.status;
+    const bizCode = err?.code || err?.response?.data?.status;
+    if (httpStatus === 403 || bizCode === 'err_no_permission' || bizCode === 403 || (err?.response?.data?.status === 'err_no_permission')) {
+      hasPerm.value = false;
+      applyStatus.value = 'none';
+      fileData.value = { ...(fileData.value || {}), hasAccess: false };
+    } else {
+      hasPerm.value = true; // 其他错误不影响权限显示
+    }
+  } finally {
+    loading.value = false;
+  }
 }
 
-onMounted(() => { load(); });
-watch(() => route.params.id, () => load());
+onMounted(() => { destroyed = false; load(); adjustSizes(); });
+onUnmounted(() => { destroyed = true; });
+watch(() => [route.params.fc, route.params.fi, route.params.nsi, route.params.subp].join(':'), () => load());
+
+function buildPreviewUrl(fd) {
+   console.log('[PreviewView] built fd:', fd);
+  if (!fd) return '';
+  const ext = (fd.fileType || fd.ext || getFileExtenName(fd.fileName || fd.name || '') || '').toLowerCase();
+  // 若后端已有 viewUrl/previewUrl 优先使用
+  if (fd.viewUrl) return fd.viewUrl;
+  if (fd.previewUrl) return fd.previewUrl;
+  // Office 文档统一使用 views.html + token
+  if (FILE_TYPE.doc.includes(ext)) {
+    const fi = fd.fileId || fd.id;
+    const fc = fd.fileCategory || fd.fc || fd.category || props.fc || route.params.fc || '';
+    const fn = encodeURIComponent(fd.fileName || fd.name || 'file');
+    return `${APPS_BASE.replace(/\/$/, '')}/views.html?fi=${fi}&fc=${fc}&fn=${fn}&ct=${getCT()}`;
+  }
+  // 图片或 pdf 可以直接内嵌 file（若可用且不是触发下载的 headers）
+  if (fd.file && (FILE_TYPE.pic.includes(ext) || ext === 'pdf')) {
+    return /^https?:/i.test(fd.file) ? fd.file : `${APPS_BASE.replace(/\/$/, '')}${fd.file.startsWith('/') ? '' : '/'}${fd.file}`;
+  }
+  return '';
+}
 </script>
 
 <style scoped>
@@ -421,12 +570,23 @@ watch(() => route.params.id, () => load());
   min-height: 0;
 }
 
+.not-found {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  font-size: 14px;
+}
+
 .ai-wrapper {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 260px;
-  max-width: 520px;
+  min-width: 460px;
+  /* allow panel to expand taking remaining space */
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 
 .text-wrapper {

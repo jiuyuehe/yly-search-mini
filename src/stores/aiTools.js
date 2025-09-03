@@ -5,12 +5,19 @@ export const useAiToolsStore = defineStore('aiTools', {
   state: () => ({
     summary: '',
     tags: [],
+  tagObjects: [],
     nerEntities: [],
     customExtractionResults: null,
     qaHistory: [],
     translatedText: '',
     extractedText: '',
     classificationResults: [],
+  themes: [],
+  themesTotal: 0,
+  themesPageNo: 1,
+  themesPageSize: 10,
+  themeLabels: {}, // themeId -> labels array
+  themeClassification: { themeId: null, results: [] },
     classificationForms: [],
     streaming: false,
     loading: {
@@ -23,19 +30,20 @@ export const useAiToolsStore = defineStore('aiTools', {
       extraction: false,
       classification: false,
       classificationForms: false
+  , themes: false, themeLabels: false, themeClassify: false
     },
     error: null
   }),
   
   actions: {
-    async getSummary(fileId, targetLanguage='中文', length=200) {
+  async getSummary(fileId, targetLanguage='中文', length=200, fileData) {
       this.loading.summary = true;
       this.streaming = true;
       this.summary = '';
       try {
-        await aiService.getSummary(fileId, targetLanguage, length, (chunk) => {
+  await aiService.getSummary(fileId, targetLanguage, length, (chunk) => {
           this.summary = chunk; // 已在 service 累计，这里直接替换最新片段
-        });
+  }, fileData);
         return this.summary;
       } catch (error) {
         this.error = error.message;
@@ -45,13 +53,19 @@ export const useAiToolsStore = defineStore('aiTools', {
       }
     },
     
-    async getTags(fileId) {
+  async getTags(fileId, fileData) {
       this.loading.tags = true;
       
       try {
-        const tags = await aiService.getTags(fileId);
-        this.tags = tags;
-        return tags;
+  const tagObjs = await aiService.getTags(fileId, fileData);
+        if (Array.isArray(tagObjs) && tagObjs.length && typeof tagObjs[0] === 'object') {
+          this.tagObjects = tagObjs;
+          this.tags = tagObjs.map(t=>t.tag).filter(Boolean);
+        } else {
+          this.tagObjects = [];
+          this.tags = Array.isArray(tagObjs)? tagObjs : [];
+        }
+        return this.tagObjects.length? this.tagObjects : this.tags;
       } catch (error) {
         this.error = error.message;
       } finally {
@@ -59,11 +73,11 @@ export const useAiToolsStore = defineStore('aiTools', {
       }
     },
     
-    async getNEREntities(fileId) {
+  async getNEREntities(fileId, fileData) {
       this.loading.ner = true;
       
       try {
-        const entities = await aiService.getNEREntities(fileId);
+  const entities = await aiService.getNEREntities(fileId, fileData);
         this.nerEntities = entities;
         return entities;
       } catch (error) {
@@ -164,6 +178,37 @@ export const useAiToolsStore = defineStore('aiTools', {
         this.loading.classificationForms = false;
       }
     },
+    // ===== Theme & Labels =====
+    async loadThemes(){
+      this.loading.themes = true;
+      try { this.themes = await aiService.listThemes(); return this.themes; }
+      catch(e){ this.error=e.message; return []; }
+      finally { this.loading.themes=false; }
+    },
+    async loadThemesPage(pageNo=this.themesPageNo, pageSize=this.themesPageSize){
+      this.loading.themes = true;
+      try {
+        const { list, total } = await aiService.listThemesPage({ pageNo, pageSize });
+        this.themes = list;
+        this.themesTotal = total;
+        this.themesPageNo = pageNo;
+        this.themesPageSize = pageSize;
+        // flatten labels into themeLabels map
+        const map={};
+        list.forEach(t=>{ if(Array.isArray(t.labels)) map[t.id]=t.labels; });
+        this.themeLabels = { ...this.themeLabels, ...map };
+        return { list, total };
+      } catch(e){ this.error=e.message; return { list:[], total:0 }; }
+      finally { this.loading.themes=false; }
+    },
+  async createTheme(payload){ const res = await aiService.createTheme(payload); await this.loadThemesPage(this.themesPageNo,this.themesPageSize); return res; },
+  async updateTheme(p){ const res = await aiService.updateTheme(p); await this.loadThemesPage(this.themesPageNo,this.themesPageSize); return res; },
+  async deleteTheme(id){ const res = await aiService.deleteTheme(id); await this.loadThemesPage(this.themesPageNo,this.themesPageSize); return res; },
+    async loadThemeLabels(themeId){ if(!themeId) return []; this.loading.themeLabels=true; try { const labels = await aiService.listThemeLabels(themeId); this.themeLabels[themeId]=labels; return labels; } catch(e){ this.error=e.message; return []; } finally { this.loading.themeLabels=false; } },
+    async createThemeLabel(p){ const res= await aiService.createThemeLabel(p); await this.loadThemeLabels(p.themeId); return res; },
+    async updateThemeLabel(p){ const res= await aiService.updateThemeLabel(p); await this.loadThemeLabels(p.themeId); return res; },
+    async deleteThemeLabel(id, themeId){ const res= await aiService.deleteThemeLabel(id); await this.loadThemeLabels(themeId); return res; },
+  async classifyTheme({ esId, themeId, text }){ this.loading.themeClassify=true; try { const results = await aiService.classifyByTheme({ esId, themeId, text }); this.themeClassification = { themeId: themeId||null, results }; return results; } catch(e){ this.error=e.message; return []; } finally { this.loading.themeClassify=false; } },
     
     async addClassificationForm(name) {
       const created = await aiService.createClassificationForm(name);

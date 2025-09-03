@@ -7,28 +7,35 @@ const routes = [
     name: 'search',
     component: SearchView
   },
+  // NAS 专用预览 (需放在通用前面防止被通用匹配拦截)
   {
-    path: '/preview/:fc/:id',
+    path: '/preview/nas/:nsi/:subp(.*)?',
+    name: 'preview-nas',
+    component: () => import('../views/PreviewView.vue'),
+    props: route => ({
+      fc: 'nas',
+      nsi: route.params.nsi,
+      subp: route.params.subp ? decodeURIComponent(route.params.subp) : '',
+      retureBtn: route.query.retureBtn === 'true' || route.query.retureBtn === true
+    })
+  },
+  // 通用预览: fc + fileId + fsFileId(可选)
+  {
+    path: '/preview/:fc/:fi/:fsi?',
     name: 'preview',
     component: () => import('../views/PreviewView.vue'),
-    props: route => {
-      let fileObj = null;
-      // 优先 history state
-      if (history.state && history.state.file) fileObj = history.state.file;
-      // 回退：尝试从 query.f Base64(JSON) 解析
-      if (!fileObj && route.query.f) {
-        try {
-          const json = decodeURIComponent(escape(atob(route.query.f)));
-          fileObj = JSON.parse(json);
-        } catch { /* ignore */ }
-      }
-      return {
-        fc: route.params.fc,
-        id: route.params.id,
-        retureBtn: route.query.retureBtn === 'true' || route.query.retureBtn === true,
-        file: fileObj
-      };
-    }
+    props: route => ({
+      fc: route.params.fc,
+      fi: route.params.fi,
+      fsi: route.params.fsi || '',
+      retureBtn: route.query.retureBtn === 'true' || route.query.retureBtn === true
+    })
+  },
+  // 兼容旧路径 /preview/:fc/:id -> 重定向到新结构（fsi 置空）
+  {
+    path: '/preview/:fc/:id',
+    name: 'preview-legacy',
+    redirect: to => ({ name: 'preview', params: { fc: to.params.fc, fi: to.params.id, fsi: '' }, query: to.query })
   },
   // Forms management routes
   {

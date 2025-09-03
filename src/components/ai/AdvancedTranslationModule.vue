@@ -27,10 +27,16 @@
           <el-button 
             size="small" 
             circle 
-            @click="swapLanguages"
-            :disabled="sourceLanguage === 'auto'"
+            disabled
+            title="当前仅支持翻译为中文"
           >
-            <el-icon><Sort /></el-icon>
+            <el-icon>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 7H4l3-3-3 3 3 3-3-3" stroke="currentColor" fill="none" />
+                <path d="M16 17h4l-3 3 3-3-3-3 3 3" stroke="currentColor" fill="none" />
+                <path d="M5 12h14" stroke-width="1.5" opacity="0.5" />
+              </svg>
+            </el-icon>
           </el-button>
         </div>
         <div class="language-selector">
@@ -38,20 +44,16 @@
           <el-select 
             v-model="targetLanguage" 
             size="small" 
-            @change="onTargetLanguageChange"
+            disabled
+            placeholder="中文"
           >
-            <el-option label="English" value="en" />
             <el-option label="中文" value="zh" />
-            <el-option label="Français" value="fr" />
-            <el-option label="Español" value="es" />
-            <el-option label="Deutsch" value="de" />
-            <el-option label="日本語" value="ja" />
-            <el-option label="Русский" value="ru" />
-            <el-option label="Italiano" value="it" />
-            <el-option label="한국어" value="ko" />
-            <el-option label="Português" value="pt" />
           </el-select>
         </div>
+      </div>
+      <div class="lang-display">{{ languageSummary }}</div>
+      <div v-if="translating" class="top-progress">
+        <el-progress :percentage="translationProgress" :stroke-width="6" style="width:160px" />
       </div>
       <div class="toolbar-actions">
         <el-button 
@@ -62,6 +64,14 @@
           :disabled="!sourceText.trim()"
         >
           翻译
+        </el-button>
+        <el-button
+          v-if="translating"
+          type="danger"
+          size="small"
+          @click="cancelTranslation"
+        >
+          取消
         </el-button>
         <el-button 
           size="small" 
@@ -85,7 +95,7 @@
       <div class="text-panel source-panel">
         <div class="panel-header">
           <span class="panel-title">源文本</span>
-          <span class="char-count">{{ sourceText.length }}/10000</span>
+          <span class="char-count">{{ sourceText.length }}</span>
         </div>
         <div 
           ref="sourceTextRef"
@@ -99,28 +109,19 @@
           @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')"
           :placeholder="'请输入要翻译的文本...'"
         ></div>
-        <div v-if="translating" class="translation-progress">
-          <el-progress :percentage="translationProgress" size="small" />
-        </div>
       </div>
-
       <div class="text-panel target-panel">
         <div class="panel-header">
-          <span class="panel-title">翻译结果</span>
+          <span class="panel-title">译文</span>
           <span class="char-count">{{ translatedText.length }}</span>
         </div>
         <div 
           ref="targetTextRef"
-          class="text-editor" 
-          contenteditable
-          @input="onTargetTextInput"
-          @scroll="onTargetScroll"
-          @mouseup="onTextSelection"
-          @keyup="onTextSelection"
+          class="text-editor target" 
+          :class="{loading: translating}"
           @mousemove="onEditorHover($event, 'target')"
           @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"
-          :placeholder="'翻译结果将显示在这里...'"
-        ></div>
+        >{{ translatedText }}</div>
       </div>
     </div>
 
@@ -152,11 +153,10 @@
     <!-- Settings Modal -->
     <el-dialog v-model="showSettings" title="翻译设置" width="600px">
       <el-form :model="settings" label-width="120px">
-        <el-form-item label="翻译模型">
-          <el-select v-model="settings.translationModel" placeholder="选择翻译模型">
-            <el-option label="GPT-4" value="gpt-4" />
-            <el-option label="Claude-3" value="claude-3" />
-            <el-option label="Google Translate" value="google" />
+        <el-form-item label="翻译接口">
+          <el-select v-model="settings.provider" placeholder="选择翻译接口">
+            <el-option label="系统内置API" value="builtin" />
+            <el-option label="讯飞翻译API" value="xunfei" />
           </el-select>
         </el-form-item>
         <el-form-item label="主题">
@@ -229,6 +229,39 @@
           </el-button>
           <el-button 
             size="small" 
+            @click="refreshGlossary"
+            :loading="glossaryPagination.loading"
+          >
+            <el-icon><Refresh /></el-icon>
+            刷新
+          </el-button>
+          <el-select
+            v-model="glossaryPagination.typeFilter"
+            size="small"
+            placeholder="类型"
+            style="width:110px"
+            @change="onGlossaryFilterChange"
+            clearable
+          >
+            <el-option label="术语" value="terminology" />
+            <el-option label="记忆" value="memory" />
+            <el-option label="语料" value="corpus" />
+          </el-select>
+          <el-input
+            v-model="glossaryPagination.keyword"
+            size="small"
+            placeholder="关键词 (原文)"
+            style="width:180px"
+            clearable
+            @keyup.enter="onGlossaryFilterChange"
+          >
+            <template #suffix>
+              <el-icon style="cursor:pointer" @click="onGlossaryFilterChange"><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-button size="small" @click="onGlossaryFilterChange">查询</el-button>
+          <el-button 
+            size="small" 
             @click="exportTerminology"
           >
             <el-icon><Download /></el-icon>
@@ -244,7 +277,8 @@
         </div>
         
         <el-table 
-          :data="terminologyList" 
+          :data="terminologyList"
+          v-loading="glossaryPagination.loading"
           height="400" 
           style="width: 100%"
         >
@@ -265,26 +299,27 @@
               {{ getLanguageLabel(scope.row.language) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120">
+          <el-table-column label="操作" width="120" fixed="right" align="center" class-name="operation-col">
             <template #default="scope">
-              <el-button 
-                size="small" 
-                type="text" 
-                @click="editTerminology(scope.row)"
-              >
-                编辑
-              </el-button>
-              <el-button 
-                size="small" 
-                type="text" 
-                @click="deleteTerminology(scope.row.id)"
-                style="color: #f56c6c"
-              >
-                删除
-              </el-button>
+              <div class="op-btns">
+                <el-button size="small" link type="primary" @click="editTerminology(scope.row)">编辑</el-button>
+                <el-button size="small" link type="danger" @click="deleteTerminology(scope.row.id)">删除</el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
+        <div class="glossary-pagination">
+          <el-pagination
+            background
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="glossaryPagination.total"
+            :page-size="glossaryPagination.pageSize"
+            :current-page="glossaryPagination.pageNo"
+            :page-sizes="[10,20,30,50]"
+            @size-change="onGlossarySizeChange"
+            @current-change="onGlossaryPageChange"
+          />
+        </div>
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -349,7 +384,6 @@ import { ref, reactive, onMounted, watch, onUnmounted, nextTick } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
 import { ElMessage } from 'element-plus';
 import { 
-  Sort, 
   Setting, 
   Search, 
   Warning, 
@@ -358,21 +392,24 @@ import {
   Collection,
   Plus,
   Download,
-  Upload
+  Upload,
+  Refresh
 } from '@element-plus/icons-vue';
+import { ElMessageBox } from 'element-plus';
 
 const props = defineProps({
-  fileId: {
-    type: String,
-    required: true
-  },
-  initialSourceText: {
-    type: String,
-    default: ''
-  }
+  fileId: { type: String, required: true },
+  esId: { type: String, default: '' },
+  active: { type: Boolean, default: false },
+  initialSourceText: { type: String, default: '' },
+  initialTranslation: { type: String, default: '' }
 });
 
 const emit = defineEmits(['text-extracted']);
+  // Expose methods for parent components (e.g., re-translate trigger)
+  defineExpose({
+    translateText
+  });
 
 // Store
 const aiStore = useAiToolsStore();
@@ -383,16 +420,19 @@ const targetTextRef = ref(null);
 const contextMenuRef = ref(null);
 
 // Language settings
-const sourceLanguage = ref('auto');
-const targetLanguage = ref('en');
+const sourceLanguage = ref('auto'); // 默认自动检测
+const targetLanguage = ref('zh'); // 锁定中文
 
 // Text content
 const sourceText = ref('');
 const translatedText = ref('');
+let initTried = false;
 
 // Translation state
 const translating = ref(false);
 const translationProgress = ref(0);
+const cancelRequested = ref(false);
+const sentenceTranslations = ref([]); // 存放每句译文
 
 // Context menu
 const showContextMenu = ref(false);
@@ -403,12 +443,17 @@ const selectedRange = ref(null);
 // Settings
 const showSettings = ref(false);
 const settings = reactive({
-  translationModel: 'gpt-4',
+  provider: 'builtin', // builtin | xunfei
   theme: 'light',
   fontSize: 14,
   autoTranslate: false,
   translateDelay: 500
 });
+
+// 语言名称映射与摘要显示
+import { computed } from 'vue';
+const languageNameMap = { auto:'自动检测', zh:'中文', en:'English', fr:'Français', es:'Español', de:'Deutsch', ja:'日本語', ru:'Русский', it:'Italiano', ko:'한국어', pt:'Português' };
+const languageSummary = computed(()=>`${languageNameMap[sourceLanguage.value]||sourceLanguage.value} → ${languageNameMap[targetLanguage.value]||targetLanguage.value}`);
 
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
@@ -419,29 +464,8 @@ const customTagColor = ref('#409EFF');
 const showTerminologyManager = ref(false);
 const showAddTermDialog = ref(false);
 const editingTerm = ref(null);
-const terminologyList = ref([
-  {
-    id: 1,
-    type: 'terminology',
-    originalText: 'artificial intelligence',
-    translatedText: '人工智能',
-    language: 'zh'
-  },
-  {
-    id: 2,
-    type: 'memory',
-    originalText: 'machine learning',
-    translatedText: '机器学习',
-    language: 'zh'
-  },
-  {
-    id: 3,
-    type: 'corpus',
-    originalText: 'neural network',
-    translatedText: '神经网络',
-    language: 'zh'
-  }
-]);
+const terminologyList = ref([]);
+const glossaryPagination = reactive({ pageNo:1, pageSize:20, total:0, loading:false, typeFilter:'', keyword:'' });
 const terminologyForm = reactive({
   type: 'terminology',
   originalText: '',
@@ -456,23 +480,68 @@ let autoTranslateTimer = null;
 const textAlignmentMap = ref({});
 
 onMounted(async () => {
-  // Initialize source text from props or extract from file
+  loadSettings();
+  applyFontSize();
+  document.addEventListener('click', hideContextMenu);
+  if (props.active) { await initLoad(); }
+});
+watch(()=>props.fileId, ()=>{ initTried=false; if (props.active) initLoad(); });
+watch(()=>props.active, (v)=>{ if (v) { initLoad(); } });
+
+async function initLoad(){
+  if (initTried) return; initTried = true;
+  // 初始化源文本
   if (props.initialSourceText) {
     sourceText.value = props.initialSourceText;
-    updateSourceTextContent();
   } else if (props.fileId) {
     await extractTextFromFile();
   }
-  
-  // Load settings from localStorage
-  loadSettings();
-  
-  // Apply font size
-  applyFontSize();
-  
-  // Add click listener to hide context menu
-  document.addEventListener('click', hideContextMenu);
-});
+  updateSourceTextContent();
+  // 初始化已存在翻译
+  if (props.initialTranslation) {
+    translatedText.value = props.initialTranslation;
+    updateTargetTextContent();
+  }
+  detectSourceLang();
+  await loadCachedOrTranslate();
+  // 加载术语库
+  loadGlossary();
+}
+
+function detectSourceLang(){
+  if (sourceLanguage.value !== 'auto') return; // 只有 auto 才自动检测
+  const txt = sourceText.value || '';
+  if (!txt.trim()) return;
+  const chineseChars = (txt.match(/[\u4e00-\u9fa5]/g)||[]).length;
+  const ratio = chineseChars / Math.max(1, txt.length);
+  if (ratio > 0.25) {
+    sourceLanguage.value='zh';
+  } else {
+    sourceLanguage.value='en';
+  }
+}
+
+async function loadCachedOrTranslate(){
+  if (!props.active) return; // 仅在激活时执行
+  if (!sourceText.value.trim()) return;
+  try {
+    const esId = props.esId || props.fileId; // 正确传递 esId
+    if (esId) {
+      const { aiService } = await import('../../services/aiService');
+      const cached = await aiService.fetchCachedTranslation(esId);
+      if (cached && cached.translation) {
+        translatedText.value = cached.translation;
+        emit('translated', translatedText.value);
+        updateTargetTextContent();
+        return;
+      }
+    }
+    if (sourceLanguage.value === targetLanguage.value) {
+  translatedText.value = sourceText.value; emit('translated', translatedText.value); updateTargetTextContent(); return;
+    }
+    await translateText();
+  } catch (e) { console.warn('loadCachedOrTranslate failed', e); }
+}
 
 // Watch for auto translate
 watch(sourceText, () => {
@@ -517,9 +586,7 @@ function onSourceTextInput(event) {
 }
 
 // Target text input handler  
-function onTargetTextInput(event) {
-  translatedText.value = event.target.innerText || '';
-}
+// onTargetTextInput 移除（译文外部展示）
 
 // Language change handlers
 function onSourceLanguageChange() {
@@ -528,79 +595,132 @@ function onSourceLanguageChange() {
   }
 }
 
-function onTargetLanguageChange() {
-  if (settings.autoTranslate && sourceText.value.trim()) {
-    translateText();
-  }
-}
 
 // Swap languages
-function swapLanguages() {
-  if (sourceLanguage.value === 'auto') return;
-  
-  const temp = sourceLanguage.value;
-  sourceLanguage.value = targetLanguage.value;
-  targetLanguage.value = temp;
-  
-  // Also swap text content
-  const tempText = sourceText.value;
-  sourceText.value = translatedText.value;
-  translatedText.value = tempText;
-  
-  updateSourceTextContent();
-  updateTargetTextContent();
-}
 
 // Main translation function
 async function translateText() {
+  if (translating.value) return; // 避免重复触发
   if (!sourceText.value.trim()) {
     ElMessage.warning('请输入要翻译的文本');
     return;
+  }
+  if (sourceLanguage.value === targetLanguage.value) {
+    translatedText.value = sourceText.value; updateTargetTextContent(); return;
   }
   
   translating.value = true;
   translationProgress.value = 0;
   translatedText.value = '';
+  cancelRequested.value = false;
+  sentenceTranslations.value = [];
   
   try {
-    // Split text into sentences for streaming
-    const sentences = splitIntoSentences(sourceText.value);
-    let translatedSentences = [];
+    // 按段落拆分（空行分隔）
+    const paragraphs = splitIntoParagraphs(sourceText.value);
+    let translatedParagraphs = [];
     
-    for (let i = 0; i < sentences.length; i++) {
-      const sentence = sentences[i];
-      if (sentence.trim()) {
-        let sentenceTranslation = '';
-        
-        await aiStore.translateText(sentence, targetLanguage.value, (chunk) => {
-          sentenceTranslation = chunk;
-          translatedSentences[i] = sentenceTranslation;
-          translatedText.value = translatedSentences.join(' ');
+    if (settings.provider === 'builtin') {
+      const { aiService } = await import('../../services/aiService');
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (cancelRequested.value) break;
+        const paragraph = paragraphs[i];
+        sentenceTranslations.value[i] = '';
+        if (paragraph.trim()) {
+          await aiService.translateText(paragraph, targetLanguage.value, (chunk) => {
+            sentenceTranslations.value[i] = chunk;
+            translatedParagraphs[i] = chunk;
+            translatedText.value = sentenceTranslations.value.join('\n\n');
+            emit('translated', translatedText.value);
+            updateTargetTextContent();
+          });
+          translationProgress.value = Math.round(((i + 1) / paragraphs.length) * 100);
+        }
+      }
+    } else if (settings.provider === 'xunfei') {
+      // 调用讯飞批量接口一次性翻译整段
+      try {
+        const { aiService } = await import('../../services/aiService');
+        const xfResPromise = aiService.translateWithXunfei(sourceText.value, sourceLanguage.value === 'auto' ? '' : sourceLanguage.value, targetLanguage.value);
+        const xfRes = await xfResPromise;
+        if (cancelRequested.value) throw new Error('cancelled');
+        if (xfRes?.sentences && Array.isArray(xfRes.sentences)) {
+          translatedParagraphs = xfRes.sentences.map(s=>s.target || s.tgt || s.translation || '');
+          sentenceTranslations.value = [...translatedParagraphs];
+          translatedText.value = translatedParagraphs.join('\n\n');
+          emit('translated', translatedText.value);
           updateTargetTextContent();
-        });
-        
-        // Update progress
-        translationProgress.value = Math.round(((i + 1) / sentences.length) * 100);
+          translationProgress.value = 100;
+        } else if (xfRes?.text) {
+          translatedText.value = xfRes.text;
+          emit('translated', translatedText.value);
+          updateTargetTextContent();
+          translationProgress.value = 100;
+        } else {
+          throw new Error('讯飞返回结构不符合预期');
+        }
+      } catch (e) {
+        console.warn('Xunfei translate failed fallback to builtin', e);
+        const { aiService: aiSvcFallback } = await import('../../services/aiService');
+        for (let i = 0; i < paragraphs.length; i++) {
+          if (cancelRequested.value) break;
+          const paragraph = paragraphs[i];
+          sentenceTranslations.value[i] = '';
+          if (paragraph.trim()) {
+            await aiSvcFallback.translateText(paragraph, targetLanguage.value, (chunk) => {
+              sentenceTranslations.value[i] = chunk;
+              translatedParagraphs[i] = chunk;
+              translatedText.value = sentenceTranslations.value.join('\n\n');
+              emit('translated', translatedText.value);
+              updateTargetTextContent();
+            });
+            translationProgress.value = Math.round(((i + 1) / paragraphs.length) * 100);
+          }
+        }
       }
     }
     
-    // Build text alignment map for synchronized highlighting
-    buildTextAlignmentMap(sentences, translatedSentences);
+    // Build text alignment map for synchronized highlighting (按段落)
+    buildTextAlignmentMap(paragraphs, translatedParagraphs);
     
-    ElMessage.success('翻译完成');
+    if (cancelRequested.value) {
+      ElMessage.info('翻译已取消');
+    } else {
+      try {
+        const esId = props.esId || props.fileId;
+        if (esId) {
+          const { aiService } = await import('../../services/aiService');
+          await aiService.saveTranslation(esId, translatedText.value, targetLanguage.value);
+        }
+      } catch (e) { console.warn('save translation cache failed', e); }
+      ElMessage.success('翻译完成');
+    }
   } catch (error) {
     ElMessage.error('翻译失败，请重试');
     console.error('Translation failed:', error);
   } finally {
     translating.value = false;
-    translationProgress.value = 100;
+    if (!cancelRequested.value) translationProgress.value = 100; else translationProgress.value = Math.min(99, translationProgress.value);
   }
 }
 
-// Split text into sentences
-function splitIntoSentences(text) {
-  // Simple sentence splitting (can be enhanced with NLP libraries)
-  return text.split(/[.!?。！？]+/).filter(s => s.trim());
+function cancelTranslation(){
+  if (!translating.value) return;
+  cancelRequested.value = true;
+  ElMessage.info('正在取消翻译...');
+}
+
+// Split text into paragraphs (空行或连续换行分隔)
+function splitIntoParagraphs(text) {
+  if (!text) return [];
+  // 先归一化换行
+  const norm = text.replace(/\r\n/g,'\n');
+  const parts = norm.split(/\n{2,}/).map(p=>p.trim()).filter(Boolean);
+  if (parts.length <= 1) {
+    // 如果没有空行，用单换行尝试聚合；保持与原行一致
+    return norm.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  }
+  return parts;
 }
 
 // Build text alignment map for synchronized highlighting
@@ -621,12 +741,7 @@ function onSourceScroll(event) {
   }
 }
 
-function onTargetScroll(event) {
-  if (sourceTextRef.value) {
-    const scrollPercentage = event.target.scrollTop / (event.target.scrollHeight - event.target.clientHeight);
-    sourceTextRef.value.scrollTop = scrollPercentage * (sourceTextRef.value.scrollHeight - sourceTextRef.value.clientHeight);
-  }
-}
+// onTargetScroll 移除（译文外部展示）
 
 // Text selection and context menu
 function onTextSelection(event) {
@@ -690,17 +805,12 @@ function highlightSentenceBoth(sentence) {
   if (!sentence) return;
   clearCrossHighlights();
   wrapRangeByText(sourceTextRef.value, sentence, CROSS_CLASS);
-  // 简单策略：目标框中尝试同样句子；若未找到且存在映射，用映射
-  const mapped = textAlignmentMap.value[sentence.trim()] || sentence;
-  wrapRangeByText(targetTextRef.value, mapped, CROSS_CLASS);
 }
 
 function highlightSelectionBoth(text) {
   if (!text) return;
   clearSelectionHighlights();
   wrapRangeByText(sourceTextRef.value, text, SELECTION_CLASS);
-  const mapped = textAlignmentMap.value[text.trim()] || text;
-  wrapRangeByText(targetTextRef.value, mapped, SELECTION_CLASS);
 }
 
 function getSentenceAtPoint(editor, clientX, clientY) {
@@ -802,50 +912,109 @@ function getLanguageLabel(lang) {
   return labels[lang] || lang;
 }
 
+async function loadGlossary(){
+  try {
+    glossaryPagination.loading = true;
+    const { aiService } = await import('../../services/aiService');
+    const { list, total } = await aiService.getGlossaryPage({
+      pageNo: glossaryPagination.pageNo,
+      pageSize: glossaryPagination.pageSize,
+      type: glossaryPagination.typeFilter,
+      originalText: glossaryPagination.keyword,
+      language: 'zh'
+    });
+    terminologyList.value = list.map(it=>({
+      id: it.id,
+      type: it.type || 'terminology',
+      originalText: it.originalText || it.source || '',
+      translatedText: it.translatedText || it.target || '',
+      language: it.language || 'zh',
+      status: it.status
+    }));
+    glossaryPagination.total = total;
+  } catch(e){ console.warn('loadGlossary failed', e); }
+  finally { glossaryPagination.loading = false; }
+}
+
 function editTerminology(term) {
   editingTerm.value = term;
-  Object.assign(terminologyForm, term);
+  Object.assign(terminologyForm, { ...term });
   showAddTermDialog.value = true;
 }
 
-function deleteTerminology(id) {
-  const index = terminologyList.value.findIndex(t => t.id === id);
-  if (index > -1) {
-    terminologyList.value.splice(index, 1);
-    ElMessage.success('术语删除成功');
-  }
+async function deleteTerminology(id) {
+  try {
+    await ElMessageBox.confirm('确认删除该术语？','提示',{ type:'warning', confirmButtonText:'删除', cancelButtonText:'取消' });
+    const { aiService } = await import('../../services/aiService');
+    const res = await aiService.deleteGlossaryEntry(id);
+    if (res && res.success) {
+      ElMessage.success('删除成功');
+      await loadGlossary();
+    } else {
+      ElMessage.error(res?.message || '删除失败');
+    }
+  } catch(e){ if (e !== 'cancel') ElMessage.error('删除失败'); }
 }
 
-function saveTerminology() {
+async function saveTerminology() {
   if (!terminologyForm.originalText || !terminologyForm.translatedText) {
     ElMessage.error('请填写完整信息');
     return;
   }
-  
-  if (editingTerm.value) {
-    // Edit existing term
-    const index = terminologyList.value.findIndex(t => t.id === editingTerm.value.id);
-    if (index > -1) {
-      terminologyList.value[index] = { ...terminologyForm, id: editingTerm.value.id };
-      ElMessage.success('术语更新成功');
+  try {
+    const { aiService } = await import('../../services/aiService');
+    if (editingTerm.value) {
+      const res = await aiService.updateGlossaryEntry({
+        id: editingTerm.value.id,
+        type: terminologyForm.type,
+        originalText: terminologyForm.originalText,
+        translatedText: terminologyForm.translatedText,
+        language: terminologyForm.language,
+        status: 1
+      });
+      if (res && res.success) {
+        ElMessage.success('更新成功');
+        await loadGlossary();
+      } else {
+        ElMessage.error('更新失败');
+      }
+    } else {
+      const res = await aiService.createGlossaryEntry({
+        type: terminologyForm.type,
+        originalText: terminologyForm.originalText,
+        translatedText: terminologyForm.translatedText,
+        language: terminologyForm.language,
+        status: 1
+      });
+      if (res && res.success) {
+        ElMessage.success('创建成功');
+        await loadGlossary();
+      } else {
+        ElMessage.error('创建失败');
+      }
     }
-  } else {
-    // Add new term
-    const newTerm = {
-      ...terminologyForm,
-      id: Date.now()
-    };
-    terminologyList.value.push(newTerm);
-    ElMessage.success('术语添加成功');
+  } catch{ ElMessage.error('保存失败'); }
+  finally {
+    terminologyForm.type = 'terminology';
+    terminologyForm.originalText = '';
+    terminologyForm.translatedText = '';
+    terminologyForm.language = 'zh';
+    editingTerm.value = null;
+    showAddTermDialog.value = false;
   }
-  
-  // Reset form
-  terminologyForm.type = 'terminology';
-  terminologyForm.originalText = '';
-  terminologyForm.translatedText = '';
-  terminologyForm.language = 'zh';
-  editingTerm.value = null;
-  showAddTermDialog.value = false;
+}
+
+function refreshGlossary(){ loadGlossary(); }
+
+function onGlossaryFilterChange(){
+  glossaryPagination.pageNo = 1;
+  loadGlossary();
+}
+function onGlossaryPageChange(page){
+  glossaryPagination.pageNo = page; loadGlossary();
+}
+function onGlossarySizeChange(size){
+  glossaryPagination.pageSize = size; glossaryPagination.pageNo = 1; loadGlossary();
 }
 
 function exportTerminology() {
@@ -877,7 +1046,7 @@ function importTerminology() {
           } else {
             ElMessage.error('文件格式不正确');
           }
-        } catch (error) {
+        } catch {
           ElMessage.error('文件解析失败');
         }
       };
@@ -900,8 +1069,9 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .language-selector label { font-size:14px; color:#606266; white-space:nowrap; }
 .swap-languages { display:flex; align-items:center; }
 .toolbar-actions { display:flex; align-items:center; gap:8px; }
+.lang-display { font-size:13px; color:#606266; margin-left:12px; padding:4px 8px; background:#ffffffcc; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,.04); white-space:nowrap; }
 .translation-content { display:flex; flex:1; overflow:hidden; width:100%; min-width:0; }
-.text-panel { flex:1; display:flex; flex-direction:column; border-right:1px solid #e5e7eb; min-width:0; }
+.text-panel { flex:1 1 50%; display:flex; flex-direction:column; border-right:1px solid #e5e7eb; min-width:0; }
 .text-panel:last-child { border-right:none; }
 .panel-header { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #e5e7eb; background:#fafafa; }
 .panel-title { font-weight:600; font-size:14px; color:#303133; }
@@ -910,7 +1080,8 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .text-editor:focus { outline:none; }
 .text-editor:empty:before { content:attr(placeholder); color:#c0c4cc; pointer-events:none; }
 .text-editor::-webkit-scrollbar { width:8px; }
-.translation-progress { padding:8px 16px; border-top:1px solid #e5e7eb; }
+.top-progress { margin-left:16px; }
+.translation-progress { padding:4px 16px; }
 .context-menu { background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.15); padding:4px 0; min-width:120px; }
 .menu-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; font-size:14px; color:#303133; transition:background-color .2s; }
 .menu-item:hover { background:#f5f7fa; }
@@ -931,6 +1102,10 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   padding-bottom: 12px; 
   border-bottom: 1px solid #e5e7eb; 
 }
+.op-btns { display:flex; align-items:center; justify-content:center; gap:4px; }
+.op-btns .el-button { padding:0 4px; margin:0 !important; line-height:1; }
+.op-btns .el-button + .el-button { margin-left:0 !important; }
+.operation-col .cell { padding:0 4px !important; }
 
 @media (max-width:768px){
   .translation-content { flex-direction:column; }
