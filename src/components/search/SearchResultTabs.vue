@@ -1,6 +1,6 @@
 <template>
   <div class="search-result-tabs">
-    <el-tabs v-model="activeTabModel" @tab-click="onTabClick">
+    <el-tabs v-model="activeTabModel">
       <el-tab-pane 
         v-for="tab in tabs" 
         :key="tab.key"
@@ -15,14 +15,8 @@
 import { computed } from 'vue';
 
 const props = defineProps({
-  activeTab: {
-    type: String,
-    default: 'all'
-  },
-  counts: {
-    type: Object,
-    default: () => ({})
-  }
+  activeTab: { type: String, default: 'all' },
+  counts: { type: Object, default: () => ({}) }
 });
 
 const emit = defineEmits(['tab-change']);
@@ -45,20 +39,11 @@ function getTabLabel(tab) {
   const count = props.counts[tab.key] || 0;
   return `${tab.label} (${count})`;
 }
-
-function onTabClick(pane) {
-  // 兜底：如果某些情况下 v-model 未触发（理论上不会），手动 emit
-  const name = pane?.props?.name;
-  if (name && name !== props.activeTab) emit('tab-change', name);
-}
+// 移除 onTabClick，之前与 v-model setter 重复触发 emit 导致双请求
 </script>
 
 <style scoped>
-.search-result-tabs {
-  margin-bottom: 15px;
-}
-.search-result-tabs :deep(.el-tabs__header) {
-  margin-bottom: 10px;
-}
+.search-result-tabs { margin-bottom: 15px; }
+.search-result-tabs :deep(.el-tabs__header) { margin-bottom: 10px; }
 </style>
 
