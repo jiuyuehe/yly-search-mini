@@ -100,7 +100,7 @@ const hasSelectedItems = computed(() => Object.values(selectedItems.value).some(
 
 // Methods
 function handleSearch(query, searchType, imageFile, options) {
-  // 统一调用 store.search，options 可能包含 precisionScore
+  // 统一调用 store.search，options 可能包含 precision
   searchStore.search(query, searchType, imageFile, options || null);
   currentPage.value = 1;
 }

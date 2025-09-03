@@ -46,8 +46,8 @@
           <!-- 精准搜索 精度控制 -->
           <div v-if="searchType==='precision'" class="precision-box">
             <span class="label">精准度</span>
-            <el-slider v-model="precisionScore" :min="0.6" :max="1" :step="0.01" class="precision-slider" :show-tooltip="true" />
-            <el-input-number v-model="precisionScore" :min="0.6" :max="1" :step="0.01" size="small" :precision="2" class="precision-input" />
+            <el-slider v-model="precision" :min="0.6" :max="1" :step="0.01" class="precision-slider" :show-tooltip="true" />
+            <el-input-number v-model="precision" :min="0.6" :max="1" :step="0.01" size="small" :precision="2" class="precision-input" />
           </div>
 
           <!-- 图片上传按钮（仅图片/问答模式显示） -->
@@ -90,7 +90,7 @@ const emit = defineEmits(['search']);
 
 const searchQuery = ref('');
 const searchType = ref('fullText');
-const precisionScore = ref(0.9); // 0.6~1
+const precision = ref(0.9); // 0.6~1
 
 // 图片相关
 const fileInput = ref(null);
@@ -114,14 +114,14 @@ const canSearch = computed(() => {
 });
 
 function buildEmitPayload() {
-  return { query: searchQuery.value.trim(), searchType: searchType.value, imageFile: imageFile.value, precisionScore: precisionScore.value };
+  return { query: searchQuery.value.trim(), searchType: searchType.value, imageFile: imageFile.value, precision: precision.value };
 }
 
 function handleSearch() {
   if (!canSearch.value) return;
   const payload = buildEmitPayload();
   // 兼容旧签名: (query, searchType, imageFile)
-  emit('search', payload.query, payload.searchType, payload.imageFile, { precisionScore: payload.precisionScore });
+  emit('search', payload.query, payload.searchType, payload.imageFile, { precision: payload.precision });
 }
 
 function enterQuickSearch(e) {
@@ -142,8 +142,8 @@ function processImageFile(file) {
 function handleDrop(e) { const file = e.dataTransfer.files && e.dataTransfer.files[0]; if (file) processImageFile(file); }
 function removeImage() { imageFile.value = null; imagePreview.value = ''; }
 
-// 约束 precisionScore 范围
-watch(precisionScore, (v) => { if (v < 0.6) precisionScore.value = 0.6; else if (v > 1) precisionScore.value = 1; });
+// 约束 precision 范围
+watch(precision, (v) => { if (v < 0.6) precision.value = 0.6; else if (v > 1) precision.value = 1; });
 </script>
 
 <style scoped>

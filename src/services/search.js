@@ -82,7 +82,7 @@ function transformResponse(data) {
 
 class SearchService {
   async search(builtParams, imageFile = null) {
-    const url = '/admin-api/documents/search';
+    const url = '/admin-api/rag/documents/search';
     const { offset, limit, ...rest } = builtParams;
     try {
       let root;
@@ -124,7 +124,7 @@ class SearchService {
   async getCreators(force = false) {
     if (!force && this._cachedCreators && Array.isArray(this._cachedCreators)) return this._cachedCreators;
     try {
-      const root = await api.get('/admin-api/documents/users');
+      const root = await api.get('/admin-api/rag/documents/users');
       if (root?.code !== 0) throw new Error(root?.msg || '获取用户失败');
       const raw = Array.isArray(root.data) ? root.data : [];
       const mapped = raw.map(u => ({ value: String(u.userId), label: u.userName || ('用户' + u.userId) }));
@@ -168,7 +168,7 @@ class SearchService {
 
   // 新增：获取聚合统计（与搜索参数一致）
   async getAggregationStats(builtParams) {
-    const url = '/admin-api/documents/aggregations/stats';
+    const url = '/admin-api/rag/documents/aggregations/stats';
     try {
       const formData = new URLSearchParams();
       Object.entries(builtParams).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') formData.append(k, v); });

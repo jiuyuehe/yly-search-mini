@@ -13,7 +13,7 @@ class ImageSearchService {
    * @returns {Promise<Object>} 搜索结果
    */
   async searchByVisual(params, imageFile) {
-    const url = '/admin-api/search/visual';
+    const url = '/admin-api/rag/images/search/visual';
     
     try {
       const formData = new FormData();
@@ -30,8 +30,8 @@ class ImageSearchService {
         groupId,
         createUserId,
         createrId, // 前端可能传递的字段名
-        scoreThreshold = 0.7,
-        similarity = 0.8,
+        scoreThreshold = 0.4,
+        similarity = 0.5,
         sortField,
         sortDirection
       } = params;
@@ -61,6 +61,8 @@ class ImageSearchService {
       if (imageFile) {
         formData.append('imageFile', imageFile);
       }
+
+      console.log('图片搜索参数:', formData);
 
       const response = await api.post(url, formData, {
         headers: {

@@ -7,7 +7,7 @@ export const useSearchStore = defineStore('search', {
   state: () => ({
     query: '',
     searchType: 'fullText',
-    precisionScore: 0.9, // 新增：精准搜索精度 0.6 ~ 1
+    precision: 0.9, // 新增：精准搜索精度 0.6 ~ 1
     filters: {
       fileCategory: [],
       fileSpace: [],
@@ -79,10 +79,10 @@ export const useSearchStore = defineStore('search', {
       const docTypeParam = tabToDocTypeParam(this.activeTab); if (docTypeParam) base.docType = docTypeParam;
       // 精准搜索附加参数
       if (searchType === 'precision') {
-        const ps = Number(this.precisionScore) || 0.9;
+        const ps = Number(this.precision) || 0.9;
         const bounded = Math.min(1, Math.max(0.6, ps));
         const gap = Math.min(4, Math.max(0, Math.round((1 - bounded) * 10))); // 0~4
-        base.precisionScore = bounded;
+        base.precision = bounded;
         base.gap = gap; // 提供给后端字间距（冗余）
       }
       return base;
@@ -92,8 +92,8 @@ export const useSearchStore = defineStore('search', {
       this.loading = true;
       this.query = query;
       this.searchType = searchType;
-      if (options && typeof options.precisionScore === 'number') {
-        this.precisionScore = options.precisionScore;
+      if (options && typeof options.precision === 'number') {
+        this.precision = options.precision;
       }
       try {
         const params = this.buildParams(query, searchType);
