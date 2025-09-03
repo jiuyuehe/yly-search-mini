@@ -44,7 +44,7 @@
           </el-splitter-panel>
           <el-splitter-panel :size="textPanelSize" :class="{ collapsed: !showText }">
             <div class="text-wrapper" v-show="showText">
-              <TextPanel title="文档文本" :content="textPanelContent" :editable="false" placeholder="文档文本内容将显示在这里..." :enable-markdown="true" @text-selected="onTextSelected" />
+              <TextPanel title="文档文本" :content="textPanelContent" :editable="false" :file="fileData" :file-id="fileId" placeholder="文档文本内容将显示在这里..." :enable-markdown="true" @text-selected="onTextSelected" />
             </div>
           </el-splitter-panel>
           <el-splitter-panel>
@@ -269,19 +269,26 @@ async function load() {
           ...base
         };
         // 若 esId 缺失，按规则生成
-        if (!mergedBase.esId && !mergedBase.esid) {
+  if (!mergedBase.esId && !mergedBase.esid) {
           try {
             if ((mergedBase.fileCategory || params.fc) === 'nas' || mergedBase.nasId) {
               if (mergedBase.nasId && mergedBase.nasFileId) {
-                mergedBase.esId = `${mergedBase.nasId}-${mergedBase.nasFileId}`;
+    const gen = `${mergedBase.nasId}-${mergedBase.nasFileId}`;
+    mergedBase.esId = gen;
+    mergedBase.esid = gen;
               }
             } else {
               if (mergedBase.fileId && mergedBase.fileCategory && mergedBase.fsFileId) {
-                mergedBase.esId = `${mergedBase.fileId}${String(mergedBase.fileCategory).toLowerCase()}${mergedBase.fsFileId}`;
+    const gen = `${mergedBase.fileId}${String(mergedBase.fileCategory).toLowerCase()}${mergedBase.fsFileId}`;
+    mergedBase.esId = gen;
+    mergedBase.esid = gen;
               }
             }
           } catch { /* silent */ }
         }
+  // 若仅有其中之一，补齐别名
+  if (mergedBase.esId && !mergedBase.esid) mergedBase.esid = mergedBase.esId;
+  if (mergedBase.esid && !mergedBase.esId) mergedBase.esId = mergedBase.esid;
         fileData.value = mergedBase;
         hasPerm.value = true;
       }
@@ -577,7 +584,9 @@ function buildPreviewUrl(fd) {
   flex-direction: column;
   height: 100%;
   min-width: 460px;
-  max-width: 520px;
+  /* allow panel to expand taking remaining space */
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 
 .text-wrapper {

@@ -61,11 +61,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
 import { ElMessage } from 'element-plus';
 import { aiService } from '../../services/aiService';
-import { fa } from 'element-plus/es/locales.mjs';
+// removed unused locale import
+import { resolveEsId } from '../../utils/esid';
 
 const props = defineProps({
   fileId: { type: [String, Number], required: true },
@@ -112,7 +113,7 @@ async function generateTags() {
 const inited = ref(false);
 async function tryInitTags() {
   if (!props.file) return;
-  const esId = props.file?.esId || props.file?.esid || props.file?._raw?.esId || props.file?._raw?.esid || '';
+  const esId = resolveEsId(props.file, props.fileId);
   if (!esId) { return; }
   if (inited.value) return; // 避免重复
   try {
@@ -134,7 +135,9 @@ async function tryInitTags() {
   }
 }
 
-onMounted(()=>{ tryInitTags(); });
+function onRefreshTags(){ inited.value = false; tryInitTags(); }
+onMounted(()=>{ tryInitTags(); window.addEventListener('refresh-tags', onRefreshTags); window.addEventListener('activate-tags', onRefreshTags); });
+onBeforeUnmount(()=>{ window.removeEventListener('refresh-tags', onRefreshTags); window.removeEventListener('activate-tags', onRefreshTags); });
 watch(()=> props.file?.esId || props.file?.esid, ()=> { inited.value=false; tryInitTags(); });
 
 async function copyTags(){
@@ -159,7 +162,7 @@ async function saveTagAdjust(){
     tagObjects.value = cleaned;
     tags.value = cleaned.map(t=>t.tag);
     // 调用保存（后端接口占位）
-    const esId = props.file?.esId || props.file?.esid || props.file?._raw?.esId || props.file?._raw?.esid || '';
+  const esId = resolveEsId(props.file, props.fileId);
     if (esId) await aiService.saveTags(esId, cleaned);
     editVisible.value = false;
     ElMessage.success('标签已更新');

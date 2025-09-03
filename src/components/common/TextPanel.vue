@@ -15,7 +15,7 @@
         </el-button>
       </div>
     </div>
-    <div 
+  <div 
       ref="textEditorRef"
       class="text-editor" 
       :contenteditable="editable"
@@ -38,17 +38,22 @@
         <el-icon><Search /></el-icon>
         百科查询
       </div>
-      <div class="menu-item" @click="markAsTerminology">
-        <el-icon><BookmarkIcon /></el-icon>
-        术语入库
-      </div>
-      <div class="menu-item" @click="addCustomTag">
-        <el-icon><Tag /></el-icon>
-        标签入库
-      </div>
       <div class="menu-item" @click="copySelectedText">
         <el-icon><CopyDocument /></el-icon>
         复制文本
+      </div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" @click="markAsTerminology">
+        <el-icon><Collection /></el-icon>
+        术语入库
+      </div>
+      <div class="menu-item" @click="addCustomTag">
+        <el-icon><CollectionTag /></el-icon>
+        标签入库
+      </div>
+      <div class="menu-item" @click="openNERDialog">
+        <el-icon><Connection /></el-icon>
+        实体标注
       </div>
     </div>
 
@@ -108,25 +113,63 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- NER Mark Dialog -->
+    <el-dialog v-model="showNERDialog" title="实体标注" width="420px">
+      <el-form label-width="80px">
+        <el-form-item label="文本">
+          <el-input type="textarea" :rows="3" v-model="nerText" readonly />
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="nerType" placeholder="选择实体类型">
+            <el-option v-for="t in nerTypeOptions" :key="t.value" :label="t.label" :value="t.value" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button size="small" @click="showNERDialog=false">取消</el-button>
+        <el-button size="small" type="primary" :loading="nerSaving" @click="saveNERMark" :disabled="!nerText || !nerType">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Tag Save Dialog -->
+    <el-dialog v-model="showTagDialog" title="标签入库" width="440px">
+      <el-form label-width="70px">
+        <el-form-item label="原文本">
+          <el-input type="textarea" :rows="2" v-model="tagText" readonly />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-select v-model="tagValue" placeholder="选择或输入" filterable allow-create default-first-option style="width:100%">
+            <el-option v-for="t in existingTagValues" :key="t" :label="t" :value="t" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="权重">
+          <el-slider v-model="tagWeight" :min="0" :max="1" :step="0.05" show-input size="small" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button size="small" @click="showTagDialog=false">取消</el-button>
+        <el-button size="small" type="primary" :loading="tagSaving" @click="saveTag" :disabled="!tagValue">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { 
-  Search, 
-  Download,
-  CopyDocument,
-  Document as Tag,
-  Star as BookmarkIcon
-} from '@element-plus/icons-vue';
+import { Download, Search, CopyDocument, Collection, CollectionTag, Connection } from '@element-plus/icons-vue';
+
+import { aiService } from '../../services/aiService';
+import { resolveEsId } from '../../utils/esid';
 
 const props = defineProps({
   title: {
     type: String,
     default: '文本内容'
   },
+  fileId: { type:[String,Number], default: null },
+  file: { type: Object, default: null },
   content: {
     type: String,
     default: ''
@@ -167,11 +210,32 @@ const showContextMenu = ref(false);
 const contextMenuStyle = ref({});
 const selectedText = ref('');
 const selectedRange = ref(null);
+// NER mark dialog
+const showNERDialog = ref(false);
+const nerText = ref('');
+const nerType = ref('person');
+const nerSaving = ref(false);
+const nerTypeOptions = [
+  { value:'person', label:'人员' },
+  { value:'organization', label:'组织' },
+  { value:'location', label:'地点' },
+  { value:'date', label:'日期' },
+  { value:'other', label:'其它' }
+];
 
-// Custom tag dialog
+
+// Custom tag legacy dialog (deprecated by new tag saving) retained temporarily
 const showCustomTagDialog = ref(false);
 const customTagName = ref('');
 const customTagColor = ref('#409EFF');
+
+// New Tag dialog (integrated with index saving)
+const showTagDialog = ref(false);
+const tagText = ref('');
+const tagValue = ref('');
+const tagWeight = ref(0.5);
+const tagSaving = ref(false);
+const existingTagValues = ref([]); // loaded from cached tags
 
 // Terminology dialog
 const showTerminologyDialog = ref(false);
@@ -245,7 +309,7 @@ function onContextMenu(event) {
 // Show context menu at position
 function showContextMenuAt(event) {
   nextTick(() => {
-    const rect = textEditorRef.value.getBoundingClientRect();
+  // position uses raw event coords; bounding rect kept if future relative calc needed
     contextMenuStyle.value = {
       position: 'fixed',
       left: `${event.clientX}px`,
@@ -263,12 +327,40 @@ function hideContextMenu() {
   selectedRange.value = null;
 }
 
+function openNERDialog(){
+  if(!selectedText.value){ ElMessage.warning('请先选择文本'); return; }
+  nerText.value = selectedText.value;
+  nerType.value = 'person';
+  showNERDialog.value = true;
+  hideContextMenu();
+}
+
 // Encyclopedia lookup
 function lookupEncyclopedia() {
   if (selectedText.value) {
-    ElMessage.info(`正在查询: ${selectedText.value}`);
-    // TODO: Implement encyclopedia lookup API call
+    let rawSel = selectedText.value.trim();
+    const full = textContent.value || '';
+    // 尝试扩展为段落（当选择较短时）
+    let paragraph = rawSel;
+    if(rawSel.length < 40 && full.includes(rawSel)){
+      const idx = full.indexOf(rawSel);
+      if(idx>-1){
+        let start = idx;
+        let end = idx + rawSel.length;
+        while(start>0 && full[start-1] !== '\n' && (idx - start) < 600) start--;
+        while(end < full.length && full[end] !== '\n' && (end - idx) < 600) end++;
+        paragraph = full.slice(start,end).trim();
+      }
+    }
+    // 过长截断
+    const MAX_LEN = 600;
+    let clippedPara = paragraph.length > MAX_LEN ? (paragraph.slice(0,MAX_LEN) + '...') : paragraph;
+    let clippedSel = rawSel.length > 200 ? (rawSel.slice(0,200)+'...') : rawSel;
+    const question = `[百科] 请基于文档内容回答与以下内容相关的背景、定义、关键要点：\n“${clippedSel}”\n\n原文片段：\n${clippedPara}`;
+    ElMessage.info('已发送百科查询');
     hideContextMenu();
+    window.dispatchEvent(new Event('activate-qa'));
+    window.dispatchEvent(new CustomEvent('encyclopedia-qa', { detail: { text: question, selection: rawSel, paragraph } }));
   }
 }
 
@@ -285,9 +377,8 @@ function markAsTerminology() {
 // Add custom tag
 function addCustomTag() {
   if (selectedText.value) {
-    customTagName.value = selectedText.value;
-    showCustomTagDialog.value = true;
-    hideContextMenu();
+  // Prefer new tag dialog; fallback old if needed
+  openTagDialog();
   }
 }
 
@@ -301,6 +392,89 @@ function copySelectedText() {
     });
     hideContextMenu();
   }
+}
+
+async function saveNERMark(){
+  if(!nerText.value || !nerType.value){ return; }
+  const esId = resolveEsId(props.file, props.fileId);
+  if(!esId){ ElMessage.error('缺少文件标识，无法保存实体'); return; }
+  nerSaving.value = true;
+  try {
+    // 获取缓存实体W
+    let grouped = await aiService.fetchCachedNER(esId);
+    if(!grouped){
+      grouped = { persons:[], organizations:[], locations:[], dates:[], others:[] };
+    }
+    const map = { person:'persons', organization:'organizations', location:'locations', date:'dates', other:'others' };
+    const key = map[nerType.value] || 'others';
+    if(!grouped[key]) grouped[key] = [];
+    if(!grouped[key].includes(nerText.value)) grouped[key].push(nerText.value);
+    // 去重清洗
+    Object.keys(grouped).forEach(k=>{ if(Array.isArray(grouped[k])) grouped[k] = Array.from(new Set(grouped[k].map(v=> (v||'').trim()).filter(Boolean))); });
+    const resp = await aiService.saveNER(esId, grouped);
+    if(resp.success){
+      ElMessage.success('实体已保存');
+      showNERDialog.value = false;
+      // 触发右侧面板切换
+      window.dispatchEvent(new Event('activate-ner'));
+    } else {
+      ElMessage.error(resp.message || '保存失败');
+    }
+  } catch(e){
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    nerSaving.value = false;
+  }
+}
+
+function openTagDialog(){
+  const esId = resolveEsId(props.file, props.fileId);
+  if(!selectedText.value){ ElMessage.warning('请先选择文本'); return; }
+  tagText.value = selectedText.value;
+  tagValue.value = selectedText.value.slice(0,40);
+  tagWeight.value = 0.5;
+  showTagDialog.value = true;
+  hideContextMenu();
+  // preload existing tags (best-effort)
+  if(esId){
+    aiService.fetchCachedTags(esId).then(list=>{
+      if(Array.isArray(list)) existingTagValues.value = Array.from(new Set(list.map(t=> t.tag).filter(Boolean))).slice(0,200);
+    }).catch(()=>{});
+  }
+}
+
+async function saveTag(){
+  if(!tagValue.value){ return; }
+  const esId = resolveEsId(props.file, props.fileId);
+  if(!esId){ ElMessage.error('缺少文件标识，无法保存标签'); return; }
+  tagSaving.value = true;
+  try {
+    // 获取现有
+    let existing = await aiService.fetchCachedTags(esId) || [];
+    if(!Array.isArray(existing)) existing = [];
+    // normalize
+    const normalized = existing.map(t=>({ tag: t.tag || t.keyword || t.key || '', weight: Number(t.weight||0) || 0 })).filter(t=> t.tag);
+    // 更新/追加
+    const idx = normalized.findIndex(t=> t.tag === tagValue.value);
+    if(idx >=0) normalized[idx].weight = tagWeight.value; else normalized.push({ tag: tagValue.value, weight: tagWeight.value });
+    // 限制数量
+    const cleaned = normalized
+      .map(t=>({ tag: t.tag.trim(), weight: Math.min(1, Math.max(0, Number(t.weight||0))) }))
+      .filter(t=> t.tag)
+      .slice(0,100);
+    // 保存
+    const resp = await aiService.saveTags(esId, cleaned);
+    if(resp.success){
+      ElMessage.success('标签已保存');
+      showTagDialog.value = false;
+      // 通知 TagsPanel 重新加载（自定义事件）
+      window.dispatchEvent(new Event('refresh-tags'));
+    } else {
+      ElMessage.error(resp.message || '保存失败');
+    }
+  } catch(e){
+    ElMessage.error(e?.message || '保存失败');
+  } finally { tagSaving.value = false; }
 }
 
 // Save custom tag
@@ -449,6 +623,12 @@ document.addEventListener('click', (e) => {
 
 .menu-item .el-icon {
   font-size: 16px;
+}
+
+.menu-separator {
+  height: 1px;
+  background: #ebeef5;
+  margin: 4px 0;
 }
 
 /* Dialog styles */

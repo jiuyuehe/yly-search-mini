@@ -27,10 +27,16 @@
           <el-button 
             size="small" 
             circle 
-            @click="swapLanguages"
-            :disabled="sourceLanguage === 'auto'"
+            disabled
+            title="当前仅支持翻译为中文"
           >
-            <el-icon><Sort /></el-icon>
+            <el-icon>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 7H4l3-3-3 3 3 3-3-3" stroke="currentColor" fill="none" />
+                <path d="M16 17h4l-3 3 3-3-3-3 3 3" stroke="currentColor" fill="none" />
+                <path d="M5 12h14" stroke-width="1.5" opacity="0.5" />
+              </svg>
+            </el-icon>
           </el-button>
         </div>
         <div class="language-selector">
@@ -38,18 +44,10 @@
           <el-select 
             v-model="targetLanguage" 
             size="small" 
-            @change="onTargetLanguageChange"
+            disabled
+            placeholder="中文"
           >
-            <el-option label="English" value="en" />
             <el-option label="中文" value="zh" />
-            <el-option label="Français" value="fr" />
-            <el-option label="Español" value="es" />
-            <el-option label="Deutsch" value="de" />
-            <el-option label="日本語" value="ja" />
-            <el-option label="Русский" value="ru" />
-            <el-option label="Italiano" value="it" />
-            <el-option label="한국어" value="ko" />
-            <el-option label="Português" value="pt" />
           </el-select>
         </div>
       </div>
@@ -231,6 +229,39 @@
           </el-button>
           <el-button 
             size="small" 
+            @click="refreshGlossary"
+            :loading="glossaryPagination.loading"
+          >
+            <el-icon><Refresh /></el-icon>
+            刷新
+          </el-button>
+          <el-select
+            v-model="glossaryPagination.typeFilter"
+            size="small"
+            placeholder="类型"
+            style="width:110px"
+            @change="onGlossaryFilterChange"
+            clearable
+          >
+            <el-option label="术语" value="terminology" />
+            <el-option label="记忆" value="memory" />
+            <el-option label="语料" value="corpus" />
+          </el-select>
+          <el-input
+            v-model="glossaryPagination.keyword"
+            size="small"
+            placeholder="关键词 (原文)"
+            style="width:180px"
+            clearable
+            @keyup.enter="onGlossaryFilterChange"
+          >
+            <template #suffix>
+              <el-icon style="cursor:pointer" @click="onGlossaryFilterChange"><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-button size="small" @click="onGlossaryFilterChange">查询</el-button>
+          <el-button 
+            size="small" 
             @click="exportTerminology"
           >
             <el-icon><Download /></el-icon>
@@ -246,7 +277,8 @@
         </div>
         
         <el-table 
-          :data="terminologyList" 
+          :data="terminologyList"
+          v-loading="glossaryPagination.loading"
           height="400" 
           style="width: 100%"
         >
@@ -267,26 +299,27 @@
               {{ getLanguageLabel(scope.row.language) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120">
+          <el-table-column label="操作" width="120" fixed="right" align="center" class-name="operation-col">
             <template #default="scope">
-              <el-button 
-                size="small" 
-                type="text" 
-                @click="editTerminology(scope.row)"
-              >
-                编辑
-              </el-button>
-              <el-button 
-                size="small" 
-                type="text" 
-                @click="deleteTerminology(scope.row.id)"
-                style="color: #f56c6c"
-              >
-                删除
-              </el-button>
+              <div class="op-btns">
+                <el-button size="small" link type="primary" @click="editTerminology(scope.row)">编辑</el-button>
+                <el-button size="small" link type="danger" @click="deleteTerminology(scope.row.id)">删除</el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
+        <div class="glossary-pagination">
+          <el-pagination
+            background
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="glossaryPagination.total"
+            :page-size="glossaryPagination.pageSize"
+            :current-page="glossaryPagination.pageNo"
+            :page-sizes="[10,20,30,50]"
+            @size-change="onGlossarySizeChange"
+            @current-change="onGlossaryPageChange"
+          />
+        </div>
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -351,7 +384,6 @@ import { ref, reactive, onMounted, watch, onUnmounted, nextTick } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
 import { ElMessage } from 'element-plus';
 import { 
-  Sort, 
   Setting, 
   Search, 
   Warning, 
@@ -360,8 +392,10 @@ import {
   Collection,
   Plus,
   Download,
-  Upload
+  Upload,
+  Refresh
 } from '@element-plus/icons-vue';
+import { ElMessageBox } from 'element-plus';
 
 const props = defineProps({
   fileId: { type: String, required: true },
@@ -386,8 +420,8 @@ const targetTextRef = ref(null);
 const contextMenuRef = ref(null);
 
 // Language settings
-const sourceLanguage = ref('en'); // 默认英文
-const targetLanguage = ref('zh'); // 默认中文
+const sourceLanguage = ref('auto'); // 默认自动检测
+const targetLanguage = ref('zh'); // 锁定中文
 
 // Text content
 const sourceText = ref('');
@@ -430,29 +464,8 @@ const customTagColor = ref('#409EFF');
 const showTerminologyManager = ref(false);
 const showAddTermDialog = ref(false);
 const editingTerm = ref(null);
-const terminologyList = ref([
-  {
-    id: 1,
-    type: 'terminology',
-    originalText: 'artificial intelligence',
-    translatedText: '人工智能',
-    language: 'zh'
-  },
-  {
-    id: 2,
-    type: 'memory',
-    originalText: 'machine learning',
-    translatedText: '机器学习',
-    language: 'zh'
-  },
-  {
-    id: 3,
-    type: 'corpus',
-    originalText: 'neural network',
-    translatedText: '神经网络',
-    language: 'zh'
-  }
-]);
+const terminologyList = ref([]);
+const glossaryPagination = reactive({ pageNo:1, pageSize:20, total:0, loading:false, typeFilter:'', keyword:'' });
 const terminologyForm = reactive({
   type: 'terminology',
   originalText: '',
@@ -491,6 +504,8 @@ async function initLoad(){
   }
   detectSourceLang();
   await loadCachedOrTranslate();
+  // 加载术语库
+  loadGlossary();
 }
 
 function detectSourceLang(){
@@ -499,12 +514,10 @@ function detectSourceLang(){
   if (!txt.trim()) return;
   const chineseChars = (txt.match(/[\u4e00-\u9fa5]/g)||[]).length;
   const ratio = chineseChars / Math.max(1, txt.length);
-  if (ratio > 0.25) { // 阈值稍微提高，避免少量汉字干扰
+  if (ratio > 0.25) {
     sourceLanguage.value='zh';
-    if (targetLanguage.value==='zh') targetLanguage.value='en';
   } else {
     sourceLanguage.value='en';
-    if (targetLanguage.value==='en') targetLanguage.value='zh';
   }
 }
 
@@ -582,28 +595,8 @@ function onSourceLanguageChange() {
   }
 }
 
-function onTargetLanguageChange() {
-  if (!sourceText.value.trim()) return;
-  // 切换语言时重新查缓存或生成（仅激活状态）
-  loadCachedOrTranslate();
-}
 
 // Swap languages
-function swapLanguages() {
-  if (sourceLanguage.value === 'auto') return;
-  
-  const temp = sourceLanguage.value;
-  sourceLanguage.value = targetLanguage.value;
-  targetLanguage.value = temp;
-  
-  // Also swap text content
-  const tempText = sourceText.value;
-  sourceText.value = translatedText.value;
-  translatedText.value = tempText;
-  
-  updateSourceTextContent();
-  updateTargetTextContent();
-}
 
 // Main translation function
 async function translateText() {
@@ -919,50 +912,109 @@ function getLanguageLabel(lang) {
   return labels[lang] || lang;
 }
 
+async function loadGlossary(){
+  try {
+    glossaryPagination.loading = true;
+    const { aiService } = await import('../../services/aiService');
+    const { list, total } = await aiService.getGlossaryPage({
+      pageNo: glossaryPagination.pageNo,
+      pageSize: glossaryPagination.pageSize,
+      type: glossaryPagination.typeFilter,
+      originalText: glossaryPagination.keyword,
+      language: 'zh'
+    });
+    terminologyList.value = list.map(it=>({
+      id: it.id,
+      type: it.type || 'terminology',
+      originalText: it.originalText || it.source || '',
+      translatedText: it.translatedText || it.target || '',
+      language: it.language || 'zh',
+      status: it.status
+    }));
+    glossaryPagination.total = total;
+  } catch(e){ console.warn('loadGlossary failed', e); }
+  finally { glossaryPagination.loading = false; }
+}
+
 function editTerminology(term) {
   editingTerm.value = term;
-  Object.assign(terminologyForm, term);
+  Object.assign(terminologyForm, { ...term });
   showAddTermDialog.value = true;
 }
 
-function deleteTerminology(id) {
-  const index = terminologyList.value.findIndex(t => t.id === id);
-  if (index > -1) {
-    terminologyList.value.splice(index, 1);
-    ElMessage.success('术语删除成功');
-  }
+async function deleteTerminology(id) {
+  try {
+    await ElMessageBox.confirm('确认删除该术语？','提示',{ type:'warning', confirmButtonText:'删除', cancelButtonText:'取消' });
+    const { aiService } = await import('../../services/aiService');
+    const res = await aiService.deleteGlossaryEntry(id);
+    if (res && res.success) {
+      ElMessage.success('删除成功');
+      await loadGlossary();
+    } else {
+      ElMessage.error(res?.message || '删除失败');
+    }
+  } catch(e){ if (e !== 'cancel') ElMessage.error('删除失败'); }
 }
 
-function saveTerminology() {
+async function saveTerminology() {
   if (!terminologyForm.originalText || !terminologyForm.translatedText) {
     ElMessage.error('请填写完整信息');
     return;
   }
-  
-  if (editingTerm.value) {
-    // Edit existing term
-    const index = terminologyList.value.findIndex(t => t.id === editingTerm.value.id);
-    if (index > -1) {
-      terminologyList.value[index] = { ...terminologyForm, id: editingTerm.value.id };
-      ElMessage.success('术语更新成功');
+  try {
+    const { aiService } = await import('../../services/aiService');
+    if (editingTerm.value) {
+      const res = await aiService.updateGlossaryEntry({
+        id: editingTerm.value.id,
+        type: terminologyForm.type,
+        originalText: terminologyForm.originalText,
+        translatedText: terminologyForm.translatedText,
+        language: terminologyForm.language,
+        status: 1
+      });
+      if (res && res.success) {
+        ElMessage.success('更新成功');
+        await loadGlossary();
+      } else {
+        ElMessage.error('更新失败');
+      }
+    } else {
+      const res = await aiService.createGlossaryEntry({
+        type: terminologyForm.type,
+        originalText: terminologyForm.originalText,
+        translatedText: terminologyForm.translatedText,
+        language: terminologyForm.language,
+        status: 1
+      });
+      if (res && res.success) {
+        ElMessage.success('创建成功');
+        await loadGlossary();
+      } else {
+        ElMessage.error('创建失败');
+      }
     }
-  } else {
-    // Add new term
-    const newTerm = {
-      ...terminologyForm,
-      id: Date.now()
-    };
-    terminologyList.value.push(newTerm);
-    ElMessage.success('术语添加成功');
+  } catch{ ElMessage.error('保存失败'); }
+  finally {
+    terminologyForm.type = 'terminology';
+    terminologyForm.originalText = '';
+    terminologyForm.translatedText = '';
+    terminologyForm.language = 'zh';
+    editingTerm.value = null;
+    showAddTermDialog.value = false;
   }
-  
-  // Reset form
-  terminologyForm.type = 'terminology';
-  terminologyForm.originalText = '';
-  terminologyForm.translatedText = '';
-  terminologyForm.language = 'zh';
-  editingTerm.value = null;
-  showAddTermDialog.value = false;
+}
+
+function refreshGlossary(){ loadGlossary(); }
+
+function onGlossaryFilterChange(){
+  glossaryPagination.pageNo = 1;
+  loadGlossary();
+}
+function onGlossaryPageChange(page){
+  glossaryPagination.pageNo = page; loadGlossary();
+}
+function onGlossarySizeChange(size){
+  glossaryPagination.pageSize = size; glossaryPagination.pageNo = 1; loadGlossary();
 }
 
 function exportTerminology() {
@@ -1050,6 +1102,10 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   padding-bottom: 12px; 
   border-bottom: 1px solid #e5e7eb; 
 }
+.op-btns { display:flex; align-items:center; justify-content:center; gap:4px; }
+.op-btns .el-button { padding:0 4px; margin:0 !important; line-height:1; }
+.op-btns .el-button + .el-button { margin-left:0 !important; }
+.operation-col .cell { padding:0 4px !important; }
 
 @media (max-width:768px){
   .translation-content { flex-direction:column; }

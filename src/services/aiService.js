@@ -1,4 +1,5 @@
 import api from './api';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 // AI 接口允许耗时较长，单独超时时间 (ms)
 const AI_REQUEST_TIMEOUT = 180000; // 3 分钟，可按需再调大
@@ -17,6 +18,26 @@ function loadForms() {
 function saveForms(list) { try { localStorage.setItem(CLASSIFICATION_KEY, JSON.stringify(list)); } catch { /* ignore save */ } }
 
 class AIService {
+  _getUserId(userId){
+    if(userId !== undefined && userId !== null && userId !== '') return userId;
+    try {
+      const raw = localStorage.getItem('userInfo');
+      if(raw){
+        const obj = JSON.parse(raw);
+        const uid = obj?.userId || obj?.id || obj?.uid || obj?.userID || '';
+        if(uid !== undefined && uid !== null && uid !== '') return uid;
+      }
+    } catch{ /* ignore parse */ }
+    return '';
+  }
+  _resolveApiPath(path){
+    // 在开发服务器(端口3000)时需通过 /api 触发 vite 代理；生产环境保持原样
+    try {
+      const isDev = typeof window !== 'undefined' && (window.location.port === '3000' || window.location.hostname === 'localhost');
+      if (isDev && path.startsWith('/admin-api/')) return '/api' + path; // 触发代理 /api -> backend
+      return path;
+    } catch { return path; }
+  }
   buildTextFromFileData(fileData) {
     // 传全文还是 ID: 接口文档提供 text / texts / esId，可根据需要扩展
     return fileData?.fileContents || fileData?.extractedText || '';
@@ -260,7 +281,7 @@ class AIService {
     const list=[]; const map = { persons:'person', organizations:'organization', locations:'location', dates:'date', others:'other' };
     Object.entries(map).forEach(([k,t])=>{ const arr = nerGrouped?.[k]; if (Array.isArray(arr)) arr.forEach(v=>{ if (v) list.push({ type:t, value:v }); }); });
     try {
-      const res = await api.post('/admin-api/rag/ai/text/ner/update', { esId, ner: list }, { headers:{'Content-Type':'application/json'}, timeout: 20000 });
+      const res = await api.post('/admin-api/rag/ai/text/ner/update', { esId, esid: esId, ner: list }, { headers:{'Content-Type':'application/json'}, timeout: 20000 });
       if (res && typeof res === 'object' && res.code === 0) return { success:true };
       return { success:false, message: res?.msg || '保存失败' };
     } catch (e) { console.warn('[AIService] saveNER failed', e); return { success:false, message:e.message }; }
@@ -371,6 +392,289 @@ class AIService {
       }));
       return { list: mock, total: mock.length };
     }
+  }
+  // ===== Theme Classification (document themes & labels) =====
+  async listThemes({ userId }={}){
+    try { const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const res= await api.get('/admin-api/rag/ai/theme/list',{ headers, timeout:20000 }); const root=this._normalizeWrapper(res); const data=root.data||root.list||[]; return Array.isArray(data)? data.map(t=>({ id:t.id||t.themeId||t.code, name:t.name||t.themeName||t.title||t.label||'未命名', description: t.description||t.desc||'', enabled: t.enabled!==false, raw:t })) : []; } catch(e){ console.warn('[AIService] listThemes failed', e); return []; }
+  }
+  async listThemesPage({ pageNo=1, pageSize=10, userId }={}){
+    try {
+      const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      const res = await api.get('/admin-api/rag/ai/theme/page',{ params:{ pageNo, pageSize }, headers, timeout:20000 });
+      const root=this._normalizeWrapper(res);
+      const dataNode = root.data || root;
+      const listRaw = dataNode.list || dataNode.rows || dataNode.data || [];
+      const total = Number(dataNode.total || dataNode.count || dataNode.totalCount || listRaw.length || 0);
+      const list = Array.isArray(listRaw)? listRaw.map(t=>{
+        const labelArray = t.labels || t.labelList || t.tags || t.tagList || t.children || [];
+        const themeIdVal = t.id||t.themeId||t.code;
+        const labels = Array.isArray(labelArray)? labelArray.map(l=>{
+          const name = l.keyword || l.name || l.label || l.title || '';
+          return {
+            id: l.id||l.labelId||l.code,
+            themeId: themeIdVal,
+            name: name || '未命名',
+            description: l.description||l.desc||l.synonyms||'',
+            enabled: l.enabled!==false,
+            weight: (l.weight !== undefined && l.weight !== null) ? Number(l.weight) : undefined,
+            synonyms: l.synonyms || '',
+            raw: l
+          };
+        }) : [];
+        return { id: themeIdVal, name: t.name||t.themeName||t.title||t.label||'未命名', description: t.description||t.desc||'', enabled: t.enabled!==false, labels, raw:t };
+      }) : [];
+      return { list, total };
+    } catch(e){ console.warn('[AIService] listThemesPage failed', e); return { list:[], total:0 }; }
+  }
+  async createTheme({ name, description='', userId }={}){
+    try { const headers={'Content-Type':'application/json'}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const body={ name, description }; const res= await api.post('/admin-api/rag/ai/theme/create', body, { headers, timeout:20000 }); const root=this._normalizeWrapper(res); return { success: root.code===0, id: root.data?.id||root.data||null, raw: root.data };
+    } catch(e){ console.warn('[AIService] createTheme failed', e); return { success:false, message:e.message }; }
+  }
+  async updateTheme({ id, name, description, enabled, userId }={}){
+    if(!id) return { success:false, message:'缺少 id' };
+    try { const headers={'Content-Type':'application/json'}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const body={ id, name, description, enabled }; Object.keys(body).forEach(k=> body[k]===undefined && delete body[k]); const res= await api.post('/admin-api/rag/ai/theme/update', body, { headers, timeout:20000 }); const root=this._normalizeWrapper(res); return { success: root.code===0 };
+    } catch(e){ console.warn('[AIService] updateTheme failed', e); return { success:false, message:e.message }; }
+  }
+  async deleteTheme(id, userId){ if(!id) return { success:false }; try { const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const res= await api.delete('/admin-api/rag/ai/theme/delete',{ params:{ id }, headers, timeout:15000 }); const root=this._normalizeWrapper(res); return { success: root.code===0 }; } catch(e){ console.warn('[AIService] deleteTheme failed', e); return { success:false, message:e.message }; } }
+  async listThemeLabels(themeId, userId){ if(!themeId) return []; try { const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const res= await api.get('/admin-api/rag/ai/theme/label/list',{ params:{ themeId }, headers, timeout:20000 }); const root=this._normalizeWrapper(res); const data=root.data||root.list||root.labels||[]; return Array.isArray(data)? data.map(l=>{ const name = l.keyword || l.name || l.label || l.title || ''; return { id:l.id||l.labelId||l.code, themeId, name: name || '未命名', description:l.description||l.desc||l.synonyms||'', enabled:l.enabled!==false, weight: (l.weight !== undefined && l.weight !== null) ? Number(l.weight) : undefined, synonyms: l.synonyms || '', raw:l }; }) : []; } catch(e){ console.warn('[AIService] listThemeLabels failed', e); return []; } }
+  async createThemeLabel({ themeId, name, description='', userId }={}){ if(!themeId) return { success:false, message:'缺少 themeId' }; try { const headers={'Content-Type':'application/json'}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const body={ themeId, name, description }; const res= await api.post('/admin-api/rag/ai/theme/label/create', body, { headers, timeout:20000 }); const root=this._normalizeWrapper(res); return { success: root.code===0, id: root.data?.id||root.data||null }; } catch(e){ console.warn('[AIService] createThemeLabel failed', e); return { success:false, message:e.message }; } }
+  async updateThemeLabel({ id, themeId, name, description, enabled, userId }={}){ if(!id) return { success:false, message:'缺少 id' }; try { const headers={'Content-Type':'application/json'}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const body={ id, themeId, name, description, enabled }; Object.keys(body).forEach(k=> body[k]===undefined && delete body[k]); const res= await api.post('/admin-api/rag/ai/theme/label/update', body, { headers, timeout:20000 }); const root=this._normalizeWrapper(res); return { success: root.code===0 }; } catch(e){ console.warn('[AIService] updateThemeLabel failed', e); return { success:false, message:e.message }; } }
+  async deleteThemeLabel(id, userId){ if(!id) return { success:false }; try { const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const res= await api.delete('/admin-api/rag/ai/theme/label/delete',{ params:{ id }, headers, timeout:15000 }); const root=this._normalizeWrapper(res); return { success: root.code===0 }; } catch(e){ console.warn('[AIService] deleteThemeLabel failed', e); return { success:false, message:e.message }; } }
+  async classifyByTheme({ esId, themeId, text, topN, userId }={}){
+    try {
+      const uid=this._getUserId(userId); const baseHeaders={}; if(uid!=='') baseHeaders['X-User-Id']=uid;
+      // 分支1: 有 esId -> 按文档 GET 查询
+      if(esId){
+        const params={ esId }; if(themeId) params.themeId=themeId; if(topN) params.topN=topN;
+        const res = await api.get('/admin-api/rag/ai/theme/classify', { params, headers: baseHeaders, timeout:60000 });
+        const root=this._normalizeWrapper(res);
+        const dataArr = Array.isArray(root.data) ? root.data : (Array.isArray(root.data?.list)? root.data.list : (root.data?.results || []));
+        return Array.isArray(dataArr)? dataArr.map((r,i)=>this._mapThemeClassifyResp(r,i,themeId)) : [];
+      }
+      // 分支2: 无 esId 但有文本 -> 尝试 POST (兼容之前写法, 后端若只支持 esId 会返回错误)
+      if(text && text.trim()){
+        const body={ text: text.trim() }; if(themeId) body.themeId=themeId; if(topN) body.topN=topN;
+        const headers={ ...baseHeaders, 'Content-Type':'application/json' };
+        try {
+          const res = await api.post('/admin-api/rag/ai/theme/classify', body, { headers, timeout:60000 });
+          const root=this._normalizeWrapper(res);
+          // 兼容 data 为数组或对象包装
+            const node = root.data !== undefined ? root.data : root;
+          const arr = Array.isArray(node) ? node : (Array.isArray(node?.list)? node.list : (Array.isArray(node?.results)? node.results : []));
+          return Array.isArray(arr)? arr.map((r,i)=>this._mapThemeClassifyResp(r,i,themeId)) : [];
+        } catch(postErr){
+          console.warn('[AIService] POST classify fallback failed (可能后端不支持纯文本分类)', postErr);
+          return [];
+        }
+      }
+      console.warn('[AIService] classifyByTheme 缺少 esId 与 text，无法分类');
+      return [];
+    } catch(e){ console.warn('[AIService] classifyByTheme failed', e); return []; }
+  }
+  _mapThemeClassifyResp(r,i, fallbackThemeId){
+    if(!r) return { id:`rec_${i}`, label:'', themeId:fallbackThemeId||null, score:0 };
+    const score = Number(r.score ?? r.scorePercent ?? r.prob ?? r.probability ?? r.rawScore ?? 0);
+    return {
+      id: r.id || r.labelId || r.themeId || `rec_${i}`,
+      label: r.label || r.name || r.category || r.themeName || r.themeLabel || '',
+      themeId: r.themeId || fallbackThemeId || null,
+      themeName: r.themeName || r.name || '',
+      score,
+      matchedKeywords: r.matchedKeywords || r.keywords || [],
+      reason: r.reason || ''
+    };
+  }
+  // ===== File Chat (Document QA) =====
+  _normalizeWrapper(res){ return (res && typeof res==='object' && 'code' in res) ? res : (res?.data || {}); }
+  _extractSessionId(obj){ if(!obj) return null; if(typeof obj==='number') return obj; return obj.id || obj.sessionId || null; }
+  async createFileChatSession({ esId, title='', roleId, modelId, temperature, maxTokens, maxContexts, userPrompt, userId }={}) {
+    try {
+      const body={ title, esId, roleId, modelId, temperature, maxTokens, maxContexts, userPrompt };
+      Object.keys(body).forEach(k=> body[k]===undefined && delete body[k]);
+      const headers={ 'Content-Type':'application/json' };
+      const uid = this._getUserId(userId);
+      if(uid !== '') headers['X-User-Id']=uid;
+      const res= await api.post('/admin-api/rag/ai/text/file-chat/session/create', body, { headers, timeout: 30000 });
+      const root=this._normalizeWrapper(res);
+      const data=root.data!==undefined?root.data:root; // may be id or object
+      const sessionId=this._extractSessionId(data);
+      return { success: root.code===0 && !!sessionId, sessionId, raw:data };
+    } catch(e){ console.warn('[AIService] createFileChatSession failed', e); return { success:false, message:e.message }; }
+  }
+  async getLatestFileChatSession({ esId, returnHistory=true, userId }={}) {
+    try {
+      const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      const res= await api.get('/admin-api/rag/ai/text/file-chat/session/latest', { params:{ esId, returnHistory }, headers, timeout: 30000 });
+      const root=this._normalizeWrapper(res);
+      if(root.code!==0) return { success:false };
+  const data = root.data; // expected structure from backend sample
+  if(!data) return { success:true, session:null, messages:[] };
+  const sessionId = this._extractSessionId(data);
+  const history = Array.isArray(data.history) ? data.history : (data.messages || []);
+  return { success:true, session:{ id:sessionId, esId: data.esId||esId, title: data.title||'', raw:data }, messages: this._mapChatMessages(history, sessionId) };
+    } catch(e){ console.warn('[AIService] getLatestFileChatSession failed', e); return { success:false, session:null, messages:[] }; }
+  }
+  async listFileChatSessions({ esId, pageNo=1, pageSize=20, userId }={}) {
+    try {
+  const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      const res= await api.get('/admin-api/rag/ai/text/file-chat/session/page', { params:{ esId, pageNo, pageSize }, headers, timeout: 30000 });
+      const root=this._normalizeWrapper(res);
+      if(root.code!==0) return { list:[], total:0 };
+      const data=root.data||{};
+      const listRaw = data.list || data.sessions || (Array.isArray(data)? data : []);
+      const list = (listRaw||[]).map(s=>({ id: this._extractSessionId(s), esId: s.esId||esId, title: s.title||'', raw:s })).filter(s=>s.id);
+      const total = data.total || list.length;
+      return { list, total };
+    } catch(e){ console.warn('[AIService] listFileChatSessions failed', e); return { list:[], total:0 }; }
+  }
+  async deleteFileChatSession(sessionId, userId){
+    if(!sessionId) return { success:false };
+  try { const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const res= await api.delete('/admin-api/rag/ai/text/file-chat/session/delete', { params:{ sessionId }, headers, timeout:20000 }); const root=this._normalizeWrapper(res); return { success: root.code===0 }; } catch(e){ console.warn('[AIService] deleteFileChatSession failed', e); return { success:false, message:e.message }; }
+  }
+  async clearFileChatSessions(esId, userId){
+    if(!esId) return { success:false };
+  try { const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid; const res= await api.delete('/admin-api/rag/ai/text/file-chat/session/clear', { params:{ esId }, headers, timeout:30000 }); const root=this._normalizeWrapper(res); return { success: root.code===0 }; } catch(e){ console.warn('[AIService] clearFileChatSessions failed', e); return { success:false, message:e.message }; }
+  }
+  async updateFileChatSession({ sessionId, modelId, temperature, maxTokens, maxContexts, userId }={}){
+    if(!sessionId) return { success:false, message:'缺少 sessionId' };
+    try {
+      const headers={ 'Content-Type':'application/json' }; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      // 假设后端提供此更新接口 (如无请调整路径或方法)
+      const body={ sessionId, modelId, temperature, maxTokens, maxContexts };
+      Object.keys(body).forEach(k=> body[k]===undefined && delete body[k]);
+      const res = await api.post('/admin-api/rag/ai/text/file-chat/session/update', body, { headers, timeout:30000 });
+      const root=this._normalizeWrapper(res); const success = root.code===0;
+      return { success, data: root.data||null };
+    } catch(e){ console.warn('[AIService] updateFileChatSession failed', e); return { success:false, message:e.message }; }
+  }
+  async updateFileChatUserPrompt({ sessionId, userPrompt, userId }={}){
+    if(!sessionId) return { success:false, message:'缺少 sessionId' };
+    try {
+      const headers={ 'Content-Type':'application/json' }; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      const body={ sessionId, userPrompt };
+      Object.keys(body).forEach(k=> body[k]===undefined && delete body[k]);
+      const res = await api.post('/admin-api/rag/ai/text/file-chat/session/update-user-prompt', body, { headers, timeout:30000 });
+      const root=this._normalizeWrapper(res); const success = root.code===0;
+      return { success };
+    } catch(e){ console.warn('[AIService] updateFileChatUserPrompt failed', e); return { success:false, message:e.message }; }
+  }
+  async getChatModels({ userId, type=1 }={}){
+    try {
+      const headers={}; const uid=this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      // 假设后端简易列表接口；若不同请调整路径或参数
+      const res = await api.get('/admin-api/rag/ai/model/simple-list', { params:{ type }, headers, timeout:30000 });
+      const root=this._normalizeWrapper(res); const data=root.data||root.list||root.models||[];
+      const list = Array.isArray(data)? data.map(m=>({ id: m.id||m.modelId||m.name, name: m.name||m.modelName||m.label||m.id })) : [];
+      return list;
+    } catch(e){ console.warn('[AIService] getChatModels failed', e); return []; }
+  }
+  _mapChatMessages(msgs, sessionId){
+    if(!Array.isArray(msgs)) return [];
+    return msgs.map(m=>{
+      // Determine role: backend may send 'type' instead of 'role'
+      const rawType = m.role || m.type || m.partRole || m.partType;
+      const role = rawType === 'user' ? 'user' : 'assistant';
+      const content = m.content || m.text || '';
+      // Parse segmentRefs or references if provided as JSON string
+      let refs = m.references || m.segmentRefs || m.segmentRefList || null;
+      if(typeof refs === 'string'){
+        try { const parsed = JSON.parse(refs); if(Array.isArray(parsed)) refs = parsed; else refs = []; } catch { refs = []; }
+      }
+      if(!Array.isArray(refs)) refs = [];
+      const createdAt = m.createTime || m.createdAt || Date.now();
+      return {
+        id: m.id || m.messageId || `${Date.now()}_${Math.random()}`,
+        sessionId,
+        role,
+        content,
+        parts:[content],
+        status:'done',
+        createdAt,
+        useContext: !!m.useContext,
+        references: refs
+      };
+    });
+  }
+  async streamFileChatMessage({ sessionId, esId, content, useContext=true, topK=3, maxContextChars=8000, signal, onDelta, onDone, onError, userId, disableReconnect=true }) {
+    const endpoint = this._resolveApiPath('/admin-api/rag/ai/text/file-chat/stream');
+    const body = { sessionId, esId, content, useContext, topK, maxContextChars };
+    const headers = { 'Content-Type':'application/json' };
+    const uid = this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+    const ctrl = signal ? { signal } : new AbortController();
+    const abortSignal = signal || ctrl.signal;
+    try {
+      await fetchEventSource(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: abortSignal,
+        openWhenHidden: true,
+        onopen: async (resp) => {
+          if(!resp.ok){ throw new Error('HTTP '+resp.status); }
+        },
+        onmessage: (ev) => {
+          const payload = ev.data;
+            if(payload === '[DONE]'){ onDone && onDone(); return; }
+            try {
+              const json = JSON.parse(payload);
+              if(json.partType==='end'){ onDone && onDone(); return; }
+              const seg = json.content || json.delta || json.text;
+              if(seg) onDelta && onDelta(seg);
+            } catch { if(payload) onDelta && onDelta(payload); }
+        },
+        onclose: () => { onDone && onDone(); },
+        onerror: (err) => {
+          if(err?.name === 'AbortError'){ onError && onError('aborted'); throw err; }
+          console.warn('[AIService] SSE error', err);
+          onError && onError(err.message || 'stream error');
+          // 禁止自动重连：abort + 抛出终止
+          try { if(!abortSignal.aborted) { if(ctrl.signal && ctrl.signal.abort) ctrl.signal.abort(); else if(ctrl.abort) ctrl.abort(); } } catch { /* ignore */ }
+          if(disableReconnect){ throw err instanceof Error ? err : new Error('stream error'); }
+        }
+      });
+    } catch(e){ if(e.name==='AbortError'){ onError && onError('aborted'); } else { console.warn('[AIService] streamFileChatMessage failed', e); onError && onError(e.message); } }
+  }
+  // === Glossary (术语库) ===
+  async getGlossaryPage({ pageNo=1, pageSize=20, type='', originalText='', language='zh' }={}) {
+    try {
+    const params = { pageNo, pageSize };
+      if (type) params.type = type;
+      if (originalText) params.originalText = originalText;
+      if (language) params.language = language;
+      const res = await api.get('/admin-api/rag/ai/translate/glossary/page', { params, timeout: 20000 });
+      const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
+      const dataNode = (root && typeof root.data === 'object' && !Array.isArray(root.data)) ? root.data : root;
+      return {
+        list: Array.isArray(dataNode.list) ? dataNode.list : (Array.isArray(root.list) ? root.list : []),
+        total: Number(dataNode.total || root.total || 0)
+      };
+    } catch (e) {
+      console.warn('[AIService] getGlossaryPage failed', e);
+      return { list: [], total: 0 };
+    }
+  }
+  async createGlossaryEntry(entry) {
+    try {
+      const body = { ...entry };
+      const res = await api.post('/admin-api/rag/ai/translate/glossary/create', body, { headers:{'Content-Type':'application/json'}, timeout: 20000 });
+      const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
+      return { success: root.code === 0, id: root.data };
+    } catch (e) { console.warn('[AIService] createGlossaryEntry failed', e); return { success:false, message:e.message }; }
+  }
+  async updateGlossaryEntry(entry) {
+    try {
+      const body = { ...entry };
+      const res = await api.put('/admin-api/rag/ai/translate/glossary/update', body, { headers:{'Content-Type':'application/json'}, timeout: 20000 });
+      const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
+      return { success: root.code === 0 };
+    } catch (e) { console.warn('[AIService] updateGlossaryEntry failed', e); return { success:false, message:e.message }; }
+  }
+  async deleteGlossaryEntry(id) {
+    try {
+      const res = await api.delete('/admin-api/rag/ai/translate/glossary/delete', { params:{ id }, timeout: 20000 });
+      const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
+      return { success: root.code === 0 };
+    } catch (e) { console.warn('[AIService] deleteGlossaryEntry failed', e); return { success:false, message:e.message }; }
   }
   async getClassificationForms() { return loadForms(); }
   async createClassificationForm(name) { const list=loadForms(); const id=Date.now(); list.push({ id, name, enabled:true }); saveForms(list); return { id, name }; }

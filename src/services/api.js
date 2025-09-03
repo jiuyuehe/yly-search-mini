@@ -25,20 +25,30 @@ export function getUserInfo() {
 // 基础搜索后端实例（保持原 /api 前缀）
 export const searchApi = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 120000,
   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
 });
 
 // 存储/应用服务器实例（/apps 前缀绝对地址）
 export const appsApi = axios.create({
   baseURL: '/apps',
-  timeout: 30000,
+  timeout: 120000,
   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
 });
 
 function attachCt(config) {
   const ct = getCT();
-  config.headers['ct'] = ct; 
+  if (ct) config.headers['ct'] = ct;
+  // inject userId header if available
+  try {
+    const user = getUserInfo();
+    if (user && (user.id || user.userId)) {
+      const uid = user.id || user.userId;
+      if (uid !== undefined && uid !== null && uid !== '') {
+        if (!config.headers['X-User-Id']) config.headers['X-User-Id'] = uid;
+      }
+    }
+  } catch { /* ignore */ }
   return config;
 }
 

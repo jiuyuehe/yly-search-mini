@@ -69,6 +69,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
 import { ElMessage } from 'element-plus';
 import { aiService } from '../../services/aiService';
+import { resolveEsId } from '../../utils/esid';
 
 const props = defineProps({
   fileId: { type: [String, Number], required: true },
@@ -108,7 +109,7 @@ function syncDraftFromEntities() {
 async function initIfNeeded() {
   if (initTried.value) return;
   initTried.value = true;
-  const esId = props.file?.esId || props.file?.esid || props.fileId;
+  const esId = resolveEsId(props.file, props.fileId);
   if (!esId) return;
   loading.value = true; error.value='';
   try {
@@ -163,7 +164,7 @@ function removeEntity(groupKey, idx) { draft.value[groupKey].splice(idx,1); }
 
 async function saveChanges() {
   saving.value = true;
-  const esId = props.file?.esId || props.file?.esid || props.fileId;
+  const esId = resolveEsId(props.file, props.fileId);
   try {
     const cleaned = {};
     Object.keys(draft.value).forEach(k=>{ cleaned[k] = draft.value[k].map(v=> (v||'').trim()).filter(Boolean); });
