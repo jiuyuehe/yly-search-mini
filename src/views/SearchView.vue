@@ -95,7 +95,7 @@ const searchStore = useSearchStore();
     const showExportDialog = ref(false);
     const exportIds = ref([]);
 const showFilters = ref(false); // 默认隐藏
-const showTagCloud = ref(true); // 默认显示标签云（无搜索条件）
+const showTagCloud = ref(false); // 默认显示标签云（无搜索条件）
 const activeTab = ref('all');
 const currentPage = ref(1);
 const pageSize = ref(10);
@@ -115,7 +115,7 @@ function handleSearch(query, searchType, imageFile, options) {
   // options 现在可能包含 precisionMode
   searchStore.search(query, searchType, imageFile, options || null);
   currentPage.value = 1;
-  if(query && query.trim()) { showTagCloud.value=false; } else if(!searchStore.tagSearchActive) { showTagCloud.value=true; }
+  // if(query && query.trim()) { showTagCloud.value=false; } else if(!searchStore.tagSearchActive) { showTagCloud.value=true; }
 }
 
 function handleToggleFilters(show) {
