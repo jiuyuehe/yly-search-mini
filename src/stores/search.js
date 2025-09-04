@@ -8,7 +8,7 @@ export const useSearchStore = defineStore('search', {
   state: () => ({
     query: '',
     searchType: 'fullText',
-    precision: 0.9, // 新增：精准搜索精度 0.6 ~ 1
+    precision: 0.9, // 固定默认精准度（UI 已移除滑块）
     filters: {
       fileCategory: [],
       fileSpace: [],
@@ -77,48 +77,50 @@ export const useSearchStore = defineStore('search', {
       switch (searchType) {
         case 'image': searchMode = 'image'; break;
         case 'qa': searchMode = 'hybrid'; break;
-        case 'precision': searchMode = 'precision'; break;
+        case 'precision': searchMode = 'precision'; break; // 仍保留后端精准模式，仅通过 checkbox 触发
         default: searchMode = 'keyword';
       }
       const base = { keyword: query, offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, fileSysTag, searchType: searchMode, searchMode };
       if (fileCategory) base.fileCategory = fileCategory;
       if (fileSizeStr) base.fileSize = fileSizeStr;
       const docTypeParam = tabToDocTypeParam(this.activeTab); if (docTypeParam) base.docType = docTypeParam;
-      // 精准搜索附加参数
+      // 精准搜索附加参数（固定精度）
       if (searchType === 'precision') {
         const ps = Number(this.precision) || 0.9;
         const bounded = Math.min(1, Math.max(0.6, ps));
-        const gap = Math.min(4, Math.max(0, Math.round((1 - bounded) * 10))); // 0~4
+        const gap = Math.min(4, Math.max(0, Math.round((1 - bounded) * 10)));
         base.precision = bounded;
-        base.gap = gap; // 提供给后端字间距（冗余）
+        base.gap = gap;
       }
       return base;
     },
     async search(query, searchType = 'fullText', imageFile = null, options = null) {
       const seq = ++this._reqSeq; // 本次请求序列
+      // 根据前端下拉: 1全文 2段落 3精准
+      if (options && typeof options.precisionMode !== 'undefined' && !['image','qa'].includes(searchType)) {
+        const mode = Number(options.precisionMode);
+        if (mode === 3) searchType = 'precision';
+        else searchType = 'fullText'; // 1/2 都归为全文类型，后端可用附加字段区分
+      }
       this.loading = true;
       this.query = query;
-      this.searchType = searchType;
-      if (options && typeof options.precision === 'number') {
-        this.precision = options.precision;
-      }
+      this.searchType = searchType; // 记录主类型
       try {
         const params = this.buildParams(query, searchType);
+        if (options && typeof options.precisionMode !== 'undefined') {
+          // 使用后端约定的参数名 precisionMode（数值 1/2/3）
+          params.precisionMode = Number(options.precisionMode);
+        }
         let searchResp, aggCounts;
-        
         if (searchType === 'image') {
-          // 使用图片搜索服务
           searchResp = await imageSearchService.searchByVisual(params, imageFile);
-          // 图片搜索不需要聚合统计，因为结果都是图片
           aggCounts = {};
         } else {
-          // 使用常规搜索服务
           [searchResp, aggCounts] = await Promise.all([
             searchService.search(params, imageFile || null),
             searchService.getAggregationStats(params)
           ]);
         }
-        
         if (seq !== this._reqSeq) return; // 只应用最新
         const { results, pagination, tabCounts } = searchResp;
         this.results = results;
