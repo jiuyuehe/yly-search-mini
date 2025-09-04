@@ -1,6 +1,6 @@
 <template>
   <div class="filter-toggle-summary">
-    <div class="top-row">
+  <div class="top-row">
       <el-button
         :type="show ? 'primary' : 'default'"
         class="toggle-btn"
@@ -36,7 +36,7 @@ import { computed } from 'vue';
 import { Filter } from '@element-plus/icons-vue';
 import { useSearchStore } from '../../stores/search';
 
-const props = defineProps({ show: { type: Boolean, default: true } });
+const _props = defineProps({ show: { type: Boolean, default: true } });
 const emit = defineEmits(['toggle', 'clear', 'remove']);
 const store = useSearchStore();
 
@@ -82,7 +82,7 @@ function removeTag(tag) { emit('remove', tag); }
 
 <style scoped>
 .filter-toggle-summary { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
-.top-row { display:flex; align-items:center; gap:8px; }
+.top-row { display:flex; align-items:center; gap:8px; justify-content:flex-start; }
 .toggle-btn { display:inline-flex; align-items:center; gap:4px; }
 .count-badge {
   background:#fff;

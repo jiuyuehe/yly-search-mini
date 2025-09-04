@@ -7,6 +7,9 @@ const routes = [
     name: 'search',
     component: SearchView
   },
+  // Allow directly opening index.html (some users access /plugins/fts/index.html).
+  // Without this, the router sees path 'index.html' (after base) and renders nothing.
+  { path: '/index.html', redirect: '/' },
   // NAS 专用预览 (需放在通用前面防止被通用匹配拦截)
   {
     path: '/preview/nas/:nsi/:subp(.*)?',
@@ -59,11 +62,13 @@ const routes = [
     path: '/extractions',
     name: 'extractions',
     component: () => import('../views/ExtractionsView.vue')
-  }
+  },
+  // Catch-all: any unknown route redirect to root to avoid blank screen
+  { path: '/:pathMatch(.*)*', redirect: '/' }
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL || '/'),
   routes
 });
 

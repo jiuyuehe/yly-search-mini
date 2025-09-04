@@ -36,17 +36,21 @@ export const useAiToolsStore = defineStore('aiTools', {
   }),
   
   actions: {
-  async getSummary(fileId, targetLanguage='中文', length=200, fileData) {
+  async getSummary(fileId, targetLanguage='zh', length=200, fileData) {
       this.loading.summary = true;
       this.streaming = true;
       this.summary = '';
+      let fullResult = null;
       try {
-  await aiService.getSummary(fileId, targetLanguage, length, (chunk) => {
-          this.summary = chunk; // 已在 service 累计，这里直接替换最新片段
-  }, fileData);
-        return this.summary;
+        fullResult = await aiService.getSummary(fileId, targetLanguage, length, (chunk) => {
+          // chunk 为目标摘要逐步输出字符
+          this.summary = chunk;
+        }, fileData);
+        // 兼容旧用法：若调用方只关心字符串，可读取 this.summary；返回包含 source/target 的完整对象
+        return fullResult || { targetSummary: this.summary };
       } catch (error) {
         this.error = error.message;
+        throw error;
       } finally {
         this.loading.summary = false;
         this.streaming = false;

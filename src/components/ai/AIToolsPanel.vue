@@ -50,7 +50,7 @@ const tools = [
   { key: 'ner', label: '实体', icon: ChatRound },
   { key: 'qa', label: '问答', icon: ChatRound },
   { key: 'customExtraction', label: '自定义提取', icon: Box },
-  { key: 'classification', label: '文档分类', icon: List },
+  { key: 'classification', label: '主题分类', icon: List },
   { key: 'related', label: '关联推荐', icon: Link },
 ]
 

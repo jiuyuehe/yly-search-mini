@@ -19,14 +19,23 @@
               <span>{{ themeNameMap[row.themeId] || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="匹配度" min-width="120">
+          <el-table-column label="匹配度" min-width="100">
             <template #default="{ row }">
-              <span class="match-score" :class="{ top: ((row.scorePercent ?? (row.score*100))===maxScore) }">{{ (row.scorePercent ?? (row.score*100)).toFixed(2) }}%</span>
+              <span class="match-score" :class="{ top: isTop(row) }">{{ formatPercent(row) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="理由" min-width="320">
+            <template #default="{ row }">
+              <span v-if="row.reason" class="reason-text">{{ row.reason }}</span>
+              <span v-else class="reason-empty">-</span>
             </template>
           </el-table-column>
           <el-table-column label="确认" width="90">
             <template #default="{ row }">
-              <el-button size="small" type="success" text @click="confirmPick(row)">选用</el-button>
+              <template v-if="selectedPickId===row.id">
+                <el-icon class="picked-icon"><Check /></el-icon>
+              </template>
+              <el-button v-else size="small" type="success" text @click="confirmPick(row)">选用</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -126,7 +135,7 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAiToolsStore } from '../../stores/aiTools'
-import { Edit } from '@element-plus/icons-vue'
+import { Edit, Check } from '@element-plus/icons-vue'
 
 const props = defineProps({ fileId: { type: [String, Number], required: true }, fileText: { type:String, default:'' }, esId:{ type:String, default:'' }, file:{ type:Object, default:null } })
 const store = useAiToolsStore()
@@ -157,9 +166,25 @@ const classificationList = computed(()=>{
 })
 // maxScore 使用百分比值以便和 scorePercent 对齐
 const maxScore = computed(()=> classificationList.value.reduce((m,r)=>{
-  const pct = (r.scorePercent !== undefined) ? Number(r.scorePercent) : (Number(r.score||0)*100);
+  const pct = calcPercent(r);
   return pct>m?pct:m;
 },0))
+
+// 选中的推荐
+const selectedPickId = ref(null)
+
+function calcPercent(row){
+  // 优先使用 scorePercent；若 <1 认为是 rawScore
+  if(row.scorePercent !== undefined && row.scorePercent !== null){
+    const sp = Number(row.scorePercent);
+    if(Number.isFinite(sp)) return sp <=1 ? sp*100 : sp; // 兼容误传 0-1
+  }
+  const base = (row.rawScore !== undefined && row.rawScore !== null) ? Number(row.rawScore) : Number(row.score || 0);
+  if(Number.isFinite(base)) return base<=1? base*100 : base;
+  return 0;
+}
+function formatPercent(row){ const pct = calcPercent(row); return Number.isFinite(pct)? pct.toFixed(2)+'%' : '-'; }
+function isTop(row){ const pct = calcPercent(row); return Math.abs(pct - maxScore.value) < 1e-6; }
 
 function onThemeChange(){ if(activeThemeId.value){ store.loadThemeLabels(activeThemeId.value) } }
 
@@ -175,8 +200,9 @@ async function runThemeClassification(){
 }
 
 function confirmPick(row){
-  ElMessage.success('已选择标签: '+ row.label)
-  // 后续可在此调用保存接口: /admin-api/rag/ai/theme/label/apply (示例，若后端有)
+  selectedPickId.value = row.id;
+  ElMessage.success('已选用主题: '+ (row.themeName || row.label));
+  // TODO: 可在此调用后端“应用主题”或“绑定主题”接口（若存在）
 }
 
 // Theme management

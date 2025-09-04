@@ -30,11 +30,13 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getRelatedDocuments } from '../../services/aiService'
+import { resolveEsId } from '../../utils/esid'
 
 const props = defineProps({
+  // 保持 fileId 兼容（作为后备），但内部不再直接使用，只通过 resolveEsId 统一解析
   fileId: String,
   file: Object
 })
@@ -52,11 +54,14 @@ function formatScore(s) {
   return (s * 100).toFixed(1) + '%'
 }
 
+const esId = computed(() => resolveEsId(props.file, props.fileId) || '')
+
 async function fetchData() {
-  if (!props.fileId) return
+  const id = esId.value
+  if (!id) return
   loading.value = true
   try {
-    const { list, total: t } = await getRelatedDocuments({ esId: props.fileId, query: query.value, page: page.value, pageSize: pageSize.value })
+    const { list, total: t } = await getRelatedDocuments({ esId: id, query: query.value, page: page.value, pageSize: pageSize.value })
     items.value = list
     total.value = t
   } catch (e) {
@@ -89,9 +94,12 @@ function openDoc(row) {
   }
 }
 
-watch(() => props.fileId, () => {
-  page.value = 1
-  fetchData()
+// 监听解析后的 esId（以及查询参数变化时通过显式调用）
+watch(esId, (n, o) => {
+  if (n && n !== o) {
+    page.value = 1
+    fetchData()
+  }
 })
 
 onMounted(fetchData)

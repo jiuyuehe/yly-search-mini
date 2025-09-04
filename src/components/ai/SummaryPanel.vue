@@ -4,10 +4,10 @@
       <h3>文档摘要</h3>
       <div class="controls">
         <el-select v-model="targetLanguage" size="small" class="lang-select" placeholder="目标语言">
-          <el-option label="中文" value="中文" />
-          <el-option label="英文" value="英文" />
-          <el-option label="日文" value="日文" />
-          <el-option label="韩文" value="韩文" />
+          <el-option label="中文" value="zh" />
+          <el-option label="英文" value="en" />
+          <el-option label="日文" value="ja" />
+          <el-option label="韩文" value="ko" />
         </el-select>
         <el-input-number v-model="summaryLength" :min="50" :max="2000" :step="50" size="small" class="len-input" />
         <el-button size="small" type="primary" :loading="loading" @click="generateSummary">{{ loading? '生成中...' : (hasAnySummary? '重新生成' : '生成摘要') }}</el-button>
@@ -18,7 +18,7 @@
     <div class="summary-content">
       <div v-if="loading" class="loading"><el-skeleton :rows="4" animated /></div>
       <template v-else>
-        <div v-if="hasAnySummary" class="dual-wrapper">
+  <div v-if="hasAnySummary && showDual" class="dual-wrapper">
           <el-card shadow="never" class="summary-card">
             <div class="card-header">
               <span class="card-title">原文摘要 <small v-if="sourceLang">({{ sourceLang }})</small></span>
@@ -79,6 +79,38 @@
             </div>
           </el-card>
         </div>
+        <div v-else-if="hasAnySummary && !showDual" class="single-wrapper">
+          <el-card shadow="never" class="summary-card">
+            <div class="card-header">
+              <span class="card-title">摘要<small v-if="targetLang"> ({{ targetLang }})</small></span>
+              <div class="card-actions">
+                <el-button v-if="!editingTarget" link size="small" :disabled="!targetSummary" @click="startEdit('target')">修改</el-button>
+                <template v-else>
+                  <el-button link size="small" @click="cancelEdit('target')">取消</el-button>
+                </template>
+              </div>
+            </div>
+            <div v-if="!editingTarget" class="summary-view">
+              <pre class="summary-text" v-if="targetSummary">{{ targetSummary }}</pre>
+              <el-empty v-else description="无内容" />
+              <ul v-if="targetPoints.length" class="points-list">
+                <li v-for="(p,i) in targetPoints" :key="i">{{ i+1 }}. {{ p }}</li>
+              </ul>
+            </div>
+            <div v-else class="summary-edit">
+              <el-input v-model="editTarget" type="textarea" :autosize="{ minRows:6, maxRows:14 }" placeholder="编辑摘要" />
+              <div class="meta-line">
+                <span>长度: {{ editTarget.length }}</span>
+                <span>tokens≈{{ tokens(editTarget) }}</span>
+              </div>
+            </div>
+            <div class="meta-line" v-if="!editingTarget">
+              <span>长度: {{ targetSummary.length }}</span>
+              <span>tokens≈{{ tokens(targetSummary) }}</span>
+              <span v-if="durationMs">耗时: {{ (durationMs/1000).toFixed(2) }}s</span>
+            </div>
+          </el-card>
+        </div>
         <el-empty v-else :description="error || '设置参数后点击生成摘要'" />
       </template>
     </div>
@@ -100,7 +132,7 @@ const originSource = ref('');
 const originTarget = ref('');
 const loading = ref(false);
 const error = ref('');
-const targetLanguage = ref('中文'); // 默认中文
+const targetLanguage = ref('zh'); // 默认中文(内部值用 zh)
 const summaryLength = ref(200); // 默认 200
 const startTime = ref(0);
 const durationMs = ref(0);
@@ -128,6 +160,11 @@ function looseParseJson(str){
 }
 function cleanupSummaryText(text){
   if (!text) return '';
+  // strip markdown code fences
+  if (/^```/.test(text.trim())) {
+    text = text.trim().replace(/^```[a-zA-Z0-9]*\n?/, '');
+    if (text.endsWith('```')) text = text.slice(0,-3);
+  }
   // Convert escaped \n to real newlines if present, but keep existing real newlines
   if (/\\n/.test(text)) text = text.replace(/\\n/g,'\n');
   // Remove line-continuation backslash at line end ("\\\n")
@@ -140,9 +177,12 @@ function normalizeSummary(raw){
   if (!raw) return '';
   if (typeof raw === 'string') {
     const t = raw.trim();
+  // unwrap code fences early
+  let inner = t;
+  if (inner.startsWith('```')) { inner = inner.replace(/^```[a-zA-Z0-9]*\n?/, ''); if(inner.endsWith('```')) inner = inner.slice(0,-3); inner = inner.trim(); }
     if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
       try {
-        let obj = looseParseJson(t) || JSON.parse(t);
+    let obj = looseParseJson(inner) || looseParseJson(t) || JSON.parse(inner);
         if (obj && typeof obj === 'object') {
           console.log('[SummaryPanel] normalizeSummary parsed object:', obj);
           if (typeof obj.summary === 'string') return cleanupSummaryText(obj.summary);
@@ -151,7 +191,7 @@ function normalizeSummary(raw){
         }
   } catch { /* JSON parse fallback silently */ }
     }
-    return cleanupSummaryText(raw);
+  return cleanupSummaryText(inner);
   } else if (typeof raw === 'object') {
     console.log('[SummaryPanel] normalizeSummary raw object:', raw);
     if (typeof raw.summary === 'string') return cleanupSummaryText(raw.summary);
@@ -220,6 +260,7 @@ const dirty = computed(()=> {
   return false;
 });
 const hasAnySummary = computed(()=> !!(sourceSummary.value || targetSummary.value));
+const showDual = computed(()=> !!sourceSummary.value);
 
 async function generateSummary() {
   if (loading.value) return;
@@ -235,6 +276,10 @@ async function generateSummary() {
     console.log('[SummaryPanel] getSummary raw res:', res);
     targetSummary.value = normalizeSummary(res.targetSummary || res.targetObj || '');
     sourceSummary.value = normalizeSummary(res.sourceSummary || res.sourceObj || '');
+    if(!sourceSummary.value && targetSummary.value && (res.sourceSummary===undefined && res.sourceObj===undefined)){
+      // 后端只返回单摘要，统一放到 targetSummary，source 为空时使用 target 作为唯一摘要
+      sourceSummary.value='';
+    }
     targetPoints.value = extractPoints(res.targetObj || res.targetSummary);
     sourcePoints.value = extractPoints(res.sourceObj || res.sourceSummary);
     console.log('[SummaryPanel] after generation summaries:', { targetSummary: targetSummary.value, sourceSummary: sourceSummary.value, targetPoints: targetPoints.value, sourcePoints: sourcePoints.value });
@@ -267,6 +312,9 @@ async function loadCachedIfAny() {
       console.log('[SummaryPanel] cached summary raw:', cached);
       targetSummary.value = normalizeSummary(cached.targetSummary || cached.targetObj || '');
       sourceSummary.value = normalizeSummary(cached.sourceSummary || cached.sourceObj || '');
+      if(!sourceSummary.value && targetSummary.value && (cached.sourceSummary===undefined && cached.sourceObj===undefined)){
+        sourceSummary.value='';
+      }
       targetPoints.value = extractPoints(cached.targetObj || cached.targetSummary);
       sourcePoints.value = extractPoints(cached.sourceObj || cached.sourceSummary);
       console.log('[SummaryPanel] after cached load:', { targetSummary: targetSummary.value, sourceSummary: sourceSummary.value, targetPoints: targetPoints.value, sourcePoints: sourcePoints.value });
@@ -354,6 +402,7 @@ async function saveAll(){
   overflow-y: auto;
 }
 .dual-wrapper { display:flex; flex-direction:column; gap:16px; }
+.single-wrapper { display:flex; flex-direction:column; }
 .summary-card { position:relative; }
 .summary-input :deep(textarea) { font-family: inherit; line-height:1.55; }
 .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }

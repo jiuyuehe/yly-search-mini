@@ -2,32 +2,47 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import path from 'path';
 
-export default defineConfig({
-  plugins: [vue()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
+// We deploy under nginx root: /opt/yliyun/work/nginx/ with web path /plugins/fts/
+// Use base '/plugins/fts/' for production builds so asset URLs resolve correctly.
+export default defineConfig(({ mode }) => {
+  const isProd = mode === 'production';
+  return {
+    base: isProd ? '/plugins/fts/' : '/',
+    plugins: [vue()],
+    resolve: {
+      alias: { '@': path.resolve(__dirname, 'src') },
     },
-  },
-  server: {
-    port: 3000,
-    proxy: {
-      '/api': {
-        target: "http://127.0.0.1:48080/", //`http://${baseUrl}:48080/`, //
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      '/apps': {
-        target: 'http://192.168.11.11/',
-        changeOrigin: true,
-        // rewrite: (path) => path.replace(/^\/apps/, ''),
-      },
-       '/group1': {
-        target: 'http://192.168.11.11/',
-        changeOrigin: true,
-        // rewrite: (path) => path.replace(/^\/apps/, ''),
-      },
-    
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      sourcemap: true,            // easier debugging in test env
+      emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-vue': ['vue', 'vue-router', 'pinia'],
+            'vendor-ui': ['element-plus', '@element-plus/icons-vue']
+          }
+        }
+      }
+    },
+    server: {
+      port: 3000,
+      proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:48080/',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api/, ''),
+        },
+        '/apps': {
+          target: 'http://192.168.11.11/',
+          changeOrigin: true,
+        },
+        '/group1': {
+          target: 'http://192.168.11.11/',
+          changeOrigin: true,
+        },
+      }
     }
-  }
+  };
 });

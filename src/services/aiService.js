@@ -42,26 +42,48 @@ class AIService {
     // 传全文还是 ID: 接口文档提供 text / texts / esId，可根据需要扩展
     return fileData?.fileContents || fileData?.extractedText || '';
   }
-  async getSummary(fileId, targetLanguage='中文', length=200, onChunk, fileData) {
-    if (typeof targetLanguage === 'function') { fileData = onChunk; onChunk = targetLanguage; targetLanguage='中文'; }
-    const text = this.buildTextFromFileData(fileData) || '';
+  async getSummary(fileId, targetLanguage='zh', length=200, onChunk, fileData) {
+    if (typeof targetLanguage === 'function') { fileData = onChunk; onChunk = targetLanguage; targetLanguage='zh'; }
+    // const text = this.buildTextFromFileData(fileData) || '';
   const esId = fileData?.esId || fileData?.esid || fileData?._raw?.esId || fileData?._raw?.esid || null;
-  const body = { text, targetLang: targetLanguage === '中文' ? '' : targetLanguage, outputFormat: 'plain' };
-  if (esId) { body.esId = esId; body.esid = esId; }
+  const normalizeToUi = (lang)=>{
+      if(!lang) return 'zh';
+      const low = String(lang).toLowerCase();
+      const map = { '中文':'zh','zh':'zh','cn':'zh','chs':'zh','简体中文':'zh','zh-cn':'zh','zh_cn':'zh','英文':'en','english':'en','en':'en','日文':'ja','日本語':'ja','ja':'ja','jp':'ja','韩文':'ko','韓文':'ko','ko':'ko','kor':'ko' };
+      return map[low] || low;
+    };
+  const uiLang = normalizeToUi(targetLanguage);
+  const apiLang = uiLang === 'zh' ? 'cn' : uiLang; // 后端期望中文用 cn
+  const body = {  targetLang: apiLang, outputFormat: 'plain' };
+  if (esId) { body.esId = esId;}
     try {
       const res = await api.post('/admin-api/rag/ai/text/summary', body, { headers:{'Content-Type':'application/json'}, timeout: AI_REQUEST_TIMEOUT }).catch(e=>{ throw e; });
       const parseMaybeJson = (str) => {
-        if (typeof str !== 'string') return { summary: (str && str.summary) ? str.summary : (typeof str === 'string' ? str : '') };
-        const trimmed = str.trim();
-        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-          try { const obj = JSON.parse(trimmed); return obj && typeof obj === 'object' ? obj : { summary: str }; } catch { return { summary: str }; }
+        if (str == null) return { summary: '' };
+        if (typeof str !== 'string') return { summary: str?.summary || '' , key_points: str?.key_points || str?.keyPoints || str?.points };
+        let cleaned = str.trim();
+        // strip surrounding quotes if it looks like a quoted JSON block
+        if ((cleaned.startsWith('"{"') && cleaned.endsWith('}""')) || (cleaned.startsWith('"{') && cleaned.endsWith('}"'))) {
+          try { cleaned = cleaned.slice(1,-1); } catch { /* ignore */ }
         }
-        return { summary: str };
+        // remove markdown code fences ```json ... ```
+        if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```[a-zA-Z0-9]*\n?/, '');
+          if (cleaned.endsWith('```')) cleaned = cleaned.slice(0,-3);
+          cleaned = cleaned.trim();
+        }
+        const tryJson = (txt)=>{ try { const o = JSON.parse(txt); if (o && typeof o === 'object') return o; } catch { /* ignore */ } return null; };
+        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+          const obj = tryJson(cleaned);
+          if (obj) return obj;
+        }
+        return { summary: cleaned };
       };
       if (res && typeof res === 'object') {
         const data = res.data || res.result || {};
-        const targetRaw = data.summary || data.target || '';
-        const sourceRaw = data.summarySource || data.source || data.original || '';
+        // 新结构： summarySource / summaryTarget / summary
+        const targetRaw = data.summaryTarget || data.summary || data.target || '';
+        const sourceRaw = data.summarySource || data.summarySourceRaw || data.source || data.original || '';
         const targetObj = parseMaybeJson(targetRaw);
         const sourceObj = parseMaybeJson(sourceRaw);
         let targetSummary = String(targetObj.summary || targetRaw || '');
@@ -77,12 +99,12 @@ class AIService {
           sourceSummary,
           targetObj,
           sourceObj,
-          targetLang: data.targetLang || targetLanguage,
+          targetLang: normalizeToUi(data.targetLang || apiLang),
           sourceLang: data.sourceLang || data.srcLang || '',
           esId: esId || body.esId || null
         };
       }
-      return { targetSummary:'', sourceSummary:'', targetObj:{}, sourceObj:{}, targetLang: targetLanguage, sourceLang:'', esId: esId||null };
+  return { targetSummary:'', sourceSummary:'', targetObj:{}, sourceObj:{}, targetLang: uiLang, sourceLang:'', esId: esId||null };
     } catch (e) {
       // 不立即使用本地 fallback，直接抛出由上层界面显示“生成失败”或重试，避免用户误以为已完成
       console.warn('[AIService] summary failed', e);
@@ -97,24 +119,24 @@ class AIService {
       const data = res.data || res.result || {};
       if (!data || Object.keys(data).length === 0) return null;
       const parseMaybeJson = (str) => {
-        if (typeof str !== 'string') return { summary: str?.summary || '' };
-        const trimmed = str.trim();
-        if (trimmed.startsWith('{') && trimmed.endsWith('}')) { try { return JSON.parse(trimmed); } catch { return { summary: str }; } }
-        return { summary: str };
+        if (str == null) return { summary: '' };
+        if (typeof str !== 'string') return { summary: str?.summary || '' , key_points: str?.key_points || str?.keyPoints || str?.points };
+        let cleaned = str.trim();
+        if (cleaned.startsWith('```')) { cleaned = cleaned.replace(/^```[a-zA-Z0-9]*\n?/, ''); if (cleaned.endsWith('```')) cleaned = cleaned.slice(0,-3); cleaned = cleaned.trim(); }
+        if (cleaned.startsWith('{') && cleaned.endsWith('}')) { try { const o=JSON.parse(cleaned); if(o) return o; } catch { /* ignore */ } }
+        return { summary: cleaned };
       };
-      const targetRaw = data.summaryTarget || data.summary || '';
-      const sourceRaw = data.summarySource || '';
+      const targetRaw = data.summaryTarget || data.summary || data.target || '';
+      const sourceRaw = data.summarySource || data.source || '';
       const targetObj = parseMaybeJson(targetRaw);
       const sourceObj = parseMaybeJson(sourceRaw);
-      return {
-        targetSummary: String(targetObj.summary || targetRaw || ''),
-        sourceSummary: String(sourceObj.summary || sourceRaw || ''),
-        targetObj,
-        sourceObj,
-        targetLang: data.targetLang || data.lang || '',
-        sourceLang: data.sourceLang || '',
-        esId
+      const normalizeToUi = (lang)=>{
+        if(!lang) return 'zh';
+        const low = String(lang).toLowerCase();
+        const map = { '中文':'zh','zh':'zh','cn':'zh','chs':'zh','简体中文':'zh','zh-cn':'zh','zh_cn':'zh','英文':'en','english':'en','en':'en','日文':'ja','日本語':'ja','ja':'ja','jp':'ja','韩文':'ko','韓文':'ko','ko':'ko','kor':'ko' };
+        return map[low] || low;
       };
+      return { targetSummary: String(targetObj.summary || targetRaw || ''), sourceSummary: String(sourceObj.summary || sourceRaw || ''), targetObj, sourceObj, targetLang: normalizeToUi(data.targetLang || data.lang || ''), sourceLang: data.sourceLang || '', esId };
     } catch (e) {
       console.warn('[AIService] fetchCachedSummary failed', e);
       return null;
@@ -122,11 +144,20 @@ class AIService {
   }
   async saveSummary(esId, { sourceSummary, targetSummary, sourceLang:_sourceLang, targetLang:_targetLang }) {
     if (!esId) throw new Error('缺少 esId');
+    const normalizeToUi = (lang)=>{
+      if(!lang) return 'zh';
+      const low = String(lang).toLowerCase();
+      const map = { '中文':'zh','zh':'zh','cn':'zh','chs':'zh','简体中文':'zh','zh-cn':'zh','zh_cn':'zh','英文':'en','english':'en','en':'en','日文':'ja','日本語':'ja','ja':'ja','jp':'ja','韩文':'ko','韓文':'ko','ko':'ko','kor':'ko' };
+      return map[low] || low;
+    };
+    const uiLang = normalizeToUi(_targetLang);
+    const apiLang = uiLang === 'zh' ? 'cn' : uiLang;
     const body = {
       esId,
       summarySource: sourceSummary || '',
       summary: targetSummary || '',
-      summaryTarget: targetSummary || ''
+      summaryTarget: targetSummary || '',
+      targetLang: apiLang
     };
     try {
       const res = await api.post('/admin-api/rag/ai/text/summary/update', body, { headers:{'Content-Type':'application/json'}, timeout: 20000 });
@@ -140,10 +171,10 @@ class AIService {
     }
   }
   async getTags(fileId, fileData) {
-  const text = this.buildTextFromFileData(fileData) || '';
+  // const text = this.buildTextFromFileData(fileData) || '';
   const esId = fileData?.esId || fileData?.esid || fileData?._raw?.esId || fileData?._raw?.esid || null;
-  const body = { text, outputFormat: 'tag_list' };
-  if (esId) { body.esId = esId; body.esid = esId; }
+  const body = {  outputFormat: 'tag_list' };
+  if (esId) { body.esId = esId;  }
     try {
       const res = await api.post('/admin-api/rag/ai/text/tags', body, { headers:{'Content-Type':'application/json'}, timeout: AI_REQUEST_TIMEOUT }).catch(e=>{ throw e; });
       const out = [];
@@ -177,7 +208,92 @@ class AIService {
             Object.entries(kw).forEach(([k,v])=>{ if (typeof v === 'number') out.push({ tag:k, weight:v }); });
         }
       }
-      return out.slice(0,100);
+      // --------- Fragmented JSON reconstruction (新版解析) ---------
+      const fragmented = out.some(o=>/```/.test(o.tag)) && out.some(o=>/"keywords"/.test(o.tag));
+      if(fragmented){
+        try {
+          const frags = out.map(o=>({ raw:o.tag, w:o.weight }));
+          const tagEntries = [];
+          const weightVals = [];
+          const isWeightToken = (s)=>/^\d+(?:\.\d+)?}?$/.test(s.replace(/^[^{0-9.]*/,''));
+          // First pass: collect quoted phrases and weight tokens order
+          for(let i=0;i<frags.length;i++){
+            let tok = frags[i].raw.trim();
+            if(!tok) continue;
+            if(/^```/.test(tok) || tok==='{"tag":' || tok==='{"tag":' || tok==='{' ) continue;
+            if(/"keywords":/.test(tok)) continue;
+            if(tok==='"weight":' || tok==='"weight":') continue;
+            if(tok.includes('"weight":')) continue;
+            // weight token
+            if(isWeightToken(tok)){
+              const num = parseFloat(tok.replace(/[^0-9.]/g,''));
+              if(Number.isFinite(num)) weightVals.push(num);
+              continue;
+            }
+            // remove leading {"tag": if still present
+            tok = tok.replace(/^{?"tag":?/, '').trim();
+            // Quote-based phrase assembly
+            if(tok.startsWith('"')){
+              let phrase = tok;
+              while(!/"$/.test(phrase) && i<frags.length-1){
+                i++;
+                phrase += ' '+frags[i].raw.trim();
+              }
+              // Clean quotes
+              phrase = phrase.replace(/^"|"$/g,'').trim();
+              if(phrase){ tagEntries.push({ tag: phrase, weight:0 }); }
+              continue;
+            }
+          }
+          // Fallback: some single-token quoted full tags like "Military"
+          if(!tagEntries.length){
+            frags.forEach(f=>{
+              const m = f.raw.match(/^"([^"]+)"$/); if(m) tagEntries.push({ tag:m[1], weight:0 });
+            });
+          }
+          // Assign weights in order
+          for(let i=0;i<tagEntries.length;i++){
+            if(weightVals[i] !== undefined) tagEntries[i].weight = weightVals[i];
+          }
+          // If still empty, skip; else replace out
+          if(tagEntries.length){
+            // Merge multi-word duplicates (e.g., Military vs Military Parade keep higher weight)
+            const ded = new Map();
+            tagEntries.forEach(e=>{
+              const key = e.tag.toLowerCase();
+              const ex = ded.get(key);
+              if(!ex || e.weight>ex.weight) ded.set(key,e);
+            });
+            const rebuilt = Array.from(ded.values())
+              .filter(e=> !/^(?:keywords|tag|weight)$/i.test(e.tag) )
+              .filter(e=> e.tag.length>1 )
+              .sort((a,b)=> b.weight - a.weight);
+            if(rebuilt.length){ out.length=0; rebuilt.forEach(r=> out.push(r)); }
+          }
+        } catch(err){ console.warn('[AIService] fragmented tag reparse failed', err); }
+      }
+      // 进一步清洗单条
+      const cleanedFinal = out
+        .map(o=>({
+          tag: (o.tag||'')
+            .replace(/^`+|`+$/g,'')
+            .replace(/^["'{[]+/, '')
+            .replace(/["'}\]]+$/, '')
+            .replace(/\\n/g,' ')
+            .trim(),
+          weight: o.weight
+        }))
+        .filter(o=> o.tag && !/^[{}:,]+$/.test(o.tag) && !/^0?\.\d+$/.test(o.tag) )
+        .filter(o=> !/^tag$/i.test(o.tag) && !/^weight$/i.test(o.tag) && !/^keywords$/i.test(o.tag));
+      // 重新去重
+      const dedup = new Map();
+      cleanedFinal.forEach(it=>{
+        const key = it.tag.toLowerCase();
+        const prev = dedup.get(key);
+        if(!prev || it.weight > prev.weight) dedup.set(key, it);
+      });
+      const finalList = Array.from(dedup.values()).sort((a,b)=> b.weight - a.weight);
+  return finalList.slice(0,100);
     } catch (e) {
       console.warn('[AIService] tags failed', e);
       throw e;
@@ -359,38 +475,39 @@ class AIService {
   }
   async extractText(fileId) { try { await new Promise(r=>setTimeout(r,500)); const mockTexts={ 1:'这是从PDF文件中提取的文本内容。包含了项目需求的详细描述，技术规范，以及实施方案等重要信息。\n\n主要章节包括：\n1. 项目概述\n2. 功能需求\n3. 技术架构\n4. 实施计划\n\n这些内容为项目的顺利进行提供了重要的参考依据。', 2:'从图片中识别的文字内容：设计标准、UI规范、图标库等相关设计要素。', 3:'音频转文字：会议主要讨论了项目进度、技术难点和解决方案等议题。' }; return mockTexts[fileId] || '暂无可提取的文本内容'; } catch { console.warn('Text extraction API fallback'); return '模拟提取的文本内容'; } }
   async classifyDocument(fileId, _contentHint='') { try { await new Promise(r=>setTimeout(r,600)); const forms=loadForms().filter(f=>f.enabled); if (!forms.length) return []; const picks=forms.sort(()=>Math.random()-0.5).slice(0, Math.min(5, forms.length)); let remaining=1.0; const results=picks.map((f,idx)=>{ const score = idx===picks.length-1 ? remaining : +(Math.random()*remaining*0.6+0.05).toFixed(3); remaining = +(remaining - score).toFixed(3); return { category:f.name, score:score }; }); const total=results.reduce((s,r)=>s+r.score,0)||1; return results.map(r=>({ ...r, score:+(r.score/total).toFixed(4) })).sort((a,b)=>b.score-a.score); } catch { console.warn('classifyDocument mock fallback'); return []; } }
-  async getRelatedDocuments({ esId, query='', page=1, pageSize=10, fileData }) {
-    // Build request body; include text when available for recall improvement
-    const text = fileData ? this.buildTextFromFileData(fileData) : '';
+  async getRelatedDocuments({ esId, query='', page=1, pageSize=10 }) {
+    if(!esId) return { list:[], total:0 };
     const offset = (page - 1) * pageSize;
-    const body = { esId, query, text, offset, limit: pageSize };
     try {
-      const res = await api.post('/admin-api/rag/ai/text/related', body, { headers:{'Content-Type':'application/json'}, timeout: 60000 });
-      const data = res?.data || res?.result || {};
-      const listRaw = Array.isArray(data.list) ? data.list : (Array.isArray(data) ? data : []);
-      const list = listRaw.map((it, idx) => {
-        if (!it || typeof it !== 'object') return null;
+      // 按接口文档: GET /admin-api/rag/ai/recommend/related?esId=&keyword=&offset=&limit=
+      const params = { esId, useLLM :false,  keyword: query || undefined, offset, limit: pageSize };
+      const res = await api.get('/admin-api/rag/ai/recommend/related', { params, timeout:60000 });
+      const root = res?.data || res || {};
+      const data = root.data || root.result || root;
+      // 兼容 list / fileList / data 数组
+      const listRaw = Array.isArray(data.list) ? data.list : (Array.isArray(data.fileList) ? data.fileList : (Array.isArray(data) ? data : []));
+      const list = listRaw.map((it, idx)=>{
+        if(!it || typeof it!=='object') return null;
         return {
-          id: it.id || it.esId || it.esid || it.docId || `rel_${idx}`,
-          esId: it.esId || it.esid || it.id,
-          name: it.name || it.filename || it.title || it.fileName || `文档${idx+1}`,
-          score: Number(it.score ?? it.similarity ?? it.rankScore ?? 0),
-          snippet: it.snippet || it.summary || it.highlight || ''
+          id: it.esId || it.esid || it.id || it.fileId || `rel_${idx}`,
+          esId: it.esId || it.esid || it.id || it.fileId,
+          name: it.fileName || it.name || it.title || it.filename || `文档${idx+1}`,
+          score: Number(it.score ?? it.similarity ?? it.rankScore ?? it.scorePercent ?? 0),
+          snippet: it.snippet || it.summary || it.fileSummary || it.highlight || ''
         };
       }).filter(Boolean);
-      const total = Number(data.total ?? data.count ?? list.length);
+      const total = Number(data.total ?? data.count ?? data.totalCount ?? list.length);
       return { list, total };
-    } catch (e) {
+    } catch(e){
       console.warn('[AIService] getRelatedDocuments failed, fallback mock', e);
-      // Fallback mock data
-      const mock = Array.from({ length: Math.min(pageSize, 5) }).map((_,i)=>({
-        id: `mock_${page}_${i}`,
-        esId: `mock_${page}_${i}`,
-        name: `相关文档示例 ${i+1 + (page-1)*pageSize}`,
-        score: +(Math.random()*0.5 + 0.5).toFixed(3),
-        snippet: '这是一个模拟的相关内容片段，用于展示关联推荐效果。'
+      const mock = Array.from({ length: Math.min(pageSize,5) }).map((_,i)=>({
+        id:`mock_${page}_${i}`,
+        esId:`mock_${page}_${i}`,
+        name:`相关文档示例 ${i+1+(page-1)*pageSize}`,
+        score:+(Math.random()*0.5+0.5).toFixed(3),
+        snippet:'这是一个模拟的相关内容片段，用于展示关联推荐效果。'
       }));
-      return { list: mock, total: mock.length };
+      return { list:mock, total:mock.length };
     }
   }
   // ===== Theme Classification (document themes & labels) =====
@@ -472,16 +589,30 @@ class AIService {
     } catch(e){ console.warn('[AIService] classifyByTheme failed', e); return []; }
   }
   _mapThemeClassifyResp(r,i, fallbackThemeId){
-    if(!r) return { id:`rec_${i}`, label:'', themeId:fallbackThemeId||null, score:0 };
-    const score = Number(r.score ?? r.scorePercent ?? r.prob ?? r.probability ?? r.rawScore ?? 0);
+    if(!r) return { id:`rec_${i}`, label:'', themeId:fallbackThemeId||null, rawScore:0, scorePercent:0 };
+    // 兼容不同字段:
+    // 1. 若提供 rawScore(0-1) 与 scorePercent(0-100)
+    // 2. 若只有 score(<=1 视为 rawScore, >1 视为百分比)
+    let rawScore = undefined;
+    if(r.rawScore !== undefined) rawScore = Number(r.rawScore);
+    else if(r.score !== undefined) {
+      const s = Number(r.score);
+      rawScore = (s > 1.00001) ? (s/100) : s; // 如果 >1 认为是百分值
+    } else if(r.prob !== undefined) rawScore = Number(r.prob);
+    else if(r.probability !== undefined) rawScore = Number(r.probability);
+    if(!Number.isFinite(rawScore)) rawScore = 0;
+    let scorePercent = r.scorePercent !== undefined ? Number(r.scorePercent) : (rawScore*100);
+    if(!Number.isFinite(scorePercent)) scorePercent = rawScore*100;
+    const id = r.id || r.labelId || r.themeId || `rec_${i}`;
     return {
-      id: r.id || r.labelId || r.themeId || `rec_${i}`,
+      id,
       label: r.label || r.name || r.category || r.themeName || r.themeLabel || '',
       themeId: r.themeId || fallbackThemeId || null,
       themeName: r.themeName || r.name || '',
-      score,
+      rawScore,
+      scorePercent,
       matchedKeywords: r.matchedKeywords || r.keywords || [],
-      reason: r.reason || ''
+      reason: r.reason || r.explain || r.description || ''
     };
   }
   // ===== File Chat (Document QA) =====
