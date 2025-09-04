@@ -112,6 +112,7 @@ const hasSelectedItems = computed(() => Object.values(selectedItems.value).some(
 
 // Methods
 function handleSearch(query, searchType, imageFile, options) {
+  // options 现在可能包含 precisionMode
   searchStore.search(query, searchType, imageFile, options || null);
   currentPage.value = 1;
   if(query && query.trim()) { showTagCloud.value=false; } else if(!searchStore.tagSearchActive) { showTagCloud.value=true; }
