@@ -2571,7 +2571,9 @@ object
 
 
 
-## 确认文档主题分类
+
+
+## 确认文档主题分类(添加)
 
 
 **接口地址**:`/admin-api/rag/ai/theme/confirm`
@@ -2580,14 +2582,42 @@ object
 **请求方式**:`POST`
 
 
-**请求数据类型**:`application/x-www-form-urlencoded`
+**请求数据类型**:`application/json`
 
 
 **响应数据类型**:`*/*`
 
 
-**接口描述**:<p>将最终主题写入 enrich 索引字段 themeId/themeName</p>
+**接口描述**:<p>将主题对象增量写入 enrich 索引字段 theme（追加去重/合并）</p>
 
+
+
+**请求示例**:
+
+
+```javascript
+{
+  "esId": "",
+  "theme": {
+    "themeId": 0,
+    "themeName": "",
+    "scorePercent": 0,
+    "rawScore": 0,
+    "matchedKeywords": [],
+    "reason": ""
+  },
+  "themes": [
+    {
+      "themeId": 0,
+      "themeName": "",
+      "scorePercent": 0,
+      "rawScore": 0,
+      "matchedKeywords": [],
+      "reason": ""
+    }
+  ]
+}
+```
 
 
 **请求参数**:
@@ -2598,8 +2628,22 @@ object
 
 | 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
 | -------- | -------- | ----- | -------- | -------- | ------ |
-|esId||query|true|string||
-|themeId||query|true|integer(int64)||
+|confirmThemeReq|ConfirmThemeReq|body|true|ConfirmThemeReq|ConfirmThemeReq|
+|&emsp;&emsp;esId|||false|string||
+|&emsp;&emsp;theme|||false|ThemeClassificationRespVO|ThemeClassificationRespVO|
+|&emsp;&emsp;&emsp;&emsp;themeId|||false|integer(int64)||
+|&emsp;&emsp;&emsp;&emsp;themeName|||false|string||
+|&emsp;&emsp;&emsp;&emsp;scorePercent|||false|number(double)||
+|&emsp;&emsp;&emsp;&emsp;rawScore|||false|number(double)||
+|&emsp;&emsp;&emsp;&emsp;matchedKeywords|||false|array|string|
+|&emsp;&emsp;&emsp;&emsp;reason|||false|string||
+|&emsp;&emsp;themes|||false|array|ThemeClassificationRespVO|
+|&emsp;&emsp;&emsp;&emsp;themeId|||false|integer(int64)||
+|&emsp;&emsp;&emsp;&emsp;themeName|||false|string||
+|&emsp;&emsp;&emsp;&emsp;scorePercent|||false|number(double)||
+|&emsp;&emsp;&emsp;&emsp;rawScore|||false|number(double)||
+|&emsp;&emsp;&emsp;&emsp;matchedKeywords|||false|array|string|
+|&emsp;&emsp;&emsp;&emsp;reason|||false|string||
 |tenant-id|租户编号|header|false|integer(int32)||
 |Authorization|认证 Token|header|false|string||
 
@@ -2631,6 +2675,65 @@ object
 }
 ```
 
+
+
+## 获取已保存的主题匹配结果
+
+
+**接口地址**:`/admin-api/rag/ai/theme/matches/{esId}`
+
+
+**请求方式**:`GET`
+
+
+**请求数据类型**:`application/x-www-form-urlencoded`
+
+
+**响应数据类型**:`*/*`
+
+
+**接口描述**:
+
+
+**请求参数**:
+
+
+**请求参数**:
+
+
+| 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
+| -------- | -------- | ----- | -------- | -------- | ------ |
+|esId||path|true|string||
+|tenant-id|租户编号|header|false|integer(int32)||
+|Authorization|认证 Token|header|false|string||
+
+
+**响应状态**:
+
+
+| 状态码 | 说明 | schema |
+| -------- | -------- | ----- | 
+|200|OK|CommonResultMapStringObject|
+
+
+**响应参数**:
+
+
+| 参数名称 | 参数说明 | 类型 | schema |
+| -------- | -------- | ----- |----- | 
+|code||integer(int32)|integer(int32)|
+|data||object||
+|msg||string||
+
+
+**响应示例**:
+```javascript
+{
+	"code": 0,
+	"data": {},
+	"msg": ""
+}
+```
 
 
 ## 创建主题

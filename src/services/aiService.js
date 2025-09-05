@@ -608,6 +608,56 @@ class AIService {
       return [];
     } catch(e){ console.warn('[AIService] classifyByTheme failed', e); return []; }
   }
+  async confirmTheme({ esId, themeId, row, payload, userId }={}){
+    if(!esId) return { success:false, message:'缺少参数' };
+    try{
+      const uid = this._getUserId(userId);
+      // New API: accept full row/payload JSON body
+      if(row || payload){
+        const body = Object.assign({}, {theme : row||payload});
+        // ensure esId present
+        body.esId = body.esId || esId;
+        const headers = { 'Content-Type':'application/json' };
+        if(uid!=='') headers['X-User-Id']=uid;
+        const res = await api.post('/admin-api/rag/ai/theme/confirm', body, { headers, timeout:20000 });
+        const root = this._normalizeWrapper(res);
+        return { success: root.code===0 || root.data===true, message: root.msg || '' };
+      }
+      // Backwards-compatible: form-encoded with esId + themeId
+      if(!themeId) return { success:false, message:'缺少 themeId' };
+      const headers = { 'Content-Type':'application/x-www-form-urlencoded' };
+      if(uid!=='') headers['X-User-Id']=uid;
+      const bodyParams = new URLSearchParams();
+      bodyParams.append('esId', String(esId));
+      bodyParams.append('themeId', String(themeId));
+      const res = await api.post('/admin-api/rag/ai/theme/confirm', bodyParams.toString(), { headers, timeout:20000 });
+      const root = this._normalizeWrapper(res);
+      return { success: root.code===0 || root.data===true, message: root.msg || '' };
+    } catch(e){ console.warn('[AIService] confirmTheme failed', e); return { success:false, message: e.message }; }
+  }
+  async unconfirmTheme({ esId,themeId, userId }={}){
+    if(!esId) return { success:false, message:'缺少参数' };
+    try{
+      const headers = { 'Content-Type':'application/x-www-form-urlencoded' };
+      const uid = this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      const bodyParams = new URLSearchParams();
+      bodyParams.append('esId', String(esId));
+      bodyParams.append('themeId', String(themeId));
+      const res = await api.post('/admin-api/rag/ai/theme/confirm/unconfirm', bodyParams.toString(), { headers, timeout:20000 });
+      const root = this._normalizeWrapper(res);
+      return { success: root.code===0 || root.data===true, message: root.msg || '' };
+    } catch(e){ console.warn('[AIService] unconfirmTheme failed', e); return { success:false, message: e.message }; }
+  }
+  async getThemeMatches(esId, userId){
+    if(!esId) return null;
+    try{
+      const headers = {};
+      const uid = this._getUserId(userId); if(uid!=='') headers['X-User-Id']=uid;
+      const res = await api.get(`/admin-api/rag/ai/theme/matches/${encodeURIComponent(esId)}`, { headers, timeout:20000 });
+      const root = this._normalizeWrapper(res);
+      return root.data || null;
+    } catch(e){ console.warn('[AIService] getThemeMatches failed', e); return null; }
+  }
   _mapThemeClassifyResp(r,i, fallbackThemeId){
     if(!r) return { id:`rec_${i}`, label:'', themeId:fallbackThemeId||null, rawScore:0, scorePercent:0 };
     // 兼容不同字段:

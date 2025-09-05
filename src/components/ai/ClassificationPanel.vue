@@ -3,9 +3,9 @@
     <div class="panel-header">
       <h3>主题分类</h3>
       <div class="ops">
-        <el-select v-model="activeThemeId" clearable placeholder="(可选) 选择主题" size="small" style="width:200px" @change="onThemeChange" :loading="loadingThemes">
+        <!-- <el-select v-model="activeThemeId" clearable placeholder="(可选) 选择主题" size="small" style="width:200px" @change="onThemeChange" :loading="loadingThemes">
           <el-option v-for="t in themes" :key="t.id" :label="t.name" :value="t.id" />
-        </el-select>
+        </el-select> -->
         <el-button size="small" type="primary" :disabled="runningClassify" :loading="runningClassify" @click="runThemeClassification">执行分类</el-button>
         <el-button size="small" @click="openThemeManage">管理分类</el-button>
       </div>
@@ -19,23 +19,28 @@
               <span>{{ themeNameMap[row.themeId] || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="匹配度" min-width="100">
+          <el-table-column label="匹配度" min-width="90">
             <template #default="{ row }">
               <span class="match-score" :class="{ top: isTop(row) }">{{ formatPercent(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="理由" min-width="320">
+          <el-table-column label="理由" min-width="300">
             <template #default="{ row }">
               <span v-if="row.reason" class="reason-text">{{ row.reason }}</span>
               <span v-else class="reason-empty">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="确认" width="90">
+          <el-table-column label="操作" width="98">
             <template #default="{ row }">
-              <template v-if="selectedPickId===row.id">
-                <el-icon class="picked-icon"><Check /></el-icon>
-              </template>
-              <el-button v-else size="small" type="success" text @click="confirmPick(row)">选用</el-button>
+                <template v-if="row.isPersisted">
+                  <el-button size="small" type="warning" text @click="cancelAssociation(row)">取消关联</el-button>
+                </template>
+                <template v-else>
+                  <template v-if="selectedPickId===row.id">
+                    <el-icon class="picked-icon"><Check /></el-icon>
+                  </template>
+                  <el-button v-else size="small" type="success" text @click="confirmPick(row)">选用</el-button>
+                </template>
             </template>
           </el-table-column>
         </el-table>
@@ -70,6 +75,11 @@
               <el-button size="small" type="primary" @click="confirmEditTheme(row)">保存</el-button>
               <el-button size="small" text @click="cancelEditTheme">取消</el-button>
             </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="关联" width="80">
+          <template #default="{ row }">
+            <el-checkbox :model-value="confirmedThemeId===row.id" disabled />
           </template>
         </el-table-column>
         <el-table-column label="标签" min-width="260">
@@ -132,10 +142,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAiToolsStore } from '../../stores/aiTools'
 import { Edit, Check } from '@element-plus/icons-vue'
+import { aiService } from '../../services/aiService'
 
 const props = defineProps({ fileId: { type: [String, Number], required: true }, fileText: { type:String, default:'' }, esId:{ type:String, default:'' }, file:{ type:Object, default:null } })
 const store = useAiToolsStore()
@@ -148,6 +159,8 @@ const themesPageNo = computed(()=> store.themesPageNo)
 const themesPageSize = computed(()=> store.themesPageSize)
 const activeThemeId = ref(null)
 const themeNameMap = computed(()=> Object.fromEntries(themes.value.map(t=>[t.id, t.name])))
+// persisted matches loaded from getThemeMatches(esId)
+const persistedMatches = ref([])
 
 // 统一获取 esId: 优先外部显式传入，其次 file 对象链路 (参考 TagsPanel)
 const effectiveEsId = computed(()=> {
@@ -159,9 +172,15 @@ const effectiveEsId = computed(()=> {
 // Classification results
 const runningClassify = computed(()=> store.loading.themeClassify )
 const classificationList = computed(()=>{
-  // 当未选择主题时, 使用全局结果(themeId 为 null)
-  if(!activeThemeId.value && store.themeClassification.themeId==null) return store.themeClassification.results;
-  if(store.themeClassification.themeId === activeThemeId.value) return store.themeClassification.results;
+  // If a specific theme is selected, show its classification results from the store
+  if(activeThemeId.value){
+    if(store.themeClassification.themeId === activeThemeId.value) return store.themeClassification.results;
+    return [];
+  }
+  // If we have persisted matches from the server for this document, show them first
+  if(persistedMatches.value && persistedMatches.value.length) return persistedMatches.value;
+  // Otherwise show global classification results (themeId === null)
+  if(store.themeClassification.themeId==null) return store.themeClassification.results;
   return [];
 })
 // maxScore 使用百分比值以便和 scorePercent 对齐
@@ -172,6 +191,7 @@ const maxScore = computed(()=> classificationList.value.reduce((m,r)=>{
 
 // 选中的推荐
 const selectedPickId = ref(null)
+const confirmedThemeId = ref(null)
 
 function calcPercent(row){
   // 优先使用 scorePercent；若 <1 认为是 rawScore
@@ -186,7 +206,7 @@ function calcPercent(row){
 function formatPercent(row){ const pct = calcPercent(row); return Number.isFinite(pct)? pct.toFixed(2)+'%' : '-'; }
 function isTop(row){ const pct = calcPercent(row); return Math.abs(pct - maxScore.value) < 1e-6; }
 
-function onThemeChange(){ if(activeThemeId.value){ store.loadThemeLabels(activeThemeId.value) } }
+// onThemeChange removed (unused) - theme label loading now triggered where needed
 
 async function runThemeClassification(){
   const esIdVal = effectiveEsId.value;
@@ -200,9 +220,21 @@ async function runThemeClassification(){
 }
 
 function confirmPick(row){
-  selectedPickId.value = row.id;
-  ElMessage.success('已选用主题: '+ (row.themeName || row.label));
-  // TODO: 可在此调用后端“应用主题”或“绑定主题”接口（若存在）
+  (async ()=>{
+    const esid = effectiveEsId.value;
+    if(!esid){ ElMessage.warning('缺少 esId，无法确认主题'); return; }
+    try{
+      // New API: send the full row object (backend will persist the association)
+      const res = await aiService.confirmTheme({ esId: esid, row });
+      if(res && res.success){
+        selectedPickId.value = row.id || row.themeId || row.theme?.id || row.labelId || null;
+        confirmedThemeId.value = row.themeId || row.theme?.id || row.id || null;
+        ElMessage.success('已选用主题: '+ (row.themeName || row.label || row.name));
+      } else {
+        ElMessage.error(res?.message || '确认失败');
+      }
+    } catch(e){ ElMessage.error('确认主题出错'); console.warn(e); }
+  })();
 }
 
 // Theme management
@@ -216,6 +248,38 @@ function openThemeManage(){ themeDlgVisible.value=true }
 async function loadThemes(pageNo=themesPageNo.value, pageSize=themesPageSize.value){ await store.loadThemesPage(pageNo,pageSize) }
 async function onThemeDialogOpen(){
   await loadThemes(1, themesPageSize.value)
+  // fetch confirmed theme for this document and mark association
+  try{
+    const esid = effectiveEsId.value;
+    if(esid){
+        const matches = await aiService.getThemeMatches(esid);
+        // API may return { code:0, data:{ theme: [...] } } or other shapes.
+        let arr = null;
+        if(matches){
+          if(Array.isArray(matches)) arr = matches;
+          else if(Array.isArray(matches.data?.theme)) arr = matches.data.theme;
+          else if(Array.isArray(matches.theme)) arr = matches.theme;
+        }
+        if(arr && arr.length){
+                const mapped = arr.map((r,i)=>({
+                  id: r.themeId || r.id || `pm_${i}`,
+                  themeId: r.themeId || r.id || null,
+                  themeName: r.themeName || r.theme || r.name || '',
+                  rawScore: r.rawScore !== undefined ? Number(r.rawScore) : (r.scorePercent!==undefined? Number(r.scorePercent)/100 : 0),
+                  scorePercent: r.scorePercent !== undefined ? Number(r.scorePercent) : (r.rawScore!==undefined? Number(r.rawScore)*100 : 0),
+                  reason: r.reason || r.explain || '',
+                  isPersisted: true,
+                  raw: r
+                }));
+                const first = mapped[0];
+                confirmedThemeId.value = first?.themeId || first?.id || null;
+                persistedMatches.value = mapped; // Populate persistedMatches with the fetched matches
+        } else {
+          // no persisted matches, run classification to get recommendations
+          await runThemeClassification();
+        }
+    }
+  } catch(e){ console.warn('load confirmed theme failed', e); }
 }
 async function addTheme(){ const name=newThemeName.value.trim(); if(!name) return; const res= await store.createTheme({ name, description:newThemeDesc.value.trim() }); if(res.success){ ElMessage.success('已创建'); newThemeName.value=''; newThemeDesc.value=''; } else ElMessage.error(res.message||'创建失败') }
 function startEditTheme(row){ editThemeId.value=row.id; editThemeName.value=row.name; editThemeDesc.value=row.description||'' }
@@ -236,8 +300,63 @@ function cancelQuickAdd(){ quickAddThemeId.value=null; }
 async function confirmQuickAdd(themeId){ const name=quickLabelName.value.trim(); if(!name) return; const weight = quickLabelWeight.value.trim(); const res= await store.createThemeLabel({ themeId, name, description: weight, weight: weight ? Number(weight) : undefined }); if(res.success){ ElMessage.success('已添加'); quickAddThemeId.value=null; } else { ElMessage.error(res.message||'添加失败') } }
 function displayLabelName(lbl){ return lbl.name || lbl.keyword || lbl.label || lbl.title || '未命名' }
 
+async function cancelAssociation(row){
+  const esid = effectiveEsId.value;
+  if(!esid){ ElMessage.warning('缺少 esId，无法取消关联'); return; }
+  try{
+    const themeId = row.themeId || row.theme?.id || row.id || row.labelId || row.themeId;
+    const res = await aiService.unconfirmTheme({ esId: esid, themeId });
+    if(res && res.success){
+      // remove from persistedMatches
+      persistedMatches.value = persistedMatches.value.filter(m=> m.id !== row.id && m.themeId !== row.themeId);
+      if(confirmedThemeId.value === row.themeId) confirmedThemeId.value = null;
+      ElMessage.success('已取消关联');
+    } else {
+      ElMessage.error(res?.message || '取消关联失败');
+    }
+  } catch(e){ ElMessage.error('取消关联出错'); console.warn(e); }
+}
+
 // initial load
-loadThemes()
+onMounted(async ()=>{
+  // ensure theme list available
+  await loadThemes();
+  // if we have an esId, try to fetch any previously confirmed theme first
+  const esid = effectiveEsId.value;
+  if(esid){
+    try{
+      const matches = await aiService.getThemeMatches(esid);
+      let arr = null;
+      if(matches){
+        if(Array.isArray(matches)) arr = matches;
+        else if(Array.isArray(matches.data?.theme)) arr = matches.data.theme;
+        else if(Array.isArray(matches.theme)) arr = matches.theme;
+      }
+      if(arr && arr.length){
+            const mapped = arr.map((r,i)=>({
+              id: r.themeId || r.id || `pm_init_${i}`,
+              themeId: r.themeId || r.id || null,
+              themeName: r.themeName || r.theme || r.name || '',
+              rawScore: r.rawScore !== undefined ? Number(r.rawScore) : (r.scorePercent!==undefined? Number(r.scorePercent)/100 : 0),
+              scorePercent: r.scorePercent !== undefined ? Number(r.scorePercent) : (r.rawScore!==undefined? Number(r.rawScore)*100 : 0),
+              reason: r.reason || r.explain || '',
+              isPersisted: true,
+              raw: r
+            }));
+            const first = mapped[0];
+            confirmedThemeId.value = first?.themeId || first?.id || null;
+            persistedMatches.value = mapped; // populate persistedMatches for initial load
+      } else {
+        // no persisted matches -> run classification
+        await runThemeClassification();
+      }
+    } catch(e){
+      console.warn('[Classification] initial load theme matches failed', e);
+      // fallback: best-effort to run classification
+      try{ await runThemeClassification(); } catch { /* ignore */ }
+    }
+  }
+})
 </script>
 
 <style scoped>

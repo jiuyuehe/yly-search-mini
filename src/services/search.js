@@ -1,4 +1,4 @@
-import api, { appsApi } from './api';
+import api, { appsApi, getUserInfo } from './api';
 import { ElMessage } from 'element-plus';
 import { mapDocTypeCodeToTab, mapExtToTab } from '../constants/fileTypes';
 import { normalizeFile } from '../constants/fileModel';
@@ -51,11 +51,15 @@ class SearchService {
   async search(builtParams, imageFile = null) {
     const url = '/admin-api/rag/documents/search';
     const { offset, limit, ...rest } = builtParams;
+
     try {
       let root;
+      const user = getUserInfo() || {};
+
       if (imageFile) {
         const form = new FormData();
         Object.entries(rest).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') form.append(k, v); });
+        if(user.userId) form.append('userId', user.userId);
         form.append('offset', offset);
         form.append('limit', limit);
         form.append('image', imageFile); // 图片搜索: 后端字段如不同请调整
@@ -63,6 +67,7 @@ class SearchService {
       } else {
         const formData = new URLSearchParams();
         Object.entries({ ...rest, offset, limit }).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') formData.append(k, v); });
+         if(user.userId) formData.append('userId', user.userId);
         root = await api.post(url, formData, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
       }
       // axios 拦截器已返回 data，root 即 { code, data, msg }
