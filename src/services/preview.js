@@ -40,6 +40,15 @@ class PreviewService {
     return data;
   }
 
+  // 新增：通过 esId 获取基础信息
+  async getBasicInfoByEsId(esid) {
+    if (!esid) throw new Error('缺少 esid');
+    const body = { esid: esid };
+    const root = await api.post('/admin-api/rag/documents/basicinfo', body, { headers: { 'Content-Type': 'application/json' } });
+    if (root?.code !== 0 || !root?.data) throw new Error(root?.msg || '获取基础信息失败');
+    return root.data || {};
+  }
+
   /** 获取文件预览视图 (非 NAS)
    * 普通文件: /apps/file/view  params: { fi, fc }
    */

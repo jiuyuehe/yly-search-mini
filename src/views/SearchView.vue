@@ -50,7 +50,7 @@
             :display-mode="searchStore.isImageSearch ? 'grid' : 'list'"
             @click="navigateToPreview(item, $event)"
           />
-          <el-empty v-if="searchResults.length === 0" description="No results found" />
+          <el-empty v-if="searchResults.length === 0" description="没有结果" />
         </div>
         
         <!-- Pagination and action buttons -->
@@ -97,8 +97,9 @@ const searchStore = useSearchStore();
 const showFilters = ref(false); // 默认隐藏
 const showTagCloud = ref(false); // 默认显示标签云（无搜索条件）
 const activeTab = ref('all');
-const currentPage = ref(1);
-const pageSize = ref(10);
+// local pagination mirrors store.pagination so state survives route changes
+const currentPage = ref(searchStore.pagination.currentPage || 1);
+const pageSize = ref(searchStore.pagination.pageSize || 10);
 const selectedItems = ref({});
 
 // 新增：侧栏 ref
@@ -147,7 +148,8 @@ function navigateToPreview(file, evt) {
   if (!file) return;
   const norm = normalizeFile(file);
   const newTab = evt && (evt.ctrlKey || evt.metaKey || evt.button === 1);
-  goPreview(norm, { newTab });
+  // indicate navigation origin so preview can show a back button
+  goPreview(norm, { newTab, retureBtn: true });
 }
 
 function handleSizeChange(size) {
@@ -190,9 +192,21 @@ function handleTagClick(tag){
 function toggleCloud(){ showTagCloud.value = !showTagCloud.value; }
 
 onMounted(async () => {
-  await searchStore.loadInitialData();
-  // 加载标签云（首次）
-  searchStore.fetchTagCloud(true);
+  // Sync local UI from store so when returning from preview we keep previous state
+  currentPage.value = searchStore.pagination.currentPage || currentPage.value;
+  pageSize.value = searchStore.pagination.pageSize || pageSize.value;
+  activeTab.value = searchStore.activeTab || activeTab.value;
+  showFilters.value = !!searchStore.filters && Object.values(searchStore.filters).some(v => Array.isArray(v)? v.length>0 : !!v);
+
+  // Only load initial data when we don't already have results cached in the store
+  if (!Array.isArray(searchStore.results) || searchStore.results.length === 0) {
+    await searchStore.loadInitialData();
+  }
+
+  // Ensure tag cloud available but avoid forcing refresh if already present
+  if (!Array.isArray(searchStore.tagCloud) || searchStore.tagCloud.length === 0) {
+    searchStore.fetchTagCloud(true).catch(()=>{});
+  }
 });
 </script>
 

@@ -9,9 +9,11 @@ import router from '../router';
  * @param {Object} options { newTab?: boolean }
  */
 export function navigateToPreview(file, options = {}) {
-  const { newTab = false } = options;
+  const { newTab = false, retureBtn } = options;
+  const { from } = options || {};
   if (!file) return;
-  const norm = normalizeFile(file);
+  // allow passing an esId string directly
+  const norm = typeof file === 'string' ? { esId: file, esid: file } : normalizeFile(file);
   const fc = norm.fileCategory;
   const fi = norm.fileId;
   const fsi = norm.fsFileId;
@@ -19,11 +21,19 @@ export function navigateToPreview(file, options = {}) {
   const subp = norm.subPath || '';
 
   let routeObj;
-  if (fc === 'nas') {
+  // If esId provided, prefer esid route
+  if (norm.esId || norm.esid) {
+    routeObj = { name: 'preview-esid', params: { esid: norm.esId || norm.esid } };
+  } else if (fc === 'nas') {
     const encodedSubp = encodeURIComponent(subp || '');
     routeObj = { name: 'preview-nas', params: { nsi, subp: encodedSubp } };
   } else {
     routeObj = { name: 'preview', params: { fc: fc || 'doc', fi: fi || 0, fsi: fsi || 0 } };
+  }
+
+  // attach origin marker to query so preview can show back button and optionally restore state
+  if (from || typeof retureBtn !== 'undefined') {
+    routeObj.query = { ...(routeObj.query || {}), ...(from ? { from } : {}), ...(typeof retureBtn !== 'undefined' ? { retureBtn } : {}) };
   }
 
   const resolved = router.resolve(routeObj);

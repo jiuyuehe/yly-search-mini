@@ -246,52 +246,71 @@ async function load() {
   {
     // 1. 获取基础信息（不再使用外部传入 file）
     try {
-      const fc = props.fc || route.params.fc;
-      if (fc) {
-        const params = { fc };
-        if (fc === 'nas') {
-          params.nsi = props.nsi || route.params.nsi;
-          params.nsubp = props.subp || route.params.subp;
-          if (!params.nsi) throw new Error('缺少 nsi');
+        // Support opening by esid (unique document id)
+        if (props.esid || route.params.esid) {
+          const esid = props.esid || route.params.esid;
+          const base = await previewService.getBasicInfoByEsId(esid);
+          if (!base) throw new Error('获取基础信息失败');
+          const mergedBase = {
+            id: base.fileId || base.id || '',
+            fileId: base.fileId || base.id || '',
+            name: base.fileName || base.name,
+            fileName: base.fileName || base.name,
+            fileType: (base.fileExt || base.fileType || '').toLowerCase(),
+            hasAccess: true,
+            ...base
+          };
+          if (!mergedBase.esId && mergedBase.esid) mergedBase.esId = mergedBase.esid;
+          fileData.value = mergedBase;
+          hasPerm.value = true;
         } else {
-          params.fi = props.fi || route.params.fi;
-          if (!params.fi) throw new Error('缺少 fi');
-          if (props.fsi || route.params.fsi) params.fsi = props.fsi || route.params.fsi;
-        }
-        const base = await previewService.getBasicInfo(params);
-        let mergedBase = {
-          id: base.fileId || params.fi || '',
-          fileId: base.fileId || params.fi || '',
-          name: base.fileName,
-          fileName: base.fileName,
-          fileType: (base.fileExt || base.fileType || '').toLowerCase(),
-          hasAccess: true,
-          ...base
-        };
-        // 若 esId 缺失，按规则生成
-  if (!mergedBase.esId && !mergedBase.esid) {
-          try {
-            if ((mergedBase.fileCategory || params.fc) === 'nas' || mergedBase.nasId) {
-              if (mergedBase.nasId && mergedBase.nasFileId) {
-    const gen = `${mergedBase.nasId}-${mergedBase.nasFileId}`;
-    mergedBase.esId = gen;
-    mergedBase.esid = gen;
-              }
+          const fc = props.fc || route.params.fc;
+          if (fc) {
+            const params = { fc };
+            if (fc === 'nas') {
+              params.nsi = props.nsi || route.params.nsi;
+              params.nsubp = props.subp || route.params.subp;
+              if (!params.nsi) throw new Error('缺少 nsi');
             } else {
-              if (mergedBase.fileId && mergedBase.fileCategory && mergedBase.fsFileId) {
-    const gen = `${mergedBase.fileId}${String(mergedBase.fileCategory).toLowerCase()}${mergedBase.fsFileId}`;
-    mergedBase.esId = gen;
-    mergedBase.esid = gen;
-              }
+              params.fi = props.fi || route.params.fi;
+              if (!params.fi) throw new Error('缺少 fi');
+              if (props.fsi || route.params.fsi) params.fsi = props.fsi || route.params.fsi;
             }
-          } catch { /* silent */ }
-        }
-  // 若仅有其中之一，补齐别名
-  if (mergedBase.esId && !mergedBase.esid) mergedBase.esid = mergedBase.esId;
-  if (mergedBase.esid && !mergedBase.esId) mergedBase.esId = mergedBase.esid;
-        fileData.value = mergedBase;
-        hasPerm.value = true;
-      }
+            const base = await previewService.getBasicInfo(params);
+            let mergedBase = {
+              id: base.fileId || params.fi || '',
+              fileId: base.fileId || params.fi || '',
+              name: base.fileName,
+              fileName: base.fileName,
+              fileType: (base.fileExt || base.fileType || '').toLowerCase(),
+              hasAccess: true,
+              ...base
+            };
+            // 若 esId 缺失，按规则生成
+    if (!mergedBase.esId && !mergedBase.esid) {
+            try {
+              if ((mergedBase.fileCategory || params.fc) === 'nas' || mergedBase.nasId) {
+                if (mergedBase.nasId && mergedBase.nasFileId) {
+      const gen = `${mergedBase.nasId}-${mergedBase.nasFileId}`;
+      mergedBase.esId = gen;
+      mergedBase.esid = gen;
+                }
+              } else {
+                if (mergedBase.fileId && mergedBase.fileCategory && mergedBase.fsFileId) {
+      const gen = `${mergedBase.fileId}${String(mergedBase.fileCategory).toLowerCase()}${mergedBase.fsFileId}`;
+      mergedBase.esId = gen;
+      mergedBase.esid = gen;
+                }
+              }
+            } catch { /* silent */ }
+          }
+    // 若仅有其中之一，补齐别名
+    if (mergedBase.esId && !mergedBase.esid) mergedBase.esid = mergedBase.esId;
+    if (mergedBase.esid && !mergedBase.esId) mergedBase.esId = mergedBase.esid;
+            fileData.value = mergedBase;
+            hasPerm.value = true;
+          }
+  }
     } catch (e) {
       console.warn('[PreviewView] 基础信息获取失败', e);
       // 404 或业务失败视为文件不存在
@@ -307,7 +326,7 @@ async function load() {
 
   // 2. 基础信息成功后，再获取预览地址（原逻辑）
   try {
-  const fc = props.fc || route.params.fc;
+  const fc = props.fc || route.params.fc || fileData.value?.fileCategory;
   const fid = fileData.value?.fileId;
   const extNow = (fileData.value?.fileType || '').toLowerCase();
   // 仅当有 fc / fid (nas 也会返回 fileId 但接口使用 nasFilePath) 才继续

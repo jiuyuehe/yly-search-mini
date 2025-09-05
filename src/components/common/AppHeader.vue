@@ -12,6 +12,7 @@
           mode="horizontal"
           :default-active="activeIndex"
           @select="handleMenuSelect"
+          :ellipsis="false"
           router
         >
           <el-menu-item index="/">

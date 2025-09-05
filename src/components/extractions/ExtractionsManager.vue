@@ -105,9 +105,9 @@
         
         <el-table-column label="操作" width="200" align="center">
           <template #default="{ row }">
-            <el-button size="small" @click="viewDetails(row)">查看</el-button>
-            <el-button size="small" @click="editExtraction(row)">编辑</el-button>
+            <el-button size="small" @click="openDetail(row)">详情</el-button>
             <el-button 
+              v-if="isOwner(row)"
               size="small" 
               type="danger" 
               @click="deleteExtraction(row.id)"
@@ -148,10 +148,11 @@
       <ExtractionDetail 
         v-if="selectedExtraction"
         :extraction="selectedExtraction"
-        :editable="detailEditable"
+        :editable="detailEditable && canEditDetail"
+        :can-edit="canEditDetail"
         @update="updateExtraction"
         @edit="enableEdit"
-        @save="saveExtraction"
+        @save="(data)=>{ if(!canEditDetail){ ElMessage.error('无权限保存'); return; } saveExtraction(data); }"
         @cancel="cancelEdit"
       />
       <template #footer>
@@ -162,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
@@ -180,6 +181,7 @@ const selectedExtractions = ref([]);
 const showDetail = ref(false);
 const selectedExtraction = ref(null);
 const detailEditable = ref(false);
+const canEditDetail = ref(false);
 
 const filters = reactive({
   form_id: null,
@@ -193,18 +195,26 @@ const pagination = reactive({
 });
 
 onMounted(async () => {
-  await Promise.all([
-    extractionsStore.loadExtractions(),
-    formsStore.loadForms()
-  ]);
+  await formsStore.loadForms();
+  // initialize from store if available
+  if (extractionsStore.pagination) {
+    pagination.page = extractionsStore.pagination.page || pagination.page;
+    pagination.pageSize = extractionsStore.pagination.pageSize || pagination.pageSize;
+  }
+  await extractionsStore.loadExtractions({ page: pagination.page, pageSize: pagination.pageSize });
+  // if backend returned page info update local pagination
+  pagination.page = extractionsStore.pagination.page || pagination.page;
+  pagination.pageSize = extractionsStore.pagination.pageSize || pagination.pageSize;
 });
 
 function onSearch() {
-  extractionsStore.searchExtractions(searchKeyword.value, filters);
+  extractionsStore.searchExtractions(searchKeyword.value, { ...filters, page: pagination.page, pageSize: pagination.pageSize });
 }
 
 function onFilterChange() {
-  extractionsStore.loadExtractions(filters);
+  extractionsStore.setPagination(1, pagination.pageSize);
+  pagination.page = 1;
+  extractionsStore.loadExtractions({ ...filters, page: pagination.page, pageSize: pagination.pageSize });
 }
 
 function handleSelectionChange(selection) {
@@ -240,15 +250,26 @@ function viewDocument(documentId) {
   router.push(`/preview/doc/${documentId}`);
 }
 
-function viewDetails(extraction) {
-  selectedExtraction.value = extraction;
-  detailEditable.value = false;
-  showDetail.value = true;
+// determine current user id
+import { getUserInfo } from '../../services/api';
+const _me = getUserInfo() || {};
+const currentUserId = _me.id || _me.userId || _me.uid || _me.userID || '';
+
+function getOwnerId(item) {
+  if (!item || typeof item !== 'object') return null;
+  return item.createUserId || item.createUser || item.creatorId || item.creator || item.userId || item.ownerId || item.created_by || null;
 }
 
-function editExtraction(extraction) {
+function isOwner(item) {
+  const owner = getOwnerId(item);
+  if (!owner) return false;
+  return String(owner) === String(currentUserId);
+}
+
+function openDetail(extraction) {
   selectedExtraction.value = extraction;
-  detailEditable.value = true;
+  detailEditable.value = false; // start in view mode
+  canEditDetail.value = isOwner(extraction);
   showDetail.value = true;
 }
 
@@ -347,11 +368,13 @@ function goToPreview() {
 function onPageChange(page) {
   pagination.page = page;
   extractionsStore.setPagination(page, pagination.pageSize);
+  extractionsStore.loadExtractions({ ...filters, page, pageSize: pagination.pageSize });
 }
 
 function onPageSizeChange(pageSize) {
   pagination.pageSize = pageSize;
   extractionsStore.setPagination(pagination.page, pageSize);
+  extractionsStore.loadExtractions({ ...filters, page: pagination.page, pageSize });
 }
 
 function formatDate(dateString) {

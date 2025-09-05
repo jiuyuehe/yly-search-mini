@@ -1,126 +1,108 @@
 import api from './api';
 
-// Mock extractions data
-const MOCK_EXTRACTIONS = [
-  {
-    id: 1,
-    document_id: '1',
-    form_id: 1,
-    ai_model: 'GPT-4',
-    extracted_data: {
-      甲方: {
-        companyName: 'ABC科技有限公司',
-        负责人: '张三',
-        联系方式: '13800138000'
-      },
-      购买产品: [
-        {
-          产品名称: '云服务器',
-          数量: 5,
-          价格: 2000.0
-        },
-        {
-          产品名称: '数据库服务',
-          数量: 2,
-          价格: 1500.0
-        }
-      ],
-      合同详情: {
-        总价: 13000.0,
-        服务器周期: '2年',
-        交付周期: '15天'
-      }
-    },
-    status: 'completed',
-    created_at: '2024-01-15 15:30:00',
-    updated_at: '2024-01-15 15:30:00'
-  },
-  {
-    id: 2,
-    document_id: '2',
-    form_id: 2,
-    ai_model: 'GPT-4',
-    extracted_data: {
-      发票号码: 'INV-2024-0015',
-      开票日期: '2024-01-10',
-      销售方: 'XYZ软件公司',
-      购买方: 'ABC科技有限公司',
-      金额: 85000.0,
-      税率: 0.13,
-      备注: '软件许可费用'
-    },
-    status: 'completed',
-    created_at: '2024-01-16 16:45:00',
-    updated_at: '2024-01-16 16:45:00'
-  },
-  {
-    id: 3,
-    document_id: '3',
-    form_id: 3,
-    ai_model: 'Claude-3',
-    extracted_data: {
-      报价单号: 'QT-2024-0023',
-      报价日期: '2024-01-12',
-      客户名称: '深圳创新科技',
-      报价项目: [
-        {
-          项目名称: '网站开发',
-          单价: 50000.0,
-          数量: 1,
-          小计: 50000.0
-        },
-        {
-          项目名称: '移动应用开发',
-          单价: 80000.0,
-          数量: 1,
-          小计: 80000.0
-        }
-      ],
-      总金额: 130000.0,
-      有效期: '45天'
-    },
-    status: 'completed',
-    created_at: '2024-01-17 11:20:00',
-    updated_at: '2024-01-17 11:20:00'
+// 将后端历史记录标准化
+function normalizeHistoryItem(raw){
+  if(!raw || typeof raw !== 'object') return raw;
+  const item = { ...raw };
+  // map identifiers
+  item.id = item.id || item.historyId || item.recordId;
+  item.form_id = item.formId || item.form_id || item.form_id;
+  item.document_id = item.esId || item.documentId || item.fileId || item.document_id;
+  // ai model / status
+  item.ai_model = item.model || item.aiModel || item.ai_model || '';
+  item.status = item.status || 'completed';
+  // timestamps
+  // createTime may be epoch millis
+  if (item.createTime && !item.created_at) {
+    try { item.created_at = new Date(Number(item.createTime)).toISOString(); } catch { item.created_at = item.createTime; }
   }
-];
+  item.created_at = item.created_at || item.createdAt || item.createTime || item.created_at;
+  item.updated_at = item.updateTime || item.updated_at || item.updatedAt;
+
+  // normalize fields array -> extracted_data object and keep raw fields
+  if (item.fields && Array.isArray(item.fields)){
+    const obj = {};
+    item.fields.forEach(f=>{ if(!f || !f.name) return; obj[f.name] = f.value; });
+    item.extracted_data = obj;
+    // keep original fields array in a stable property for UI that expects details
+    item._fields = item.fields.map(f => ({ ...f }));
+  }
+
+  // map returned userId into older createUserId/createUser aliases for permission checks
+  if ((item.userId || item.user_id) && !item.createUserId && !item.createUser) {
+    item.createUserId = item.userId || item.user_id;
+  }
+
+  // field counts and avgConfidence -> keep for metrics
+  item.fieldFoundCount = item.fieldFoundCount ?? item.field_found_count ?? (item.fields ? item.fields.filter(f=>!f.notFound).length : 0);
+  item.fieldTotalCount = item.fieldTotalCount ?? item.field_total_count ?? (item.fields ? item.fields.length : 0);
+  item.avgConfidence = item.avgConfidence ?? item.avg_confidence ?? item.avgConfidence;
+
+  return item;
+}
 
 class ExtractionsService {
   async getExtractions(filters = {}) {
+    // 对接 /admin-api/rag/ai/text/extract/form/history/list
+    const { page=1, pageSize=20, form_id, formId, esId, document_id } = filters;
+    const params = {
+      pageNo: page,
+      pageSize,
+      formId: form_id || formId,
+      esId,
+      documentId: document_id
+    };
+    Object.keys(params).forEach(k=> params[k]==null && delete params[k]);
     try {
-      // Uncomment when backend API is ready
-      // const params = new URLSearchParams(filters);
-      // const response = await api.get(`/admin-api/extractions?${params}`);
-      // return response.data;
-      
-      // Mock response for now
-      await new Promise(resolve => setTimeout(resolve, 300));
-      let results = [...MOCK_EXTRACTIONS];
-      
-      // Apply filters
-      if (filters.form_id) {
-        results = results.filter(e => e.form_id === parseInt(filters.form_id));
+      const res = await api.get('/admin-api/rag/ai/text/extract/form/history/list', { params, timeout:20000 });
+      // Backend may return multiple shapes, including:
+      // 1) raw array: [ ... ]
+      // 2) { code:0, data: [...] }
+      // 3) { data: { list: [], total, page, pageSize } }
+      // 4) { total, size, page, items: [...] }
+      const body = res?.data ?? res;
+
+      let rawList = [];
+      let total = 0;
+      let respPage = undefined;
+      let respPageSize = undefined;
+
+      if (Array.isArray(body)) {
+        rawList = body;
+        total = rawList.length;
+      } else if (body && typeof body === 'object') {
+        // shape: { total, size, page, items }
+        if (Array.isArray(body.items)) {
+          rawList = body.items;
+          total = Number(body.total ?? rawList.length ?? 0);
+          respPage = body.page ?? body.pageNo ?? undefined;
+          respPageSize = body.size ?? body.pageSize ?? undefined;
+        }
+        // shape: { code:0, data: [...] }
+        else if (Array.isArray(body.data)) {
+          rawList = body.data;
+          total = rawList.length;
+        }
+        // shape: { data: { list: [], total, page, pageSize } }
+        else if (body.data && typeof body.data === 'object') {
+          const d = body.data;
+          if (Array.isArray(d.list) || Array.isArray(d.rows) || Array.isArray(d.items)) {
+            rawList = d.list || d.rows || d.items || [];
+            total = Number(d.total ?? body.total ?? rawList.length ?? 0);
+            respPage = d.page ?? d.pageNo ?? body.page ?? undefined;
+            respPageSize = d.pageSize ?? d.size ?? body.size ?? undefined;
+          } else if (Array.isArray(d)) {
+            rawList = d;
+            total = rawList.length;
+          }
+        }
       }
-      if (filters.document_id) {
-        results = results.filter(e => e.document_id === filters.document_id);
-      }
-      if (filters.status) {
-        results = results.filter(e => e.status === filters.status);
-      }
-      if (filters.ai_model) {
-        results = results.filter(e => e.ai_model === filters.ai_model);
-      }
-      if (filters.start_date) {
-        results = results.filter(e => e.created_at >= filters.start_date);
-      }
-      if (filters.end_date) {
-        results = results.filter(e => e.created_at <= filters.end_date);
-      }
-      
-      return results;
-    } catch (error) {
-      console.warn('Extractions API not available, using mock data');
-      return MOCK_EXTRACTIONS;
+
+      const list = (rawList || []).map(normalizeHistoryItem);
+      return { list, total: Number(total || 0), page: respPage, pageSize: respPageSize };
+    } catch(e){
+      console.warn('[ExtractionsService] history list failed', e);
+      return { list: [], total: 0 };
     }
   }
 
@@ -131,60 +113,40 @@ class ExtractionsService {
       // return response.data;
       
       // Mock response for now
-      await new Promise(resolve => setTimeout(resolve, 200));
-      const extraction = MOCK_EXTRACTIONS.find(e => e.id === parseInt(id));
-      if (!extraction) {
-        throw new Error('抽取记录不存在');
-      }
-      return extraction;
+  const res = await api.get('/admin-api/rag/ai/text/extract/form/history/detail', { params:{ id }, timeout:15000 });
+  const root = res?.data?.data ? res.data : res;
+  const data = root.data || root.record || root;
+  return normalizeHistoryItem(data);
     } catch (error) {
-      console.warn('Extraction API not available, using mock data');
-      throw error;
+  console.warn('[ExtractionsService] getExtraction fallback error', error);
+  throw error;
     }
   }
 
-  async createExtraction(extractionData) {
+  async createExtraction(_extractionData) {
     try {
       // Uncomment when backend API is ready
       // const response = await api.post('/admin-api/extractions', extractionData);
       // return response.data;
       
       // Mock response for now
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const newExtraction = {
-        id: Math.max(...MOCK_EXTRACTIONS.map(e => e.id)) + 1,
-        ...extractionData,
-        status: 'completed',
-        created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        updated_at: new Date().toISOString().replace('T', ' ').substring(0, 19)
-      };
-      MOCK_EXTRACTIONS.push(newExtraction);
-      return newExtraction;
+  // 暂无创建接口：直接抛出
+  throw new Error('不支持手动创建抽取记录');
     } catch (error) {
       console.warn('Create extraction API not available, using mock data');
       throw error;
     }
   }
 
-  async updateExtraction(id, extractionData) {
+  async updateExtraction(_id, _extractionData) {
     try {
       // Uncomment when backend API is ready
       // const response = await api.put(`/admin-api/extractions/${id}`, extractionData);
       // return response.data;
       
       // Mock response for now
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const index = MOCK_EXTRACTIONS.findIndex(e => e.id === parseInt(id));
-      if (index === -1) {
-        throw new Error('抽取记录不存在');
-      }
-      
-      MOCK_EXTRACTIONS[index] = {
-        ...MOCK_EXTRACTIONS[index],
-        ...extractionData,
-        updated_at: new Date().toISOString().replace('T', ' ').substring(0, 19)
-      };
-      return MOCK_EXTRACTIONS[index];
+  // 推测更新接口（如果后端后续提供可替换）
+  throw new Error('暂不支持编辑历史记录');
     } catch (error) {
       console.warn('Update extraction API not available, using mock data');
       throw error;
@@ -197,14 +159,8 @@ class ExtractionsService {
       // await api.delete(`/admin-api/extractions/${id}`);
       
       // Mock response for now
-      await new Promise(resolve => setTimeout(resolve, 300));
-      const index = MOCK_EXTRACTIONS.findIndex(e => e.id === parseInt(id));
-      if (index === -1) {
-        throw new Error('抽取记录不存在');
-      }
-      
-      MOCK_EXTRACTIONS.splice(index, 1);
-      return { success: true };
+  await api.delete('/admin-api/rag/ai/text/extract/form/history/delete', { params:{ id }, timeout:15000 });
+  return { success: true };
     } catch (error) {
       console.warn('Delete extraction API not available, using mock data');
       throw error;
@@ -217,14 +173,8 @@ class ExtractionsService {
       // await api.delete('/admin-api/extractions', { data: { ids } });
       
       // Mock response for now
-      await new Promise(resolve => setTimeout(resolve, 500));
-      ids.forEach(id => {
-        const index = MOCK_EXTRACTIONS.findIndex(e => e.id === parseInt(id));
-        if (index !== -1) {
-          MOCK_EXTRACTIONS.splice(index, 1);
-        }
-      });
-      return { success: true, deleted: ids.length };
+  await api.delete('/admin-api/rag/ai/text/extract/form/history/delete/batch', { data:{ ids }, headers:{'Content-Type':'application/json'}, timeout:20000 });
+  return { success: true };
     } catch (error) {
       console.warn('Batch delete extractions API not available, using mock data');
       throw error;
@@ -239,20 +189,12 @@ class ExtractionsService {
       // return response.data;
       
       // Mock search for now
-      await new Promise(resolve => setTimeout(resolve, 200));
-      let results = await this.getExtractions(filters);
-      
-      if (!keyword) {
-        return results;
-      }
-      
-      return results.filter(extraction => {
-        const dataStr = JSON.stringify(extraction.extracted_data).toLowerCase();
-        return dataStr.includes(keyword.toLowerCase());
-      });
+  const { list } = await this.getExtractions(filters);
+  if(!keyword) return list;
+  return list.filter(extraction => JSON.stringify(extraction.extracted_data||{}).toLowerCase().includes(keyword.toLowerCase()));
     } catch (error) {
-      console.warn('Search extractions API not available, using mock data');
-      return MOCK_EXTRACTIONS;
+  console.warn('[ExtractionsService] search fallback error', error);
+  return [];
     }
   }
 
@@ -264,7 +206,8 @@ class ExtractionsService {
       
       // Mock export for now
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const extractions = MOCK_EXTRACTIONS.filter(e => ids.includes(e.id));
+  const { list } = await this.getExtractions({ page:1, pageSize:1000 });
+  const extractions = list.filter(e => ids.includes(e.id));
       
       if (format === 'csv') {
         // Convert to CSV format
@@ -275,8 +218,8 @@ class ExtractionsService {
         return { format: 'json', data: extractions, filename: `extractions_${Date.now()}.json` };
       }
     } catch (error) {
-      console.warn('Export extractions API not available, using mock data');
-      throw error;
+  console.warn('[ExtractionsService] export error', error);
+  throw error;
     }
   }
 
@@ -301,25 +244,12 @@ class ExtractionsService {
 
   // Get available AI models for extraction
   async getAvailableModels() {
-    try {
-      // Uncomment when backend API is ready
-      // const response = await api.get('/admin-api/ai-models');
-      // return response.data;
-      
-      // Mock models for now
-      return [
-        { id: 'gpt-4', name: 'GPT-4', provider: 'OpenAI', available: true },
-        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', available: true },
-        { id: 'claude-3', name: 'Claude-3', provider: 'Anthropic', available: true },
-        { id: 'gemini-pro', name: 'Gemini Pro', provider: 'Google', available: false }
-      ];
-    } catch (error) {
-      console.warn('AI models API not available, using mock data');
-      return [
-        { id: 'gpt-4', name: 'GPT-4', provider: 'OpenAI', available: true },
-        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', available: true }
-      ];
-    }
+    // 仍使用静态列表 (后端接好接口后再替换)
+    return [
+      { id: 'gpt-4', name: 'GPT-4', provider: 'OpenAI', available: true },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', available: true },
+      { id: 'claude-3', name: 'Claude-3', provider: 'Anthropic', available: true }
+    ];
   }
 }
 

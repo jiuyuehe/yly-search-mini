@@ -475,12 +475,13 @@ class AIService {
   }
   async extractText(fileId) { try { await new Promise(r=>setTimeout(r,500)); const mockTexts={ 1:'这是从PDF文件中提取的文本内容。包含了项目需求的详细描述，技术规范，以及实施方案等重要信息。\n\n主要章节包括：\n1. 项目概述\n2. 功能需求\n3. 技术架构\n4. 实施计划\n\n这些内容为项目的顺利进行提供了重要的参考依据。', 2:'从图片中识别的文字内容：设计标准、UI规范、图标库等相关设计要素。', 3:'音频转文字：会议主要讨论了项目进度、技术难点和解决方案等议题。' }; return mockTexts[fileId] || '暂无可提取的文本内容'; } catch { console.warn('Text extraction API fallback'); return '模拟提取的文本内容'; } }
   async classifyDocument(fileId, _contentHint='') { try { await new Promise(r=>setTimeout(r,600)); const forms=loadForms().filter(f=>f.enabled); if (!forms.length) return []; const picks=forms.sort(()=>Math.random()-0.5).slice(0, Math.min(5, forms.length)); let remaining=1.0; const results=picks.map((f,idx)=>{ const score = idx===picks.length-1 ? remaining : +(Math.random()*remaining*0.6+0.05).toFixed(3); remaining = +(remaining - score).toFixed(3); return { category:f.name, score:score }; }); const total=results.reduce((s,r)=>s+r.score,0)||1; return results.map(r=>({ ...r, score:+(r.score/total).toFixed(4) })).sort((a,b)=>b.score-a.score); } catch { console.warn('classifyDocument mock fallback'); return []; } }
-  async getRelatedDocuments({ esId, query='', page=1, pageSize=10 }) {
+  async getRelatedDocuments({ esId, query='', page=1, pageSize=10, useLLM=false, forceRefresh=false } = {}) {
     if(!esId) return { list:[], total:0 };
     const offset = (page - 1) * pageSize;
     try {
       // 按接口文档: GET /admin-api/rag/ai/recommend/related?esId=&keyword=&offset=&limit=
-      const params = { esId, useLLM :false,  keyword: query || undefined, offset, limit: pageSize };
+  const params = { esId, useLLM: !!useLLM,  keyword: query || undefined, offset, limit: pageSize };
+  if (forceRefresh) params.forceRefresh = true;
       const res = await api.get('/admin-api/rag/ai/recommend/related', { params, timeout:60000 });
       const root = res?.data || res || {};
       const data = root.data || root.result || root;
@@ -488,12 +489,31 @@ class AIService {
       const listRaw = Array.isArray(data.list) ? data.list : (Array.isArray(data.fileList) ? data.fileList : (Array.isArray(data) ? data : []));
       const list = listRaw.map((it, idx)=>{
         if(!it || typeof it!=='object') return null;
+        // creator: prefer operator or known creator fields
+        const creator = it.operator || it.createUserName || it.createrName || it.creatorName || it.creator || it.createUser || it.owner || '';
+        // tags: backend may return tags under different shapes; prefer array-like fields or metaTag when array
+        let tagsArr = [];
+        if (Array.isArray(it.metaTag)) tagsArr = it.metaTag;
+        else if (Array.isArray(it.tags)) tagsArr = it.tags;
+        else if (Array.isArray(it.fileTags)) tagsArr = it.fileTags;
+        else if (Array.isArray(it.tagList)) tagsArr = it.tagList;
+        else if (Array.isArray(it.labels)) tagsArr = it.labels;
+        // Also accept comma-separated string
+        else if (it.metaTag && typeof it.metaTag === 'string' && it.metaTag.includes(',')) tagsArr = it.metaTag.split(',').map(s=>s.trim()).filter(Boolean);
+
+        const scoreVal = Number(it.finalScore ?? it.totalScore ?? it.llmScore ?? it.contentScore ?? it.metaScore ?? it.score ?? it.similarity ?? 0);
         return {
           id: it.esId || it.esid || it.id || it.fileId || `rel_${idx}`,
           esId: it.esId || it.esid || it.id || it.fileId,
           name: it.fileName || it.name || it.title || it.filename || `文档${idx+1}`,
-          score: Number(it.score ?? it.similarity ?? it.rankScore ?? it.scorePercent ?? 0),
-          snippet: it.snippet || it.summary || it.fileSummary || it.highlight || ''
+          score: scoreVal,
+          snippet: it.snippet || it.summary || it.fileSummary || it.highlight || '',
+          creator,
+          tags: Array.isArray(tagsArr) ? tagsArr : [],
+          updateTime: it.updateTime || it.update_at || it.createTime || it.updateTime,
+          fileExt: it.fileExt || it.ext || it.fileExtName || '',
+          usedFallback: !!it.usedFallback,
+          raw: it
         };
       }).filter(Boolean);
       const total = Number(data.total ?? data.count ?? data.totalCount ?? list.length);

@@ -29,11 +29,13 @@
       <div class="action-buttons" v-if="!editable">
         <el-button @click="$emit('edit')">编辑数据</el-button>
         <el-button type="primary" @click="exportData">导出数据</el-button>
+        <el-button @click="toggleJsonView">{{ showJson ? '关闭JSON' : '查看JSON' }}</el-button>
       </div>
       
       <div class="action-buttons" v-else>
         <el-button @click="$emit('cancel')">取消</el-button>
         <el-button type="primary" @click="save">保存修改</el-button>
+        <el-button @click="toggleJsonView">{{ showJson ? '关闭JSON' : '查看JSON' }}</el-button>
       </div>
     </div>
 
@@ -41,12 +43,17 @@
       <h4>抽取数据</h4>
       
       <div v-if="formStructure">
-        <ExtractionResultForm 
-          :form-structure="formStructure"
-          :extracted-data="localData"
-          :editable="editable"
-          @update="updateData"
-        />
+        <div v-if="!showJson">
+          <ExtractionResultForm 
+            :form-structure="formStructure"
+            :extracted-data="localData"
+            :editable="editable"
+            @update="updateData"
+          />
+        </div>
+        <div v-else class="json-view">
+          <pre class="json-display">{{ prettyJson }}</pre>
+        </div>
       </div>
       
       <div v-else class="raw-data">
@@ -104,6 +111,22 @@ const extractionsStore = useExtractionsStore();
 
 const localData = ref({});
 const rawDataText = ref('');
+const showJson = ref(false);
+
+const prettyJson = computed(() => {
+  // Prefer extracted_data if present, otherwise reconstruct from fields/_fields
+  let src = props.extraction.extracted_data;
+  if ((!src || Object.keys(src).length === 0) && Array.isArray(props.extraction._fields) && props.extraction._fields.length > 0) {
+    const obj = {};
+    props.extraction._fields.forEach(f => { if (f && f.name) obj[f.name] = f.value; });
+    src = obj;
+  } else if ((!src || Object.keys(src).length === 0) && Array.isArray(props.extraction.fields) && props.extraction.fields.length > 0) {
+    const obj = {};
+    props.extraction.fields.forEach(f => { if (f && f.name) obj[f.name] = f.value; });
+    src = obj;
+  }
+  try { return JSON.stringify(src || {}, null, 2); } catch { return String(src || ''); }
+});
 
 const formStructure = computed(() => {
   const form = formsStore.formById(props.extraction.form_id);
@@ -119,11 +142,26 @@ watch(() => props.extraction.extracted_data, () => {
 }, { deep: true });
 
 function initializeData() {
-  localData.value = { ...props.extraction.extracted_data };
-  rawDataText.value = JSON.stringify(props.extraction.extracted_data, null, 2);
+  // Backend may provide fields array (item._fields or item.fields) or an extracted_data object
+  if (Array.isArray(props.extraction._fields) && props.extraction._fields.length > 0) {
+    // convert array of {name,value} -> flat map
+    const flat = {};
+    props.extraction._fields.forEach(f => { if (f && f.name) flat[f.name] = f.value; });
+    localData.value = { ...flat };
+    rawDataText.value = JSON.stringify(flat, null, 2);
+  } else if (Array.isArray(props.extraction.fields) && props.extraction.fields.length > 0) {
+    const flat = {};
+    props.extraction.fields.forEach(f => { if (f && f.name) flat[f.name] = f.value; });
+    localData.value = { ...flat };
+    rawDataText.value = JSON.stringify(flat, null, 2);
+  } else {
+    localData.value = { ...props.extraction.extracted_data };
+    rawDataText.value = JSON.stringify(props.extraction.extracted_data, null, 2);
+  }
 }
 
 function updateData(newData) {
+  // newData is a flat map of fieldName -> value
   localData.value = { ...newData };
   rawDataText.value = JSON.stringify(newData, null, 2);
   emit('update', newData);
@@ -138,7 +176,7 @@ function save() {
     // Try to parse raw JSON
     try {
       dataToSave = JSON.parse(rawDataText.value);
-    } catch (error) {
+  } catch {
       ElMessage.error('JSON格式错误，请检查数据格式');
       return;
     }
@@ -151,12 +189,16 @@ function viewDocument() {
   router.push(`/preview/doc/${props.extraction.document_id}`);
 }
 
+function toggleJsonView() {
+  showJson.value = !showJson.value;
+}
+
 async function exportData() {
   try {
     await extractionsStore.exportExtractions([props.extraction.id], 'json');
     ElMessage.success('导出成功');
-  } catch (error) {
-    ElMessage.error('导出失败: ' + error.message);
+  } catch {
+    ElMessage.error('导出失败');
   }
 }
 

@@ -108,6 +108,28 @@ class FormsService {
       throw e; 
     }
   }
+
+  /**
+   * 保存抽取结果历史
+   * 文档: /admin-api/rag/ai/text/extract/form/history/save
+   * 预期后端格式(推测): {
+   *   esId, formId, fields: [ { name, value, confidence?, notFound? } ]
+   * }
+   * 返回: { id, esId, formId, ... }
+   */
+  async saveExtractionHistory({ esId, formId, fields, raw, timeout=30000 }) {
+    if(!esId || !formId) throw new Error('缺少 esId 或 formId');
+    const body = { esId, formId, fields };
+    if(raw) body.raw = raw; // 允许透传原始结果 (便于后端调试)
+    try {
+      const res = await api.post('/admin-api/rag/ai/text/extract/form/history/save', body, { headers:{'Content-Type':'application/json'}, timeout });
+      const root = this._normalize(res);
+      return root.data || root.result || root;
+    } catch(e){
+      console.warn('[FormsService] saveExtractionHistory failed', e);
+      throw e;
+    }
+  }
 }
 
 export const formsService = new FormsService();

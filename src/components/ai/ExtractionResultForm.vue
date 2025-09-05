@@ -37,6 +37,7 @@ const emit = defineEmits(['update']);
 // formData 只存放字段值；附加信息（置信度、notFound、snippet）通过 enrichedField 传递
 const formData = reactive({});
 const fieldMetaMap = ref({});
+let lastSignature = '';
 
 // Initialize form data
 onMounted(() => {
@@ -47,35 +48,34 @@ watch(() => props.extractedData, () => {
   initializeFormData();
 }, { deep: true });
 
+function makeSignature(raw, structure){
+  try { return JSON.stringify({
+    names: (Array.isArray(raw)?raw:raw?.fields||raw?.data?.fields||[]).map(f=>f.name),
+    structure: structure?.fields?.map(f=>f.name)
+  }); } catch { return Date.now()+''; }
+}
+
 function initializeFormData() {
-  // 清空旧值
+  const rawWrapper = props.extractedData || {};
+  const fieldsArr = Array.isArray(rawWrapper.fields) ? rawWrapper.fields : Array.isArray(rawWrapper.data?.fields) ? rawWrapper.data.fields : [];
+  const sig = makeSignature(fieldsArr, props.formStructure);
+  // 如果字段集合未变化，不强制重置（避免切换编辑状态清空）
+  const firstInit = !lastSignature;
+  const sameShape = lastSignature && sig === lastSignature;
+  if(!firstInit && sameShape) return; // 保留现有用户编辑
+  lastSignature = sig;
+
   Object.keys(formData).forEach(k=> delete formData[k]);
   fieldMetaMap.value = {};
-
-  const raw = props.extractedData || {};
-  // 兼容后端返回整体：{ code, data:{ formId, formName, fields:[...] }} 或直接 fields 数组
-  const fieldsArr = Array.isArray(raw.fields) ? raw.fields : Array.isArray(raw.data?.fields) ? raw.data.fields : [];
-
-  // 构建 name->meta 映射
   fieldsArr.forEach(f=>{
     if(!f || !f.name) return;
-    fieldMetaMap.value[f.name] = {
-      confidence: f.confidence,
-      notFound: !!f.notFound,
-      offset: f.offset,
-      snippet: f.snippet
-    };
+    fieldMetaMap.value[f.name] = { confidence: f.confidence, notFound: !!f.notFound, offset: f.offset, snippet: f.snippet };
   });
-
-  // 只写入表单结构中定义的字段值
   if (props.formStructure && Array.isArray(props.formStructure.fields)) {
     props.formStructure.fields.forEach(field => {
       const meta = fieldMetaMap.value[field.name];
-      if(meta){
-        formData[field.name] = fieldsArr.find(f=>f.name===field.name)?.value ?? getDefaultValue(field);
-      } else {
-        formData[field.name] = getDefaultValue(field);
-      }
+      const found = fieldsArr.find(f=>f.name===field.name);
+      formData[field.name] = meta ? (found?.value ?? getDefaultValue(field)) : getDefaultValue(field);
     });
   }
 }

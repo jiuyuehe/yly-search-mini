@@ -34,6 +34,16 @@ const routes = [
       retureBtn: route.query.retureBtn === 'true' || route.query.retureBtn === true
     })
   },
+    // Preview by esId (document unique id)
+    {
+      path: '/preview/doc/:esid',
+      name: 'preview-esid',
+      component: () => import('../views/PreviewView.vue'),
+      props: route => ({
+        esid: route.params.esid,
+        retureBtn: route.query.retureBtn === 'true' || route.query.retureBtn === true
+      })
+    },
   // 兼容旧路径 /preview/:fc/:id -> 重定向到新结构（fsi 置空）
   {
     path: '/preview/:fc/:id',

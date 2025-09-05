@@ -1,5 +1,5 @@
 <template>
-  <div class="search-result-item" :class="{ 'grid-mode': displayMode === 'grid' }" @click="$emit('click')">
+  <div class="search-result-item" :class="{ 'grid-mode': displayMode === 'grid' }" @click="$emit('click', $event)">
     <!-- Grid layout for image search -->
     <template v-if="displayMode === 'grid'">
       <div class="grid-item-header">

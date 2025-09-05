@@ -3698,6 +3698,187 @@ object
 
 
 
+## 保存一次确认后的抽取结果到历史
+
+
+**接口地址**:`/admin-api/rag/ai/text/extract/form/history/save`
+
+
+**请求方式**:`POST`
+
+
+**请求数据类型**:`application/json`
+
+
+**响应数据类型**:`*/*`
+
+
+**接口描述**:
+
+
+**请求示例**:
+
+
+```javascript
+{
+  "formId": 0,
+  "formName": "",
+  "esId": "",
+  "fields": [
+    {
+      "name": "",
+      "value": {},
+      "confidence": 0,
+      "notFound": true,
+      "offset": 0,
+      "snippet": ""
+    }
+  ],
+  "userId": 0
+}
+```
+
+
+**请求参数**:
+
+
+**请求参数**:
+
+
+| 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
+| -------- | -------- | ----- | -------- | -------- | ------ |
+|formExtractionHistorySaveReq|FormExtractionHistorySaveReq|body|true|FormExtractionHistorySaveReq|FormExtractionHistorySaveReq|
+|&emsp;&emsp;formId|||false|integer(int64)||
+|&emsp;&emsp;formName|||false|string||
+|&emsp;&emsp;esId|||false|string||
+|&emsp;&emsp;fields|||false|array|FieldResult|
+|&emsp;&emsp;&emsp;&emsp;name|||false|string||
+|&emsp;&emsp;&emsp;&emsp;value|||false|object||
+|&emsp;&emsp;&emsp;&emsp;confidence|||false|number(double)||
+|&emsp;&emsp;&emsp;&emsp;notFound|||false|boolean||
+|&emsp;&emsp;&emsp;&emsp;offset|||false|integer(int32)||
+|&emsp;&emsp;&emsp;&emsp;snippet|||false|string||
+|&emsp;&emsp;userId|||false|integer(int64)||
+|X-User-Id||header|false|string||
+|tenant-id|租户编号|header|false|integer(int32)||
+|Authorization|认证 Token|header|false|string||
+
+
+**响应状态**:
+
+
+| 状态码 | 说明 | schema |
+| -------- | -------- | ----- | 
+|200|OK|CommonResultBoolean|
+
+
+**响应参数**:
+
+
+| 参数名称 | 参数说明 | 类型 | schema |
+| -------- | -------- | ----- |----- | 
+|code||integer(int32)|integer(int32)|
+|data||boolean||
+|msg||string||
+
+
+**响应示例**:
+```javascript
+{
+	"code": 0,
+	"data": true,
+	"msg": ""
+}
+```
+
+
+
+## 查询表单抽取历史(最近)
+
+
+**接口地址**:`/admin-api/rag/ai/text/extract/form/history/list`
+
+
+**请求方式**:`GET`
+
+
+**请求数据类型**:`application/x-www-form-urlencoded`
+
+
+**响应数据类型**:`*/*`
+
+
+**接口描述**:<p>可选 formId / esId 过滤，limit 默认 50</p>
+
+
+
+**请求参数**:
+
+
+**请求参数**:
+
+
+| 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
+| -------- | -------- | ----- | -------- | -------- | ------ |
+|X-User-Id||header|false|string||
+|formId||query|false|integer(int64)||
+|esId||query|false|string||
+|limit||query|false|integer(int32)||
+|tenant-id|租户编号|header|false|integer(int32)||
+|Authorization|认证 Token|header|false|string||
+
+
+**响应状态**:
+
+
+| 状态码 | 说明 | schema |
+| -------- | -------- | ----- | 
+|200|OK|CommonResultListFormExtractionHistoryQueryResp|
+
+
+**响应参数**:
+
+
+| 参数名称 | 参数说明 | 类型 | schema |
+| -------- | -------- | ----- |----- | 
+|code||integer(int32)|integer(int32)|
+|data||array|FormExtractionHistoryQueryResp|
+|&emsp;&emsp;id||integer(int64)||
+|&emsp;&emsp;formId||integer(int64)||
+|&emsp;&emsp;formName||string||
+|&emsp;&emsp;esId||string||
+|&emsp;&emsp;fieldFoundCount||integer(int32)||
+|&emsp;&emsp;fieldTotalCount||integer(int32)||
+|&emsp;&emsp;avgConfidence||number(double)||
+|&emsp;&emsp;createTime||string(date-time)||
+|&emsp;&emsp;fields||object||
+|msg||string||
+
+
+**响应示例**:
+```javascript
+{
+	"code": 0,
+	"data": [
+		{
+			"id": 0,
+			"formId": 0,
+			"formName": "",
+			"esId": "",
+			"fieldFoundCount": 0,
+			"fieldTotalCount": 0,
+			"avgConfidence": 0,
+			"createTime": "",
+			"fields": {}
+		}
+	],
+	"msg": ""
+}
+```
+
+
+
+
 
 
 ## RAG-关联文档推荐

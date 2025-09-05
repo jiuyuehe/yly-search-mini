@@ -65,15 +65,19 @@ export const useExtractionsStore = defineStore('extractions', {
   },
 
   actions: {
-    async loadExtractions(filters = {}) {
+  async loadExtractions(filters = {}) {
       this.loading.list = true;
       this.error = null;
       
       try {
-        const extractions = await extractionsService.getExtractions(filters);
-        this.extractions = extractions;
-        this.pagination.total = extractions.length;
-        return extractions;
+  const resp = await extractionsService.getExtractions({ ...filters, page: this.pagination.page, pageSize: this.pagination.pageSize });
+  const { list = [], total = 0, page, pageSize } = resp || {};
+  this.extractions = list;
+  // update pagination if backend returned values
+  if (page !== undefined) this.pagination.page = Number(page) || this.pagination.page;
+  if (pageSize !== undefined) this.pagination.pageSize = Number(pageSize) || this.pagination.pageSize;
+  this.pagination.total = Number(total || list.length || 0);
+  return list;
       } catch (error) {
         this.error = error.message;
         throw error;
@@ -98,53 +102,22 @@ export const useExtractionsStore = defineStore('extractions', {
       }
     },
 
-    async createExtraction(extractionData) {
-      this.loading.create = true;
-      this.error = null;
-      
-      try {
-        const newExtraction = await extractionsService.createExtraction(extractionData);
-        this.extractions.unshift(newExtraction);
-        this.pagination.total++;
-        return newExtraction;
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading.create = false;
-      }
+    async createExtraction() {
+      throw new Error('不支持手动创建抽取记录');
     },
 
-    async updateExtraction(id, extractionData) {
-      this.loading.update = true;
-      this.error = null;
-      
-      try {
-        const updatedExtraction = await extractionsService.updateExtraction(id, extractionData);
-        const index = this.extractions.findIndex(e => e.id === parseInt(id));
-        if (index !== -1) {
-          this.extractions[index] = updatedExtraction;
-        }
-        if (this.currentExtraction?.id === parseInt(id)) {
-          this.currentExtraction = updatedExtraction;
-        }
-        return updatedExtraction;
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading.update = false;
-      }
+    async updateExtraction() {
+      throw new Error('暂不支持编辑历史记录');
     },
 
-    async deleteExtraction(id) {
+  async deleteExtraction(id) {
       this.loading.delete = true;
       this.error = null;
       
       try {
         await extractionsService.deleteExtraction(id);
-        this.extractions = this.extractions.filter(e => e.id !== parseInt(id));
-        this.pagination.total--;
+    // 重新加载当前页
+    await this.loadExtractions();
         if (this.currentExtraction?.id === parseInt(id)) {
           this.currentExtraction = null;
         }
@@ -157,7 +130,7 @@ export const useExtractionsStore = defineStore('extractions', {
       }
     },
 
-    async deleteSelectedExtractions() {
+  async deleteSelectedExtractions() {
       if (this.selectedExtractions.length === 0) return;
       
       this.loading.delete = true;
@@ -165,11 +138,8 @@ export const useExtractionsStore = defineStore('extractions', {
       
       try {
         await extractionsService.deleteExtractions(this.selectedExtractions);
-        this.extractions = this.extractions.filter(e => 
-          !this.selectedExtractions.includes(e.id)
-        );
-        this.pagination.total -= this.selectedExtractions.length;
-        this.selectedExtractions = [];
+    this.selectedExtractions = [];
+    await this.loadExtractions();
         return true;
       } catch (error) {
         this.error = error.message;
@@ -179,16 +149,25 @@ export const useExtractionsStore = defineStore('extractions', {
       }
     },
 
-    async searchExtractions(keyword, filters = {}) {
+  async searchExtractions(keyword, filters = {}) {
       this.loading.search = true;
       this.error = null;
       this.searchKeyword = keyword;
       
       try {
-        const results = await extractionsService.searchExtractions(keyword, filters);
-        this.extractions = results;
-        this.pagination.total = results.length;
-        return results;
+    const res = await extractionsService.searchExtractions(keyword, { ...filters, page: this.pagination.page, pageSize: this.pagination.pageSize });
+    // searchExtractions previously returned array; newer backend may return { list, total, page, pageSize }
+    if (Array.isArray(res)) {
+      this.extractions = res;
+      this.pagination.total = res.length;
+      return res;
+    }
+    const { list = [], total = 0, page, pageSize } = res || {};
+    this.extractions = list;
+    if (page !== undefined) this.pagination.page = Number(page) || this.pagination.page;
+    if (pageSize !== undefined) this.pagination.pageSize = Number(pageSize) || this.pagination.pageSize;
+    this.pagination.total = Number(total || list.length || 0);
+    return list;
       } catch (error) {
         this.error = error.message;
         throw error;
