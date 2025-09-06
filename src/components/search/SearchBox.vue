@@ -124,6 +124,17 @@ function processImageFile(file) {
 }
 function handleDrop(e) { const file = e.dataTransfer.files && e.dataTransfer.files[0]; if (file) processImageFile(file); }
 function removeImage() { imageFile.value = null; imagePreview.value = ''; }
+
+// Listen for global requests to change the search type (e.g., returning from QA)
+if (typeof window !== 'undefined') {
+  const onSetSearchType = (e) => {
+    const t = e && e.detail;
+    if (t && ['fullText','image','qa'].includes(t)) {
+      searchType.value = t;
+    }
+  };
+  window.addEventListener('set-search-type', onSetSearchType);
+}
 </script>
 
 <style scoped>

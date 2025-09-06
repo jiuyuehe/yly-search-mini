@@ -2,73 +2,77 @@
   <div class="search-view">
     <AppHeader />
     <div class="search-container">
-  <ExportDialog v-model="showExportDialog" :ids="exportIds" />
-    <!-- Left sidebar with filters (default hidden) -->
-    <div class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
-      <filter-sidebar ref="filterSidebarRef" v-if="showFilters" />
-    </div>
+      <ExportDialog v-model="showExportDialog" :ids="exportIds" />
 
-    <!-- Right content area -->
-    <div class="search-content">
-      <div class="search-content-inner">
-       
-        <search-box @search="handleSearch" />
+      <!-- Left sidebar with filters (default hidden) -->
+      <div v-if="uiMode === 'search'" class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
+        <filter-sidebar ref="filterSidebarRef" v-if="showFilters" />
+      </div>
 
-        <div class="summary-row">
-          <FilterToggleSummary
-            :show="showFilters"
-            @toggle="handleToggleFilters"
-            @clear="handleClearFilters"
-            @remove="handleRemoveFilter"
+      <!-- Right content area -->
+      <div class="search-content">
+        <!-- Search mode -->
+        <div class="search-content-inner" v-if="uiMode === 'search'">
+          <search-box @search="handleSearch" @mode-change="onModeChange" />
+
+          <div class="summary-row">
+            <FilterToggleSummary
+              :show="showFilters"
+              @toggle="handleToggleFilters"
+              @clear="handleClearFilters"
+              @remove="handleRemoveFilter"
+            />
+            <div class="extra-actions">
+              <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
+                <el-button size="small" circle @click.stop="toggleCloud">
+                  <el-icon><component :is="showTagCloud ? List : Cloudy" /></el-icon>
+                </el-button>
+              </el-tooltip>
+            </div>
+          </div>
+
+          <search-result-tabs
+            v-if="!searchStore.isImageSearch"
+            :activeTab="activeTab"
+            :counts="tabCounts"
+            @tab-change="handleTabChange"
           />
-          <div class="extra-actions">
-            <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
-              <el-button size="small" circle @click.stop="toggleCloud">
-                <el-icon><component :is="showTagCloud ? List : Cloudy" /></el-icon>
-              </el-button>
-            </el-tooltip>
+
+          <TagCloud v-if="showTagCloud" @tag-click="handleTagClick" />
+
+          <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }">
+            <search-result-item
+              v-for="item in searchResults"
+              :key="item.id"
+              :item="item"
+              v-model:selected="selectedItems[item.id]"
+              :search-query="searchStore.query"
+              :display-mode="searchStore.isImageSearch ? 'grid' : 'list'"
+              @click="navigateToPreview(item, $event)"
+            />
+            <el-empty v-if="searchResults.length === 0" description="没有结果" />
+          </div>
+
+          <div class="search-footer" v-if="!showTagCloud">
+            <div class="selection-actions" v-if="hasSelectedItems">
+              <el-button type="primary" @click="downloadSelected">导出选中文件</el-button>
+              <el-button @click="exportSelected">导出结果集</el-button>
+            </div>
+            <search-pagination
+              v-model:currentPage="currentPage"
+              :total="total"
+              :pageSize="pageSize"
+              @size-change="handleSizeChange"
+              @current-change="handleCurrentChange"
+            />
           </div>
         </div>
-        
-        <!-- Search result tabs (hidden for image search) -->
-        <search-result-tabs 
-          v-if="!searchStore.isImageSearch"
-          :activeTab="activeTab" 
-          :counts="tabCounts" 
-          @tab-change="handleTabChange" 
-        />
-        
-  <!-- view-bar removed; actions moved into FilterToggleSummary slot -->
-        <TagCloud v-if="showTagCloud" @tag-click="handleTagClick" />
-        <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }">
-          <search-result-item
-            v-for="item in searchResults"
-            :key="item.id"
-            :item="item"
-            v-model:selected="selectedItems[item.id]"
-            :search-query="searchStore.query"
-            :display-mode="searchStore.isImageSearch ? 'grid' : 'list'"
-            @click="navigateToPreview(item, $event)"
-          />
-          <el-empty v-if="searchResults.length === 0" description="没有结果" />
-        </div>
-        
-        <!-- Pagination and action buttons -->
-  <div class="search-footer" v-if="!showTagCloud">
-          <div class="selection-actions" v-if="hasSelectedItems">
-            <el-button type="primary" @click="downloadSelected">导出选中文件</el-button>
-            <el-button @click="exportSelected">导出结果集</el-button>
-          </div>
-          <search-pagination 
-            v-model:currentPage="currentPage"
-            :total="total" 
-            :pageSize="pageSize"
-            @size-change="handleSizeChange"
-            @current-change="handleCurrentChange"
-          />
+
+        <!-- QA/chat mode -->
+        <div v-else class="chat-area" style="width:100%;height:100%;padding:0;">
+          <FileChatPanel ref="chatPanelRef" :expandSessions="true" show-return="true" @return-to-search="handleReturnToSearch" />
         </div>
       </div>
-    </div>
     </div>
   </div>
 </template>
@@ -86,6 +90,7 @@ import TagCloud from '../components/search/TagCloud.vue';
 import SearchResultItem from '../components/search/SearchResultItem.vue';
 import SearchPagination from '../components/search/SearchPagination.vue';
 import FilterToggleSummary from '../components/search/FilterToggleSummary.vue';
+import FileChatPanel from '../components/ai/FileChatPanel.vue';
 import { normalizeFile } from '../constants/fileModel';
 import { navigateToPreview as goPreview } from '../services/navigation';
 
@@ -97,6 +102,8 @@ const searchStore = useSearchStore();
 const showFilters = ref(false); // 默认隐藏
 const showTagCloud = ref(false); // 默认显示标签云（无搜索条件）
 const activeTab = ref('all');
+const uiMode = ref('search'); // 'search' | 'qa'
+const chatPanelRef = ref(null);
 // local pagination mirrors store.pagination so state survives route changes
 const currentPage = ref(searchStore.pagination.currentPage || 1);
 const pageSize = ref(searchStore.pagination.pageSize || 10);
@@ -114,6 +121,13 @@ const hasSelectedItems = computed(() => Object.values(selectedItems.value).some(
 // Methods
 function handleSearch(query, searchType, imageFile, options) {
   // options 现在可能包含 precisionMode
+  if (searchType === 'qa') {
+    // switch to QA mode and forward the question to chat panel
+    uiMode.value = 'qa';
+  // ensure chat panel mounted before sending question
+  waitForChatRef(2000).then(() => { try { chatPanelRef.value?.askQuestion?.(query); } catch { /* ignore */ } }).catch(()=>{});
+    return;
+  }
   searchStore.search(query, searchType, imageFile, options || null);
   currentPage.value = 1;
   // if(query && query.trim()) { showTagCloud.value=false; } else if(!searchStore.tagSearchActive) { showTagCloud.value=true; }
@@ -190,6 +204,26 @@ function handleTagClick(tag){
 }
 
 function toggleCloud(){ showTagCloud.value = !showTagCloud.value; }
+
+function onModeChange(mode){ uiMode.value = mode === 'qa' ? 'qa' : 'search'; }
+
+function handleReturnToSearch(){
+  uiMode.value = 'search';
+  try { window.dispatchEvent(new CustomEvent('set-search-type', { detail: 'fullText' })); } catch { /* ignore in non-browser env */ }
+}
+
+// wait up to timeoutMs for chatPanelRef to be available
+function waitForChatRef(timeoutMs = 2000) {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      if (chatPanelRef.value && typeof chatPanelRef.value.askQuestion === 'function') return resolve(true);
+      if (Date.now() - start > timeoutMs) return reject(new Error('timeout'));
+      setTimeout(tick, 80);
+    };
+    tick();
+  });
+}
 
 onMounted(async () => {
   // Sync local UI from store so when returning from preview we keep previous state

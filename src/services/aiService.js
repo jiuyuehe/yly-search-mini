@@ -691,6 +691,7 @@ class AIService {
   async createFileChatSession({ esId, title='', roleId, modelId, temperature, maxTokens, maxContexts, userPrompt, userId }={}) {
     try {
       const body={ title, esId, roleId, modelId, temperature, maxTokens, maxContexts, userPrompt };
+      console.log('createFileChatSession body', userPrompt);
       Object.keys(body).forEach(k=> body[k]===undefined && delete body[k]);
       const headers={ 'Content-Type':'application/json' };
       const uid = this._getUserId(userId);

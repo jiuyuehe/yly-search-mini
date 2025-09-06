@@ -184,7 +184,7 @@ function normalizeSummary(raw){
       try {
     let obj = looseParseJson(inner) || looseParseJson(t) || JSON.parse(inner);
         if (obj && typeof obj === 'object') {
-          console.log('[SummaryPanel] normalizeSummary parsed object:', obj);
+          // debug: normalized summary parsed object (removed noisy console.log)
           if (typeof obj.summary === 'string') return cleanupSummaryText(obj.summary);
           if (typeof obj.targetSummary === 'string') return cleanupSummaryText(obj.targetSummary);
           if (typeof obj.content === 'string') return cleanupSummaryText(obj.content);
@@ -193,7 +193,7 @@ function normalizeSummary(raw){
     }
   return cleanupSummaryText(inner);
   } else if (typeof raw === 'object') {
-    console.log('[SummaryPanel] normalizeSummary raw object:', raw);
+  // debug: normalizeSummary raw object (removed noisy console.log)
     if (typeof raw.summary === 'string') return cleanupSummaryText(raw.summary);
     if (typeof raw.targetSummary === 'string') return cleanupSummaryText(raw.targetSummary);
     if (typeof raw.content === 'string') return cleanupSummaryText(raw.content);
@@ -213,13 +213,13 @@ function extractPoints(objOrStr){
     }
     if (obj && typeof obj === 'object') {
       const arr = obj.key_points || obj.keyPoints || obj.keypoints || obj.points;
-      console.log('[SummaryPanel] extractPoints object:', obj, 'raw arr:', arr);
+  // debug: extractPoints object and raw arr (removed noisy console.log)
       if (Array.isArray(arr)) {
         const out=[];
         const pushLines = (text)=>{
           if (!text || typeof text !== 'string') return;
           const raw = text.replace(/\\n/g,'\n');
-          console.log('[SummaryPanel] pushLines raw text BEFORE split:', raw);
+          // debug: pushLines raw text BEFORE split (removed noisy console.log)
           // detect numbered lines or fallback to bullet split
           const lines = raw.split(/\n+/).map(l=>l.trim()).filter(l=>l);
             if (lines.filter(l=>/^\d+[.).、]/.test(l)).length >= 2) {
@@ -232,7 +232,7 @@ function extractPoints(objOrStr){
             }
         };
         arr.forEach(item=> pushLines(item));
-        console.log('[SummaryPanel] extracted points:', out);
+  // debug: extracted points (removed noisy console.log)
         return out.filter(Boolean);
       }
     }
@@ -273,7 +273,7 @@ async function generateSummary() {
   try {
   const res = await aiToolsStore.getSummary(String(props.fileId||''), targetLanguage.value, summaryLength.value, props.file||null);
   if (res && typeof res === 'object') {
-    console.log('[SummaryPanel] getSummary raw res:', res);
+  // debug: getSummary raw res (removed noisy console.log)
     targetSummary.value = normalizeSummary(res.targetSummary || res.targetObj || '');
     sourceSummary.value = normalizeSummary(res.sourceSummary || res.sourceObj || '');
     if(!sourceSummary.value && targetSummary.value && (res.sourceSummary===undefined && res.sourceObj===undefined)){
@@ -282,7 +282,7 @@ async function generateSummary() {
     }
     targetPoints.value = extractPoints(res.targetObj || res.targetSummary);
     sourcePoints.value = extractPoints(res.sourceObj || res.sourceSummary);
-    console.log('[SummaryPanel] after generation summaries:', { targetSummary: targetSummary.value, sourceSummary: sourceSummary.value, targetPoints: targetPoints.value, sourcePoints: sourcePoints.value });
+  // debug: after generation summaries (removed noisy console.log)
     originTarget.value = targetSummary.value;
     originSource.value = sourceSummary.value;
     sourceLang.value = res.sourceLang || '';
@@ -309,7 +309,7 @@ async function loadCachedIfAny() {
   try {
     const cached = await aiService.fetchCachedSummary(esId);
     if (cached && (cached.targetSummary || cached.sourceSummary)) {
-      console.log('[SummaryPanel] cached summary raw:', cached);
+  // debug: cached summary raw (removed noisy console.log)
       targetSummary.value = normalizeSummary(cached.targetSummary || cached.targetObj || '');
       sourceSummary.value = normalizeSummary(cached.sourceSummary || cached.sourceObj || '');
       if(!sourceSummary.value && targetSummary.value && (cached.sourceSummary===undefined && cached.sourceObj===undefined)){
@@ -317,7 +317,7 @@ async function loadCachedIfAny() {
       }
       targetPoints.value = extractPoints(cached.targetObj || cached.targetSummary);
       sourcePoints.value = extractPoints(cached.sourceObj || cached.sourceSummary);
-      console.log('[SummaryPanel] after cached load:', { targetSummary: targetSummary.value, sourceSummary: sourceSummary.value, targetPoints: targetPoints.value, sourcePoints: sourcePoints.value });
+  // debug: after cached load (removed noisy console.log)
       originTarget.value = targetSummary.value;
       originSource.value = sourceSummary.value;
       sourceLang.value = cached.sourceLang || '';

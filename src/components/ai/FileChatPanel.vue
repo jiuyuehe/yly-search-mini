@@ -31,6 +31,7 @@
             <el-icon v-if="showSessions"><ArrowLeft /></el-icon>
             <el-icon v-else><Menu /></el-icon>
           </el-button>
+      <el-button size="small" text v-if=" $attrs['show-return']" @click="$emit('return-to-search')">返回搜索</el-button>
           <span v-if="!editingTitle" class="title-text" @dblclick="beginEditTitle" :title="currentSessionTitle">{{ currentSessionTitle || '新建会话' }}<span v-if="messages.length"> ({{ messages.length }})</span></span>
           <el-input
             v-else
@@ -117,7 +118,7 @@
 
   <!-- 参数配置弹窗 -->
   <el-dialog v-model="showConfig" title="会话设置" width="520px">
-    <el-form label-width="130px" class="config-form" :model="configForm">
+    <el-form label-width="130px" class="config-form" :model="configDraft">
       <el-form-item label="系统模型">
         <el-select v-model="configForm.modelId" placeholder="选择模型" filterable :loading="modelsLoading">
           <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
@@ -156,9 +157,12 @@ import FileChatMessageList from './FileChatMessageList.vue';
 import { getUserInfo } from '../../services/api';
 import { resolveEsId } from '../../utils/esid';
 
-const props = defineProps({ file: { type:Object, required:false, default:null }, fileId: { type:String, required:false }, esId:{ type:String, default:'' }, userId:{ type:[String,Number], default:'' } });
+const props = defineProps({ file: { type:Object, required:false, default:null }, fileId: { type:String, required:false }, esId:{ type:String, default:'' }, userId:{ type:[String,Number], default:'' }, expandSessions: { type:Boolean, default:false } });
 const showSessions = ref(false);
-function toggleSessions(){ showSessions.value = !showSessions.value; if(showSessions.value){ reloadSessions(); } }
+function toggleSessions(){
+  showSessions.value = !showSessions.value;
+  if(showSessions.value){ reloadSessions(); }
+}
 
 const sessions = ref([]);
 const currentSessionId = ref(null); // 不自动创建，首次发送时创建
@@ -183,33 +187,72 @@ const configForm = reactive({
   topK: topK.value,
   maxContextChars: maxContextChars.value
 });
+
+// Working draft used by the modal. Only when user clicks 保存 (applyConfig)
+// do we persist changes from configDraft into configForm and backend.
+const configDraft = reactive({
+  userPrompt: configForm.userPrompt,
+  modelId: configForm.modelId,
+  temperature: configForm.temperature,
+  maxTokens: configForm.maxTokens,
+  maxContexts: configForm.maxContexts,
+  topK: configForm.topK,
+  maxContextChars: configForm.maxContextChars,
+  systemMessage: ''
+});
+// Trace currentSessionId and sessions mutations to find unexpected resets
+// (no debug watches)
 async function loadModels(){ modelsLoading.value=true; try { const { aiService } = await import('../../services/aiService'); models.value = await aiService.getChatModels({ userId: effectiveUserId.value }); } finally { modelsLoading.value=false; } }
-function fillConfigFromSession(){ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return; configForm.userPrompt = s.raw?.userPrompt || ''; configForm.modelId = s.raw?.modelId || s.raw?.model || ''; configForm.temperature = s.raw?.temperature ?? 1; configForm.maxTokens = s.raw?.maxTokens ?? 1024; configForm.maxContexts = s.raw?.maxContexts ?? 10; configForm.topK = topK.value; configForm.maxContextChars = maxContextChars.value; }
-async function openConfig(){ fillConfigFromSession(); await loadModels(); showConfig.value=true; }
+function fillConfigDraftFromSession(){
+  const s = sessions.value.find(s=>s.id===currentSessionId.value);
+  if(!s) return;
+  // copy session raw into draft; do not modify configForm yet
+  configDraft.userPrompt = s.raw?.userPrompt || '';
+  configDraft.modelId = s.raw?.modelId || s.raw?.model || '';
+  configDraft.temperature = s.raw?.temperature ?? 1;
+  configDraft.maxTokens = s.raw?.maxTokens ?? 1024;
+  configDraft.maxContexts = s.raw?.maxContexts ?? 10;
+  configDraft.topK = topK.value;
+  configDraft.maxContextChars = maxContextChars.value;
+  configDraft.systemMessage = s.raw?.systemMessage || '';
+}
+async function openConfig(){
+  fillConfigDraftFromSession();
+  await loadModels();
+  showConfig.value=true;
+}
 async function applyConfig(){
   savingConfig.value=true;
   try {
-    topK.value=configForm.topK;
-    maxContextChars.value=configForm.maxContextChars;
+    // only persist after user confirms in dialog
+    topK.value = configDraft.topK;
+    maxContextChars.value = configDraft.maxContextChars;
     const { aiService } = await import('../../services/aiService');
     if(currentSessionId.value){
-      // 分两步：更新模型参数 & 用户提示词（如有修改）
       const { success } = await aiService.updateFileChatSession({
         sessionId: currentSessionId.value,
-        modelId: configForm.modelId,
-        temperature: configForm.temperature,
-        maxTokens: configForm.maxTokens,
-        maxContexts: configForm.maxContexts,
+        modelId: configDraft.modelId,
+        temperature: configDraft.temperature,
+        maxTokens: configDraft.maxTokens,
+        maxContexts: configDraft.maxContexts,
         userId: effectiveUserId.value
       });
-      let userPromptUpdated=true;
-      if(configForm.userPrompt !== (sessions.value.find(s=>s.id===currentSessionId.value)?.raw?.userPrompt||'')){
-        const r = await aiService.updateFileChatUserPrompt({ sessionId: currentSessionId.value, userPrompt: configForm.userPrompt, userId: effectiveUserId.value });
+      let userPromptUpdated = true;
+      if(configDraft.userPrompt !== (sessions.value.find(s=>s.id===currentSessionId.value)?.raw?.userPrompt||'')){
+        const r = await aiService.updateFileChatUserPrompt({ sessionId: currentSessionId.value, userPrompt: configDraft.userPrompt, userId: effectiveUserId.value });
         userPromptUpdated = r.success;
       }
       if(success && userPromptUpdated){
+        // apply draft to persistent configForm and session raw
+        configForm.userPrompt = configDraft.userPrompt;
+        configForm.modelId = configDraft.modelId;
+        configForm.temperature = configDraft.temperature;
+        configForm.maxTokens = configDraft.maxTokens;
+        configForm.maxContexts = configDraft.maxContexts;
+        configForm.topK = configDraft.topK;
+        configForm.maxContextChars = configDraft.maxContextChars;
         const s = sessions.value.find(s=>s.id===currentSessionId.value);
-        if(s){ s.raw = { ...(s.raw||{}), userPrompt: configForm.userPrompt, modelId: configForm.modelId, temperature: configForm.temperature, maxTokens: configForm.maxTokens, maxContexts: configForm.maxContexts }; }
+        if(s){ s.raw = { ...(s.raw||{}), userPrompt: configDraft.userPrompt, modelId: configDraft.modelId, temperature: configDraft.temperature, maxTokens: configDraft.maxTokens, maxContexts: configDraft.maxContexts, systemMessage: configDraft.systemMessage }; }
         ElMessage.success('已保存');
       } else {
         ElMessage.error('保存失败');
@@ -233,6 +276,14 @@ const effectiveEsId = computed(()=> resolveEsId(props.file, props.esId || props.
 // encyclopedia/global mode: 不强制要求 esId
 const canSend = computed(()=> !streaming.value && inputText.value.trim().length>0 && currentSessionId.value);
 const currentSessionTitle = computed(()=>{ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return ''; if(s.title) return s.title; const firstUser = messages.value.find(m=>m.role==='user'); return firstUser ? firstUser.content.slice(0,20) : `会话 ${s.id}`; });
+
+// utility: derive a concise title from a text (used for new sessions)
+function makeTitle(txt=''){
+  const s = String(txt||'').replace(/\s+/g,' ').trim();
+  if(!s) return '';
+  const max = 80;
+  return s.length>max? (s.slice(0,max-3)+'...') : s;
+}
 const modelDisplayName = computed(()=>{ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return ''; return s.raw?.modelName || s.raw?.model || ''; });
 function sessionDisplayTitle(s){ return s.title || (s.raw?.title) || (s.id?`会话 ${s.id}`:'未命名'); }
 function loadRecentQuestions(){ const es = effectiveEsId.value || 'global'; const key = `fileChat:recentQuestions:${es}`; try { const arr = JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(arr)) recentQuestions.value=arr; } catch { /* ignore */ } }
@@ -252,12 +303,147 @@ onBeforeUnmount(()=>{ window.removeEventListener('encyclopedia-qa', handleEncycl
 watch(()=>props.esId, ()=>{ resetAll(); init(); });
 watch(()=>props.fileId, ()=>{ resetAll(); init(); });
 watch(()=>props.file, ()=>{ resetAll(); init(); });
+// allow parent to request sessions panel expansion
+watch(() => props.expandSessions, (v) => {
+  if (v) {
+    showSessions.value = true;
+    reloadSessions().catch(()=>{});
+  }
+});
+
+// expose ability for parent to trigger reload sessions
+function loadSessions() { return reloadSessions(); }
+defineExpose({ askQuestion, loadSessions });
+
+// expose programmatic ask function to parent via ref
+function askQuestion(q) {
+  if (!q || !String(q).trim()) return;
+  inputText.value = String(q).trim();
+  // ensure session exists then send
+  return (async () => {
+    // derive a short title from the question to use as session title on first create
+    const makeTitle = (txt='')=>{
+      const s = String(txt||'').replace(/\s+/g,' ').trim();
+      if(!s) return '';
+      const max = 80;
+      return s.length>max? (s.slice(0,max-3)+'...') : s;
+    };
+    const titleForCreate = makeTitle(q);
+    if (!currentSessionId.value) await createNewSession(inputText.value, titleForCreate);
+    // small tick to ensure session creation flows
+    await nextTick();
+    if (!currentSessionId.value) return false;
+    await sendMessage();
+    return true;
+  })();
+}
+
 function resetAll(){ sessions.value=[]; currentSessionId.value=null; messages.value=[]; }
-async function loadLatest(){ const esId = effectiveEsId.value; if(!esId) return; const stored = loadPersistedLastSession(); try { const { aiService } = await import('../../services/aiService'); const { success, session, messages:history } = await aiService.getLatestFileChatSession({ esId, returnHistory:true, userId: effectiveUserId.value }); if(success && session){ currentSessionId.value = session.id; sessions.value = [session]; messages.value = history; scrollSoon(); if(stored && stored!==session.id){ sessions.value.push({ id: stored, esId, title:'', raw:{} }); } } } catch{ console.warn('加载会话失败'); } }
+async function loadLatest(){
+  const esId = effectiveEsId.value;
+  if(!esId) return;
+  const stored = loadPersistedLastSession();
+  try {
+    const { aiService } = await import('../../services/aiService');
+    const { success, session, messages:history } = await aiService.getLatestFileChatSession({ esId, returnHistory:true, userId: effectiveUserId.value });
+  // loadLatest fetched
+    if(success && session){
+      // merge with any local session info to preserve raw/config fields
+      const local = sessions.value.find(s=>s.id===session.id) || {};
+      const merged = { ...session, raw: { ...(session.raw||{}), ...(local.raw||{}) }, title: session.title || local.title || '' };
+  // loadLatest merged
+      currentSessionId.value = merged.id;
+      sessions.value = [merged];
+      messages.value = history;
+      scrollSoon();
+      if(stored && stored!==merged.id){
+        const localStored = sessions.value.find(s=>s.id===stored) || { id: stored, esId, title:'', raw:{} };
+        sessions.value.push(localStored);
+      }
+    }
+  } catch(err){
+    console.warn('加载会话失败', err);
+  }
+}
+
 async function ensureSession(){ /* 延迟创建：不在初始化阶段自动创建 */ }
-async function createNewSession(userPromptForCreate=''){ if(creatingSession.value) return; const esId = effectiveEsId.value || undefined; creatingSession.value=true; try { const { aiService } = await import('../../services/aiService'); const { success, sessionId, raw } = await aiService.createFileChatSession({ esId, userPrompt: userPromptForCreate || configForm.userPrompt || '', userId: effectiveUserId.value }); if(success){ currentSessionId.value = sessionId; sessions.value.unshift({ id: sessionId, esId: esId || '', title:'', raw:{ ...(raw||{}), userPrompt: userPromptForCreate || configForm.userPrompt || '' } }); messages.value = []; showSessions.value = false; nextTick(()=> inputRef.value?.focus?.()); persistLastSession(); setTimeout(()=>{ if(esId) reloadSessions(); }, 300); } else { ElMessage.error('创建会话失败'); } } catch{ ElMessage.error('创建会话异常'); } finally { creatingSession.value=false; } }
-function quickNewSession(){ if(streaming.value) return; createNewSession(); }
-async function reloadSessions(){ const esId = effectiveEsId.value; if(!esId){ sessions.value=[]; return; } loadingSessions.value=true; try { const { aiService } = await import('../../services/aiService'); const { list } = await aiService.listFileChatSessions({ esId, pageNo:1, pageSize:50, userId: effectiveUserId.value }); if(list && list.length){ const cur = currentSessionId.value; let merged = [...list]; const remoteIds = new Set(list.map(s=>s.id)); const extras = sessions.value.filter(s=> !remoteIds.has(s.id)); if(cur && !remoteIds.has(cur)){ merged.unshift(extras.find(e=>e.id===cur) || { id: cur, esId, title:'', raw:{} }); } extras.filter(e=> e.id!==cur).forEach(e=> merged.push(e)); const uniq=[]; const seen=new Set(); for(const s of merged){ if(!s || !s.id) continue; if(seen.has(s.id)) continue; seen.add(s.id); uniq.push(s); } sessions.value = uniq; } } catch(e){ console.warn('reload sessions failed', e); } finally { loadingSessions.value=false; } }
+async function createNewSession(userPromptForCreate='', titleForCreate=''){
+  if(creatingSession.value) return;
+  const esId = effectiveEsId.value || undefined;
+  creatingSession.value=true;
+  try {
+    const { aiService } = await import('../../services/aiService');
+    // when no explicit title provided, use the current inputText (first user input) as default title
+    if(!titleForCreate){
+      titleForCreate = makeTitle(inputText.value || userPromptForCreate || '');
+    }
+    // pass title to backend when available
+    const payload = { esId, userPrompt: userPromptForCreate || configForm.userPrompt || '', userId: effectiveUserId.value };
+    if(titleForCreate) payload.title = titleForCreate;
+    const { success, sessionId, raw } = await aiService.createFileChatSession(payload);
+    if(success){
+      currentSessionId.value = sessionId;
+      sessions.value.unshift({ id: sessionId, esId: esId || '', title: titleForCreate || '', raw:{ ...(raw||{}), userPrompt: userPromptForCreate || configForm.userPrompt || '' } });
+      messages.value = [];
+      showSessions.value = false;
+      nextTick(()=> inputRef.value?.focus?.());
+      persistLastSession();
+      setTimeout(()=>{ if(esId) reloadSessions(); }, 300);
+    } else { ElMessage.error('创建会话失败'); }
+  } catch{ ElMessage.error('创建会话异常'); } finally { creatingSession.value=false; }
+}
+function quickNewSession(){ if(streaming.value) return; 
+  // derive a safe title only from the current inputText — do NOT reuse previous session's title
+  const makeTitle = (txt='')=>{
+    const s = String(txt||'').replace(/\s+/g,' ').trim();
+    if(!s) return '';
+    const max = 80;
+    return s.length>max? (s.slice(0,max-3)+'...') : s;
+  };
+  const derived = makeTitle(inputText.value || '');
+  createNewSession('', derived);
+}
+async function reloadSessions(){
+  const esId = effectiveEsId.value;
+  // if(!esId){ sessions.value=[]; return; }
+  loadingSessions.value=true;
+  try {
+    const { aiService } = await import('../../services/aiService');
+    const { list } = await aiService.listFileChatSessions({ esId, pageNo:1, pageSize:50, userId: effectiveUserId.value });
+    if(list && list.length){
+      const cur = currentSessionId.value;
+      // map local sessions for merging raw/title
+      const localMap = new Map(sessions.value.map(s=>[s.id, s]));
+      // merge remote list with local raw/title when available
+      let merged = list.map(s => ({
+        ...s,
+        raw: { ...(s.raw||{}), ...(localMap.get(s.id)?.raw||{}) },
+        title: s.title || localMap.get(s.id)?.title || ''
+      }));
+      const remoteIds = new Set(list.map(s=>s.id));
+      const extras = sessions.value.filter(s=> !remoteIds.has(s.id));
+      if(cur && !remoteIds.has(cur)){
+        merged.unshift(extras.find(e=>e.id===cur) || { id: cur, esId, title:'', raw:{} });
+      }
+      extras.filter(e=> e.id!==cur).forEach(e=> merged.push(e));
+      const uniq=[];
+      const seen=new Set();
+      for(const s of merged){
+        if(!s || !s.id) continue;
+        if(seen.has(s.id)) continue;
+        seen.add(s.id);
+        uniq.push(s);
+      }
+      sessions.value = uniq;
+  // reloadSessions merged count
+    }
+  } catch(e){
+    console.warn('reload sessions failed', e);
+  } finally {
+    loadingSessions.value=false;
+  }
+}
+
 async function switchSession(id){ if(id===currentSessionId.value) return; if(streaming.value){ const cont = await ElMessageBox.confirm('切换会话将终止当前回答，继续？','提示',{ type:'warning' }).catch(()=>false); if(!cont) return; stopStreaming(); } currentSessionId.value = id; messages.value = []; await loadLatestForSwitch(id); persistLastSession(); }
 async function loadLatestForSwitch(_id){ }
 function onEnterPress(e){ if(e.shiftKey){ return; } sendMessage(); }
@@ -328,10 +514,11 @@ function handleEncyclopediaQA(e){
   if(!raw) return;
   const txt = raw; // 已包含格式化
   const ask = async ()=>{
-    if(!currentSessionId.value){ await createNewSession(); }
-    if(!currentSessionId.value) { ElMessage.error('无法创建会话'); return; }
-    inputText.value = txt;
-    sendMessage();
+  // set inputText first so createNewSession can use it as the session title
+  inputText.value = txt;
+  if(!currentSessionId.value){ await createNewSession(); }
+  if(!currentSessionId.value) { ElMessage.error('无法创建会话'); return; }
+  sendMessage();
   };
   ask();
 }
