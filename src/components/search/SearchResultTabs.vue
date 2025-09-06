@@ -16,19 +16,53 @@ import { computed } from 'vue';
 
 const props = defineProps({
   activeTab: { type: String, default: 'all' },
-  counts: { type: Object, default: () => ({}) }
+  // backend may return an array of { key: '2', count: N } or an object map
+  counts: { type: [Object, Array], default: () => ({}) }
 });
 
 const emit = defineEmits(['tab-change']);
 
+// Desired display order and labels
 const tabs = [
   { key: 'all', label: '全部' },
   { key: 'document', label: '文档' },
   { key: 'image', label: '图片' },
-  { key: 'multimedia', label: '多媒体' },
+  { key: 'audio', label: '音频' },
+  { key: 'video', label: '视频' },
   { key: 'archive', label: '压缩包' },
   { key: 'other', label: '其他' }
 ];
+
+// map backend numeric keys to our tab keys
+const backendKeyMap = {
+  '2': 'document',
+  '1': 'image',
+  '3': 'audio',
+  '4': 'video',
+  '6': 'archive',
+  '0': 'other'
+};
+
+// normalize counts into a map: { document: N, image: M, ... }
+const normalizedCounts = computed(() => {
+  const map = { document: 0, image: 0, audio: 0, video: 0, archive: 0, other: 0 };
+  const src = props.counts || [];
+  if (Array.isArray(src)) {
+    src.forEach(item => {
+      const k = String(item.key);
+      const mapped = backendKeyMap[k] || 'other';
+      const c = Number(item.count) || 0;
+      map[mapped] = (map[mapped] || 0) + c;
+    });
+  } else if (src && typeof src === 'object') {
+    // assume keys already by tab key
+    Object.keys(src).forEach(k => {
+      const c = Number(src[k]) || 0;
+      if (Object.prototype.hasOwnProperty.call(map, k)) map[k] = c;
+    });
+  }
+  return map;
+});
 
 const activeTabModel = computed({
   get: () => props.activeTab,
@@ -36,7 +70,11 @@ const activeTabModel = computed({
 });
 
 function getTabLabel(tab) {
-  const count = props.counts[tab.key] || 0;
+  if (tab.key === 'all') {
+    const total = Object.values(normalizedCounts.value).reduce((s, v) => s + (Number(v) || 0), 0);
+    return `${tab.label} (${total})`;
+  }
+  const count = normalizedCounts.value[tab.key] || 0;
   return `${tab.label} (${count})`;
 }
 // 移除 onTabClick，之前与 v-model setter 重复触发 emit 导致双请求

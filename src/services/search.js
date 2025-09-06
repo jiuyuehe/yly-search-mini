@@ -233,7 +233,9 @@ class SearchService {
   async getAggregationStats(builtParams) {
     const url = '/admin-api/rag/documents/aggregations/stats';
     try {
+       const user = getUserInfo() || {};
       const formData = new URLSearchParams();
+      if(user.userId) formData.append('userId', user.userId);
       Object.entries(builtParams).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') formData.append(k, v); });
       const root = await api.post(url, formData, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
       if (root?.code !== 0) throw new Error(root?.msg || '聚合统计失败');
