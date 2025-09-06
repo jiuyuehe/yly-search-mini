@@ -18,7 +18,24 @@
             <span v-else>{{ m.content }}</span>
           </div>
           <div v-if="m.references && m.references.length" class="refs">
-            <div class="ref-item" v-for="(r,i) in m.references" :key="i" :title="r.text || r.title || ''">参考{{ i+1 }}</div>
+            <div
+              class="ref-item"
+              v-for="(r,i) in m.references"
+              :key="i"
+              :title="r.preview || r.text || r.title || ''"
+              :class="{ active: getSelectedRefIndex(m) === i }"
+              @click.stop="toggleRef(m, i)">
+              <span class="ref-label">参考{{ i+1 }}</span>
+            </div>
+          </div>
+          <div v-if="getSelectedRefIndex(m) !== undefined" class="ref-content">
+            <div class="ref-content-inner">
+              <div class="ref-title">引用 {{ getSelectedRefIndex(m) + 1 }} - {{ getSelectedRef(m)?.type === 'summary' ? '摘要' : (getSelectedRef(m)?.type === 'segment' ? '片段' : (getSelectedRef(m)?.type || '引用')) }}</div>
+              <pre class="ref-text">{{ getSelectedRef(m)?.preview || getSelectedRef(m)?.text || getSelectedRef(m)?.content || getSelectedRef(m)?.title || getSelectedRef(m)?.excerpt || '-' }}</pre>
+              <div v-if="(getSelectedRef(m)?.startOffset !== null && getSelectedRef(m)?.startOffset !== undefined) || (getSelectedRef(m)?.endOffset !== null && getSelectedRef(m)?.endOffset !== undefined)" class="ref-position">
+                位置: {{ getSelectedRef(m)?.startOffset ?? '-' }} ~ {{ getSelectedRef(m)?.endOffset ?? '-' }}
+              </div>
+            </div>
           </div>
           <div class="ops-row" :class="m.role">
             <el-tooltip content="复制" placement="top"><el-button link size="small" @click.stop="emitCopy(m)"><el-icon><DocumentCopy /></el-icon></el-button></el-tooltip>
@@ -50,6 +67,17 @@ const emits = defineEmits(['copy','retry','resend','edit','delete']);
 const container = ref(null);
 const showScrollBtn = ref(false);
 
+// track selected reference index per message id
+const selectedRefIndexMap = ref({});
+
+function getSelectedRefIndex(m){ return selectedRefIndexMap.value[m.id]; }
+function getSelectedRef(m){const idx = getSelectedRefIndex(m); if(idx===undefined || !m.references) return null; return m.references[idx] || null; }
+function toggleRef(m, idx){ if(!m || !m.id) return; const cur = selectedRefIndexMap.value[m.id]; if(cur === idx){ // toggle off
+  const copy = { ...selectedRefIndexMap.value }; delete copy[m.id]; selectedRefIndexMap.value = copy; }
+  else { selectedRefIndexMap.value = { ...selectedRefIndexMap.value, [m.id]: idx }; }
+  // scroll newly shown content into view
+  nextTick(()=>{ const el = container.value; if(!el) return; const msgEl = el.querySelector(`[data-msgid="${m.id}"]`); if(msgEl) msgEl.scrollIntoView({ block:'nearest' }); }); }
+
 function formatTime(ts){ try { const d=new Date(ts); const pad=n=> String(n).padStart(2,'0'); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; } catch { return ''; } }
 function emitCopy(m){ emits('copy', m); }
 function emitRetry(m){ emits('retry', m); }
@@ -66,7 +94,6 @@ watch(()=>props.streaming, (v)=>{ if(v) nextTick(scrollToBottom); });
 
 function exposeApi(){ return { scrollToBottom, scrollToTop }; }
 // expose
-// eslint-disable-next-line no-undef
 defineExpose(exposeApi());
 </script>
 <style scoped>
@@ -84,7 +111,14 @@ defineExpose(exposeApi());
 .bubble-text{display:inline-block;max-width:780px;white-space:pre-wrap;word-break:break-word;line-height:1.6;font-size:14px;padding:10px 14px;border-radius:12px;background:#f5f6f7;position:relative;align-self:flex-start;box-sizing:border-box;}
 .bubble-text.user{background:#409eff;color:#fff;align-self:flex-end;}
 .refs{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;}
-.refs .ref-item{background:#eef2f5;padding:2px 6px;border-radius:4px;font-size:12px;color:#606266;cursor:default;}
+.refs .ref-item{background:#eef2f5;padding:6px 8px;border-radius:6px;font-size:12px;color:#606266;cursor:pointer;display:flex;align-items:center;gap:8px}
+.refs .ref-item.active{background:#dfe9f8;color:#1f4ea8}
+.refs .ref-item .type-tag{background:rgba(0,0,0,0.04);padding:2px 6px;border-radius:4px;font-size:11px;color:#606266}
+.refs .ref-item .kind-text{color:#909399;font-size:12px}
+.ref-content{margin-top:8px;background:#fafbfc;border:1px solid #eef3fb;padding:10px;border-radius:6px}
+.ref-content-inner .ref-title{font-size:12px;color:#606266;margin-bottom:6px}
+.ref-text{white-space:pre-wrap;background:transparent;border:none;padding:0;margin:0;font-size:13px;color:#777}
+.ref-position{margin-top:8px;font-size:12px;color:#8b8f94}
 .ops-row{display:flex;gap:6px;margin-top:6px;font-size:12px;opacity:.85;}
 .ops-row.user{justify-content:flex-end;}
 .ops-row .el-button{padding:0 4px;}
