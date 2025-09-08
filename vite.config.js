@@ -29,17 +29,17 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       proxy: {
-        '/api': {
+        '/rag': {
           target: 'http://127.0.0.1:48080/',
           changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/api/, ''),
+          rewrite: (p) => p.replace(/^\/rag/, ''),
         },
         '/apps': {
-          target: 'http://192.168.11.11/',
+          target: 'http://192.168.0.188/',
           changeOrigin: true,
         },
         '/group1': {
-          target: 'http://192.168.11.11/',
+          target: 'http://192.168.0.188/',
           changeOrigin: true,
         },
       }

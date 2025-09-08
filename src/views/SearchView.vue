@@ -13,7 +13,7 @@
       <div class="search-content">
         <!-- Search mode -->
         <div class="search-content-inner" v-if="uiMode === 'search'">
-          <search-box @search="handleSearch" @mode-change="onModeChange" />
+          <search-box :initial-query="searchStore.query" @search="handleSearch" @mode-change="onModeChange" />
 
           <div class="summary-row">
             <FilterToggleSummary
@@ -79,6 +79,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { List, Cloudy } from '@element-plus/icons-vue';
 import { useSearchStore } from '../stores/search';
 import AppHeader from '../components/common/AppHeader.vue';
@@ -225,6 +226,36 @@ function waitForChatRef(timeoutMs = 2000) {
   });
 }
 
+const route = useRoute();
+
+// Apply URL query params (e.g. ?key=...&fc=...) to prefill filters and trigger a search
+function applyUrlParamsIfAny(){
+  try{
+    const params = route.query || {};
+    const rawKey = params.key || params.q || params.query || '';
+    const rawFc = params.fc || params.fileSpace || params.space || '';
+    const key = rawKey ? String(rawKey).trim() : '';
+    const fc = rawFc ? String(rawFc).trim() : '';
+    if(!key && !fc) return false;
+    // set query first so updateFilters will use it
+    if(key) searchStore.query = key;
+    // map fc into fileCategory filter (comma-separated allowed) so UI shows correct space filters
+    if(fc){
+      const arr = fc.split(',').map(s=>s.trim()).filter(Boolean);
+      if(arr.length) {
+        searchStore.updateFilters({ fileCategory: arr });
+      }
+    }
+    // if only key provided (no filters), run search explicitly
+    if(key && !fc){
+      searchStore.search(key, 'fullText');
+    }
+    // hide tag cloud when params drive the search
+    showTagCloud.value = false;
+    return true;
+  }catch(e){ console.warn('applyUrlParamsIfAny failed', e); return false; }
+}
+
 onMounted(async () => {
   // Sync local UI from store so when returning from preview we keep previous state
   currentPage.value = searchStore.pagination.currentPage || currentPage.value;
@@ -241,6 +272,9 @@ onMounted(async () => {
   if (!Array.isArray(searchStore.tagCloud) || searchStore.tagCloud.length === 0) {
     searchStore.fetchTagCloud(true).catch(()=>{});
   }
+
+  // after initial load and tag cloud fetch attempt to apply URL params
+  applyUrlParamsIfAny();
 });
 </script>
 

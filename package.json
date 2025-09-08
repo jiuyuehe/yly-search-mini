@@ -7,7 +7,7 @@
   "dev": "vite",
   "build": "vite build",
   "build:test": "vite build --mode production",
-  "deploy:test": "npm run build:test && echo Build finished. Now run your local deploy script to sync dist -> /opt/yliyun/work/nginx/plugins/fts/",
+  "deploy:test": "npm run build:test && node deploy.js --skip-build",
   "deploy": "node deploy.js",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",

@@ -71,7 +71,9 @@ import { ElMessage } from 'element-plus';
 
 const emit = defineEmits(['search']);
 
-const searchQuery = ref('');
+const props = defineProps({ initialQuery: { type: String, default: '' } });
+
+const searchQuery = ref(props.initialQuery || '');
 const searchType = ref('fullText');
 const textSearchMode = ref(1); // 1:全文 2:段落 3:精准
 
@@ -105,6 +107,12 @@ function handleSearch() {
   const payload = buildEmitPayload();
   emit('search', payload.query, payload.searchType, payload.imageFile, { precisionMode: payload.precisionMode });
 }
+
+// keep internal searchQuery in sync if parent provides initialQuery
+import { watch } from 'vue';
+watch(() => props.initialQuery, (v) => {
+  if (typeof v === 'string' && v !== searchQuery.value) searchQuery.value = v;
+});
 
 function handleModeChange() {
   // 选择即搜

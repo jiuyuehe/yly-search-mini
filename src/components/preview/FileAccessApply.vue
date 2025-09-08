@@ -94,7 +94,7 @@ async function fetchHistory() {
   try {
     const user = getUserInfo() || {};
     const body = { fileCategory: props.fileCategory, isFolder: props.isFolder, fileId: Number(props.fileId), sort: '-updateTime', creatorId: user.userId };
-    const resp = await appsApi.post('/apps/file-apply/history', body);
+    const resp = await appsApi.post('/file-apply/history', body);
     if (resp && resp.status === 'ok') {
       const rows = resp.data?.rows || [];
       historyRows.value = rows;

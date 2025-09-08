@@ -49,7 +49,7 @@
           </el-splitter-panel>
           <el-splitter-panel>
             <div class="ai-wrapper">
-              <AIToolsPanel :file-id="fileId" :file="fileData" @switch-translate="switchToTranslate" />
+              <AIToolsPanel :file-id="fileId" :file="fileData" :has-perm="hasPerm" @switch-translate="switchToTranslate" />
             </div>
           </el-splitter-panel>
         </el-splitter>
@@ -421,11 +421,16 @@ async function load() {
     console.warn('[PreviewView] 预览地址获取失败', err);
     const httpStatus = err?.httpStatus || err?.response?.status || err?.status;
     const bizCode = err?.code || err?.response?.data?.status;
-    if (httpStatus === 403 || bizCode === 'err_no_permission' || bizCode === 403 || (err?.response?.data?.status === 'err_no_permission')) {
+    console.warn('[PreviewView] notFound', bizCode);
+
+    if(bizCode === 'err_file_not_exist' || bizCode === 404 || httpStatus === 404) {
+       hasPerm.value = false;
+       notFound.value = true;
+    }else if (httpStatus === 403 || bizCode === 'err_no_permission' || bizCode === 403 || (err?.response?.data?.status === 'err_no_permission')) {
       hasPerm.value = false;
       applyStatus.value = 'none';
       fileData.value = { ...(fileData.value || {}), hasAccess: false };
-    } else {
+    }else {
       hasPerm.value = true; // 其他错误不影响权限显示
     }
   } finally {

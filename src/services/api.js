@@ -22,9 +22,9 @@ export function getUserInfo() {
   try { return JSON.parse(localStorage.getItem(USER_INFO_KEY)||'null'); } catch { return null; }
 }
 
-// 基础搜索后端实例（保持原 /api 前缀）
+// 基础搜索后端实例（保持原 /rag 前缀）
 export const searchApi = axios.create({
-  baseURL: '/api',
+  baseURL: '/rag',
   timeout: 120000,
   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
 });
@@ -92,7 +92,6 @@ export async function fetchUserInfo() {
   try {
   // apps 前缀接口使用 appsApi，避免重复 /apps/apps；直接请求 /user
   const res = await appsApi.get('/user');
-    console.log(res);
     if (res && res.status === 'ok') {
       setUserInfo(res.data || {});
       return res.data;

@@ -59,7 +59,7 @@
         </div>
         <div class="item-actions">
           <el-button size="small" type="primary" link>预览</el-button>
-          <el-button size="small" link>下载</el-button>
+          <!-- <el-button size="small" link>下载</el-button> -->
         </div>
       </div>
       

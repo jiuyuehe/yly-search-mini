@@ -39,8 +39,9 @@ import ClassificationPanel from '../ai/ClassificationPanel.vue'
 import RelatedPanel from '../ai/RelatedPanel.vue'
 import { ChatLineSquare, Box, ChatRound, List, Link, Document } from '@element-plus/icons-vue'
 import MetadataPanel from '../ai/MetadataPanel.vue'
+import { ElMessage } from 'element-plus'
 
-defineProps({ fileId: { type: [String, Number], required: true }, file: { type: Object, default: null } })
+const props = defineProps({ fileId: { type: [String, Number], required: true }, hasPerm: { type: Boolean, default: true }, file: { type: Object, default: null } })
 const emit = defineEmits(['switch-translate'])
 
 const tools = [
@@ -54,7 +55,7 @@ const tools = [
   { key: 'related', label: '关联推荐', icon: Link },
 ]
 
-const active = ref('summary')
+const active = ref('metadata')
 
 const currentComp = computed(() => {
   switch (active.value) {
@@ -71,6 +72,11 @@ const currentComp = computed(() => {
 })
 
 function handleSelect(key) {
+
+  if (!props.hasPerm) {
+    return ElMessage.error('无操作权限！');
+  }
+
   if (key === 'translation') {
     active.value = 'translation'
     emit('switch-translate')

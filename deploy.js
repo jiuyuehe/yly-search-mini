@@ -50,7 +50,7 @@ const config = {
   distDir: 'dist',
   zipFileName: `${appName}-${version}-${formattedDate}.zip`,
   server: {
-    host: process.env.DEPLOY_HOST || '192.168.11.11',
+    host: process.env.DEPLOY_HOST || '192.168.0.188',
     user: process.env.DEPLOY_USER || 'root',
     pass: process.env.DEPLOY_PASS || 'yliyun123',
     remotePath: process.env.DEPLOY_REMOTE || '/opt/yliyun/work/nginx/plugins/fts'
@@ -176,7 +176,7 @@ async function main() {
   await unzipRemote();
   await deleteRemoteZip();
   deleteLocalZip();
-  console.log('✅ Deploy completed successfully.');
+  console.log('✅ Deploy completed successfully.', config.server.host);
 }
 
 main().catch(err => {
