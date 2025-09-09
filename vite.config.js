@@ -30,16 +30,16 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       proxy: {
         '/rag': {
-          target: 'http://127.0.0.1:48080/',
+          target: 'http://192.168.1.26:48080/',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/rag/, ''),
         },
         '/apps': {
-          target: 'http://192.168.0.188/',
+          target: 'http://192.168.1.26/',
           changeOrigin: true,
         },
         '/group1': {
-          target: 'http://192.168.0.188/',
+          target: 'http://192.168.1.26/',
           changeOrigin: true,
         },
       }
