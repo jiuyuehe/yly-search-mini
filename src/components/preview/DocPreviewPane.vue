@@ -140,11 +140,11 @@ onMounted(() => {
 
 <style scoped>
 .doc-preview-pane { display:flex; flex-direction:column; height:100%; background:#fff; }
-.doc-body { flex:1; overflow:auto; padding:18px 24px 28px; background:#f5f7fa; }
+.doc-body { flex:1; overflow:auto; padding:0; background:#f5f7fa; }
 .state { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; }
 .media-wrapper { display:flex; align-items:center; justify-content:center; min-height:400px; height:100%; }
 .ep-image { max-width:100%; max-height:80vh; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.08); background:#fff; }
-.doc-frame { width:100%; height:92vh; border:0; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.08); border-radius:8px; }
+.doc-frame { width:100%; height:100%; border:0; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.08); border-radius:8px; }
 .text-wrapper pre { margin:0; font-family:Consolas,Menlo,monospace; font-size:13px; line-height:1.55; white-space:pre-wrap; word-break:break-word; background:#fff; padding:18px 20px; border:1px solid #ebeef5; border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
 .iframe-loading-tip { position:absolute; top:12px; left:12px; background:rgba(0,0,0,.55); color:#fff; padding:6px 12px; font-size:12px; border-radius:4px; z-index:10; }
 .iframe-error { position:absolute; top:16px; left:16px; display:flex; gap:8px; align-items:center; z-index:12; }

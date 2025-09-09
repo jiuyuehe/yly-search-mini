@@ -4,10 +4,22 @@
       <span class="panel-title">{{ title }}</span>
       <div class="header-actions">
         <span class="char-count">{{ textContent.length }}{{ maxLength ? `/${maxLength}` : '' }}</span>
+        <el-button
+          v-if="showDownload"
+          size="small"
+          type="text"
+          class="s-button"
+          @click="ocrText"
+          :loading="ocring"
+        >
+          <el-icon><Image /></el-icon>
+          OCR识别
+        </el-button>
         <el-button 
           v-if="showDownload" 
           size="small" 
           type="text" 
+          class="s-button"
           @click="downloadText"
         >
           <el-icon><Download /></el-icon>
@@ -158,7 +170,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Download, Search, CopyDocument, Collection, CollectionTag, Connection } from '@element-plus/icons-vue';
+import { Download, Iphone, Search, CopyDocument, Collection, CollectionTag, Connection } from '@element-plus/icons-vue';
 
 import { aiService } from '../../services/aiService';
 import { resolveEsId } from '../../utils/esid';
@@ -236,6 +248,8 @@ const tagValue = ref('');
 const tagWeight = ref(0.5);
 const tagSaving = ref(false);
 const existingTagValues = ref([]); // loaded from cached tags
+// OCR loading state
+const ocring = ref(false);
 
 // Terminology dialog
 const showTerminologyDialog = ref(false);
@@ -503,6 +517,29 @@ function saveTerminology() {
   }
 }
 
+async function ocrText(){
+  if (ocring.value) return;
+  const esId = resolveEsId(props.file, props.fileId);
+  if (!esId) { ElMessage.error('缺少文件标识，无法进行 OCR 识别'); return; }
+  ocring.value = true;
+  try {
+    const txt = await aiService.ocrRecognize(esId);
+    const finalText = (txt && typeof txt === 'string') ? txt : (txt?.text || txt?.result || txt?.content || '');
+    if (finalText) {
+      textContent.value = finalText;
+      emit('update:content', finalText);
+      ElMessage.success('OCR 识别完成');
+      window.dispatchEvent(new Event('activate-preview'));
+    } else {
+      ElMessage.error('OCR 未识别到文本');
+    }
+  } catch (e) {
+    ElMessage.error(e?.message || '解析 OCR 失败');
+  } finally {
+    ocring.value = false;
+  }
+}
+
 // Download text content
 function downloadText() {
   if (textContent.value) {
@@ -652,5 +689,9 @@ document.addEventListener('click', (e) => {
   border-radius: 3px;
   font-family: 'Courier New', monospace;
   font-size: 13px;
+}
+
+.s-button {
+  padding: 5px 0px;
 }
 </style>

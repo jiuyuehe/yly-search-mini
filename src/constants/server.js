@@ -1,5 +1,5 @@
 // 存储/应用服务器基础地址（可根据部署环境动态替换）
-export const APPS_BASE =  window.location.origin;
+export const APPS_BASE = "http://192.168.1.26";// window.location.origin;
 
 // 生成存储绝对 URL（传入可能以 / 开头的路径或完整 http(s) 地址）
 export function buildAppsUrl(path) {

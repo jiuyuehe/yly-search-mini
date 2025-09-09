@@ -618,7 +618,6 @@ function buildPreviewUrl(fd) {
   flex-direction: column;
   height: 100%;
   min-width: 200px;
-  padding: 8px;
 }
 
 .no-access-placeholder {

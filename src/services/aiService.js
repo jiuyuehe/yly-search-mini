@@ -18,6 +18,27 @@ function loadForms() {
 function saveForms(list) { try { localStorage.setItem(CLASSIFICATION_KEY, JSON.stringify(list)); } catch { /* ignore save */ } }
 
 class AIService {
+  /**
+   * OCR识别接口
+   * @param {string} esId
+   * @returns {Promise<string>} 识别到的文本内容
+   */
+  async ocrRecognize(esId) {
+    if (!esId) throw new Error('缺少 esId');
+    try {
+      const res = await api.post('/admin-api/rag/ocr/recognize', { esId }, { headers: { 'Content-Type': 'application/json' }, timeout: AI_REQUEST_TIMEOUT });
+      // 兼容后端返回格式
+      if (res && typeof res === 'object') {
+        // 可能 res.data.text 或 res.data.result 或 res.data.content
+        const data = res.data || res.result || {};
+        return data.text || data.result || data.content || '';
+      }
+      return '';
+    } catch (e) {
+      console.warn('[AIService] ocrRecognize failed', e);
+      throw e;
+    }
+  }
   _getUserId(userId){
     if(userId !== undefined && userId !== null && userId !== '') return userId;
     try {
@@ -886,6 +907,7 @@ class AIService {
   generateFieldValue(field, fileId, index = 0) { if (field.example !== undefined && field.example !== null) { if (field.type === 'number') { return typeof field.example === 'number' ? field.example + Math.floor(Math.random() * 1000) : parseFloat(field.example) || 0; } else if (field.type === 'text') { return typeof field.example === 'string' ? field.example + (index > 0 ? ` ${index + 1}` : '') : '示例文本'; } else if (field.type === 'date') { return field.example || '2024-01-15'; } else if (field.type === 'boolean') { return Math.random() > 0.5; } } const lowerName = field.name.toLowerCase(); if (field.type === 'number') { if (lowerName.includes('价格') || lowerName.includes('金额') || lowerName.includes('总价')) { return Math.floor(Math.random() * 100000) + 1000; } else if (lowerName.includes('数量')) { return Math.floor(Math.random() * 100) + 1; } else if (lowerName.includes('税率')) { return 0.13; } return Math.floor(Math.random() * 1000) + 1; } else if (field.type === 'date') { const dates = ['2024-01-15', '2024-01-20', '2024-01-25', '2024-02-01']; return dates[Math.floor(Math.random() * dates.length)]; } else if (field.type === 'boolean') { return Math.random() > 0.5; } else { if (lowerName.includes('公司') || lowerName.includes('company')) { const companies = ['示例科技有限公司', 'ABC软件公司', 'XYZ技术公司', '创新科技集团']; return companies[Math.floor(Math.random() * companies.length)]; } else if (lowerName.includes('姓名') || lowerName.includes('负责人') || lowerName.includes('name')) { const names = ['张三', '李四', '王五', '赵六', '钱七']; return names[Math.floor(Math.random() * names.length)]; } else if (lowerName.includes('电话') || lowerName.includes('联系') || lowerName.includes('phone')) { return '138' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0'); } else if (lowerName.includes('邮箱') || lowerName.includes('email')) { return 'example@company.com'; } else if (lowerName.includes('地址') || lowerName.includes('address')) { return '北京市朝阳区示例大街123号'; } else if (lowerName.includes('产品') || lowerName.includes('项目')) { const products = ['云服务器', '数据库服务', '技术支持', '软件开发', '系统集成']; return products[Math.floor(Math.random() * products.length)] + (index > 0 ? ` ${index + 1}` : ''); } else if (lowerName.includes('号码') || lowerName.includes('编号')) { return 'NO-2024-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0'); } return field.example || `示例${field.name}`; } }
   generateGenericMockData(formStructure) { return { message: '无法生成符合表单结构的数据', formName: formStructure?.formName || '未知表单' }; }
 }
+
 
 export const aiService = new AIService();
 export const getRelatedDocuments = (options) => aiService.getRelatedDocuments(options);
