@@ -34,7 +34,7 @@ class AIService {
     // 在开发服务器(端口3000)时需通过 /api 触发 vite 代理；生产环境保持原样
     try {
       const isDev = typeof window !== 'undefined' && (window.location.port === '3000' || window.location.hostname === 'localhost');
-      if (isDev && path.startsWith('/admin-api/')) return '/api' + path; // 触发代理 /api -> backend
+      if (isDev && path.startsWith('/admin-api/')) return '/rag' + path; // 触发代理 /api -> backend
       return path;
     } catch { return path; }
   }
