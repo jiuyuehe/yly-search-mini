@@ -22,7 +22,8 @@
         </transition>
 
         <div class="search-footer">
-          <div class="search-type-selector">
+         <div class="left-controls">
+           <div class="search-type-selector">
             <el-select v-model="searchType" size="small" class="search-type-select">
               <el-option label="全文搜索" value="fullText" />
               <el-option label="图片搜索" value="image" />
@@ -33,9 +34,9 @@
           <!-- 模式选择：全文(1)/段落(2)/精准(3) 仅文本相关显示 -->
           <div class="mode-select" v-if="!['image','qa'].includes(searchType)">
             <el-select v-model="textSearchMode" size="small" class="mode-select-inner" @change="handleModeChange">
-              <el-option label="全文模式" :value="1" />
-              <el-option label="段落模式" :value="2" />
-              <el-option label="精准模式" :value="3" />
+              <el-option label="快速匹配" :value="1" />
+              <el-option label="段落匹配" :value="2" />
+              <el-option label="精准搜索" :value="3" />
             </el-select>
           </div>
 
@@ -49,6 +50,7 @@
               <span>{{ imageFile ? '重新选择' : '上传图片' }}</span>
             </el-button>
           </div>
+         </div>
 
           <el-button type="primary" size="small" :disabled="!canSearch" @click="handleSearch" class="search-btn">
             <el-icon>
@@ -205,8 +207,13 @@ if (typeof window !== 'undefined') {
   flex-wrap: wrap;
 }
 
+.left-controls{
+  display: flex;
+}
+
 .search-type-selector {
   flex: 0 0 auto;
+  margin-right: 2px;
 }
 
 .search-type-select {
