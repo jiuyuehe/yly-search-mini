@@ -1,5 +1,5 @@
 <template>
-  <div class="search-result-item" :class="{ 'grid-mode': displayMode === 'grid' }" @click="$emit('click', $event)">
+  <div class="search-result-item" :class="{ 'grid-mode': displayMode === 'grid' }">
     <!-- Grid layout for image search -->
     <template v-if="displayMode === 'grid'">
       <div class="grid-item-header">
@@ -28,8 +28,8 @@
       </div>
       
       <!-- Grid file info -->
-      <div class="grid-file-info">
-        <div class="grid-file-name" :title="metaFile.name">{{ metaFile.name }}</div>
+        <div class="grid-file-info">
+  <div class="grid-file-name" :title="metaFile.name" @click.stop="$emit('click', item, $event)">{{ metaFile.name }}</div>
         <div class="grid-file-meta">
           <span class="grid-file-size">{{ prettySize(metaFile.size) }}</span>
           <span class="grid-file-creator">{{ metaFile.creator }}</span>
@@ -52,13 +52,13 @@
         </div>
         <!-- 文件信息 -->
         <div class="file-info">
-          <FileMetaInfo :file="metaFile" :highlight="searchQuery" @open-path="openPath" />
+          <FileMetaInfo :file="metaFile" :highlight="searchQuery" @open-path="openPath" @open-preview="(f,e) => $emit('click', item, e)" />
           <div v-if="hasScore" class="score-line">
             <el-tag size="small" type="warning" effect="light">Score: {{ displayScore }}</el-tag>
           </div>
         </div>
         <div class="item-actions">
-          <el-button size="small" type="primary" link>预览</el-button>
+          <el-button size="small" type="primary" link @click.stop="$emit('click', item, $event)">预览</el-button>
           <!-- <el-button size="small" link>下载</el-button> -->
         </div>
       </div>
@@ -107,7 +107,18 @@ const metaFile = computed(() => ({
 
 function openPath() { goCloudPath(props.item); }
 
-const rawPreview = computed(() => (props.item && typeof props.item.preview === 'string') ? props.item.preview : '');
+const rawPreview = computed(() => {
+  if (!props.item || typeof props.item.preview !== 'string') return '';
+  try {
+    // 后端返回高亮格式如: <em>关键词</em>
+    // 把 <em> 替换为统一的高亮样式 <span class="hl">关键词</span>
+    const src = props.item.preview;
+    const replaced = src.replace(/<em\b[^>]*>([\s\S]*?)<\/em>/gi, '<span class="hl">$1</span>');
+    return replaced;
+  } catch (e) {
+    return props.item.preview || '';
+  }
+});
 
 // 图片判定与缩略图
 const isImage = computed(() => props.item.type === 'image' || ['png','jpg','jpeg','gif','bmp','webp','tiff','svg'].includes((props.item.fileType||'').toLowerCase()));
@@ -144,7 +155,7 @@ function prettySize(size) {
 .item-preview { margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px; font-size: 14px; color: #606266; }
 .item-preview :deep(font) { background:#FBD9A7; padding:0 2px; border-radius:3px; font-weight:600; }
 .item-tags { margin-top: 10px; display: flex; gap: 6px; }
-.hl { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
+.item-preview :deep(.hl) { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
 .thumb-box { width:64px; height:64px; flex:0 0 64px; display:flex; align-items:center; justify-content:center; border:1px solid #e5e7eb; border-radius:6px; background:#fff; overflow:hidden; position:relative; }
 .thumb { width:100%; height:100%; object-fit:cover; transition:.25s; }
 .thumb:hover { transform:scale(1.06); }

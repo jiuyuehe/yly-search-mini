@@ -1,9 +1,9 @@
 <template>
   <div class="file-meta-info" v-if="file">
-    <div class="top-line">
-      <img :src="fileIcon" alt="icon" class="file-icon-img" />
-      <span class="file-name" :title="rawName" v-html="nameHtml"></span>
-    </div>
+      <div class="top-line">
+        <img :src="fileIcon" alt="icon" class="file-icon-img" />
+        <span class="file-name" :title="rawName" v-html="nameHtml" @click.stop="handleOpenPreview" role="button" aria-label="open-preview"></span>
+      </div>
     <div class="bottom-line">
       <span v-if="file.creator">作者: {{ file.creator }}</span>
       <span v-if="file.modifiedTime">时间: {{ formatDate(file.modifiedTime) }}</span>
@@ -32,6 +32,11 @@ const props = defineProps({
 });
 
 const rawName = computed(() => props.file?.name || props.file?.fileName || '');
+const emit = defineEmits(['open-path','open-preview']);
+
+function handleOpenPreview(e){
+  try { emit('open-preview', props.file, e); } catch { /* ignore */ }
+}
 
 function escapeHtml(str='') {
   const map = { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\u0027':'&#39;' };
@@ -89,6 +94,8 @@ function formatSize(size) { if (!size) return ''; const units=['B','KB','MB','GB
 .top-line { display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; }
 .file-icon-img { width:32px; height:32px; object-fit:contain; display:block; }
 .file-name { max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.file-name { cursor: pointer; }
+.file-name:hover { color: var(--primary-color); text-decoration: underline; }
 .bottom-line { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; color:#606266; line-height:1.3; }
 .bottom-line span { display:inline-flex; align-items:center; gap:4px; }
 .bottom-line .path a { color:#1671f2; text-decoration:none; max-width:320px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

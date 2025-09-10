@@ -95,7 +95,8 @@ const canSearch = computed(() => {
   if (['image'].includes(searchType.value)) {
     return !!imageFile.value || !!searchQuery.value.trim();
   }
-  return !!searchQuery.value.trim();
+  // allow clicking search even when input is empty for text search
+  return true;
 });
 
 function buildEmitPayload() {

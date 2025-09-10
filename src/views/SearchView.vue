@@ -41,14 +41,14 @@
           <TagCloud v-if="showTagCloud" @tag-click="handleTagClick" />
 
           <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }">
-            <search-result-item
+              <search-result-item
               v-for="item in searchResults"
               :key="item.id"
               :item="item"
               v-model:selected="selectedItems[item.id]"
               :search-query="searchStore.query"
               :display-mode="searchStore.isImageSearch ? 'grid' : 'list'"
-              @click="navigateToPreview(item, $event)"
+              @click="navigateToPreview"
             />
             <el-empty v-if="searchResults.length === 0" description="没有结果" />
           </div>

@@ -75,7 +75,7 @@ class AIService {
     };
   const uiLang = normalizeToUi(targetLanguage);
   const apiLang = uiLang === 'zh' ? 'cn' : uiLang; // 后端期望中文用 cn
-  const body = {  targetLang: apiLang, outputFormat: 'plain' };
+  const body = {  targetLang: apiLang, outputFormat: 'plain', size:length};
   if (esId) { body.esId = esId;}
     try {
       const res = await api.post('/admin-api/rag/ai/text/summary', body, { headers:{'Content-Type':'application/json'}, timeout: AI_REQUEST_TIMEOUT }).catch(e=>{ throw e; });

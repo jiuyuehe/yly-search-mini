@@ -86,7 +86,8 @@ export const useSearchStore = defineStore('search', {
         case 'precision': searchMode = 'precision'; break; // 仍保留后端精准模式，仅通过 checkbox 触发
         default: searchMode = 'keyword';
       }
-      const base = { keyword: query, offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, fileSysTag, searchType: searchMode, searchMode };
+  const base = { offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, fileSysTag, searchType: searchMode, searchMode };
+  if (query && String(query).trim()) base.keyword = String(query).trim();
       if (fileCategory) base.fileCategory = fileCategory;
       if (fileSizeStr) base.fileSize = fileSizeStr;
       const docTypeParam = tabToDocTypeParam(this.activeTab); if (docTypeParam) base.docType = docTypeParam;
