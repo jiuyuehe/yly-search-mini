@@ -3,12 +3,14 @@
     <AdvancedTranslationModule 
       ref="advModuleRef"
       :file-id="fileId"
+      :file="file"
       :es-id="esId"
       :active="active"
       :initial-source-text="initialSourceText"
       :initial-translation="initialTranslation"
       @text-extracted="onTextExtracted"
       @translated="onTranslated"
+      @update-file-contents="onUpdateFileContents"
     />
   </div>
 </template>
@@ -17,6 +19,7 @@
 import AdvancedTranslationModule from '../ai/AdvancedTranslationModule.vue';
 
 defineProps({
+  file: { type: Object, default: null },
   fileId: { type: String, required: true },
   esId: { type: String, default: '' },
   active: { type: Boolean, default: false },
@@ -35,6 +38,11 @@ function onTranslated(text){ translated.value = text; }
 
 function onTextExtracted(text) {
   emit('text-extracted', text);
+}
+
+function onUpdateFileContents(payload){
+  // forward to parent so PreviewView can update fileData
+  emit('update-file-contents', payload);
 }
 </script>
 

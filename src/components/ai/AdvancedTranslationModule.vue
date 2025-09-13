@@ -94,13 +94,21 @@
     <div class="translation-content">
       <div class="text-panel source-panel">
         <div class="panel-header">
-          <span class="panel-title">源文本</span>
-          <span class="char-count">{{ sourceText.length }}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="panel-title">源文本</span>
+            <el-button size="mini" type="text" v-if="!sourceEditable" @click="enterSourceEdit">编辑</el-button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="char-count">{{ sourceText.length }}</span>
+            <cloud-save v-if="!sourceEditable" :file="file" type="create" :defaultFileName="(file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : ''" ref="sourceCloudSaveRef" @confirm="onSourceCloudSaveConfirm" />
+            <el-button size="mini" type="primary" v-if="sourceEditable" @click="finishSourceEdit">完成</el-button>
+            <!-- <el-button size="mini" type="text" v-else @click="saveSource" title="保存">下载</el-button> -->
+          </div>
         </div>
         <div 
           ref="sourceTextRef"
           class="text-editor" 
-          contenteditable
+          :contenteditable="sourceEditable"
           @input="onSourceTextInput"
           @scroll="onSourceScroll"
           @mouseup="onTextSelection"
@@ -112,13 +120,28 @@
       </div>
       <div class="text-panel target-panel">
         <div class="panel-header">
-          <span class="panel-title">译文</span>
-          <span class="char-count">{{ translatedText.length }}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="panel-title">译文</span>
+            <el-button size="mini" type="text" v-if="!targetEditable" @click="enterEdit">
+              编辑
+            </el-button>
+         
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            
+            <span class="char-count">{{ translatedText.length }}</span>
+            <cloud-save v-if="!targetEditable" :file="file" type="create" ref="cloudSaveRef" @confirm="onCloudSaveConfirm" />
+             <el-button size="mini" type="primary" v-else @click="finishEdit">
+              保存
+            </el-button>
+          </div>
         </div>
         <div 
           ref="targetTextRef"
           class="text-editor target" 
           :class="{loading: translating}"
+          :contenteditable="targetEditable"
+          @input="onTargetInput"
           @mousemove="onEditorHover($event, 'target')"
           @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"
         >{{ translatedText }}</div>
@@ -396,8 +419,12 @@ import {
   Refresh
 } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
+import { aiService } from '../../services/aiService';
+import CloudSave from '../preview/CloudSave.vue';
+import { uploadStream } from '../../services/uploadStream';
 
 const props = defineProps({
+  file: { type: Object, default: null },
   fileId: { type: String, required: true },
   esId: { type: String, default: '' },
   active: { type: Boolean, default: false },
@@ -418,6 +445,122 @@ const aiStore = useAiToolsStore();
 const sourceTextRef = ref(null);
 const targetTextRef = ref(null);
 const contextMenuRef = ref(null);
+const cloudSaveRef = ref(null);
+const sourceCloudSaveRef = ref(null);
+
+// source editable state
+const sourceEditable = ref(false);
+function enterSourceEdit(){ sourceEditable.value = true; nextTick(()=>{ if (sourceTextRef.value) { sourceTextRef.value.focus(); placeCaretAtEnd(sourceTextRef.value); } }); }
+async function finishSourceEdit(){
+  sourceEditable.value = false; // preserve model
+  // push model back to DOM
+  nextTick(()=>{ updateSourceTextContent(); });
+  // emit extracted text so parent can update fileData.fileContents
+  try {
+    // notify parent/view to update file contents (source)
+    emit('text-extracted', sourceText.value);
+    // also emit a generic update event for file contents
+    emit('update-file-contents', { fileId: props.fileId, content: sourceText.value });
+    ElMessage.success('源文本已保存并同步');
+  } catch (e) { console.warn('finishSourceEdit emit failed', e); }
+}
+
+// save source text locally as file download
+function saveSource(){
+  try {
+    const data = sourceText.value || '';
+    const filename = (file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : `source_${new Date().toISOString().slice(0,10)}.txt`;
+    const blob = new Blob([data], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    ElMessage.success('已下载源文本');
+  } catch(e){ console.error('saveSource error', e); ElMessage.error('保存失败'); }
+}
+
+// handler for source cloud save confirm
+async function onSourceCloudSaveConfirm(targetNode){
+  if(!targetNode) { ElMessage.error('未选择目标目录'); return; }
+  try {
+    const data = sourceText.value || '';
+    const filename = (targetNode && targetNode.fileName) ? targetNode.fileName : ((file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : `source_${new Date().toISOString().slice(0,10)}.txt`);
+    const fileObj = new File([data], filename, { type: 'text/plain', lastModified: Date.now() });
+    const param = { fileCategory: targetNode.fileCategory || 'personal', fileSize: fileObj.size, fileName: fileObj.name, uoType: 2 };
+    ElMessage.info('开始上传源文本到云盘...');
+    const resp = await uploadStream({ file: fileObj, param });
+    if (resp && (resp.status && String(resp.status).startsWith('err_'))) {
+      ElMessage.error('上传失败: ' + (resp.msg || resp.message || resp.status));
+    } else {
+      ElMessage.success('已保存到云盘');
+    }
+  } catch(e){ console.error('uploadStream error', e); ElMessage.error('上传失败'); }
+}
+
+// target editable state
+const targetEditable = ref(false);
+
+function placeCaretAtEnd(el) {
+  if (!el) return;
+  el.focus();
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (e) { /* ignore */ }
+}
+
+function enterEdit(){ targetEditable.value = true; nextTick(()=>{ if (targetTextRef.value) { targetTextRef.value.focus(); placeCaretAtEnd(targetTextRef.value); } }); }
+async function finishEdit(){
+  targetEditable.value = false; // preserve model
+  // push model back to DOM
+  nextTick(()=>{ updateTargetTextContent(); });
+  // 保存译文到后端缓存并通知父组件更新 fileContents
+  try {
+    const esId = props.esId || props.fileId;
+    if (esId) {
+      // try save translation via aiService (existing endpoint)
+      const res = await aiService.saveTranslation(esId, translatedText.value, targetLanguage.value);
+      // aiService.saveTranslation returns { success:true } on success
+      if (res && res.success) {
+        ElMessage.success('译文已保存到后台');
+      } else {
+        // still continue to emit local update
+        ElMessage.info('未能保存到后台，仅本地同步');
+      }
+    }
+    // emit translated to update parent UI and fileData
+    emit('translated', translatedText.value);
+    emit('update-file-contents', { fileId: props.fileId, content: translatedText.value });
+  } catch (e) {
+    console.warn('finishEdit save failed', e);
+    ElMessage.error('保存译文失败');
+  }
+}
+
+function onTargetInput(e){ translatedText.value = e.target.innerText || ''; }
+
+// handler invoked when CloudSave confirm triggers save (we'll call upload here)
+async function onCloudSaveConfirm(targetNode){
+  // targetNode is selected folder data from CloudSave
+  if(!targetNode) { ElMessage.error('未选择目标目录'); return; }
+  try {
+    const data = translatedText.value || '';
+    const filename = (targetNode && targetNode.fileName) ? targetNode.fileName : `translation_${new Date().toISOString().slice(0,10)}.txt`;
+    const file = new File([data], filename, { type: 'text/plain', lastModified: Date.now() });
+    const param = { fileCategory: targetNode.fileCategory || 'personal', fileSize: file.size, fileName: file.name, uoType: 2 };
+    ElMessage.info('开始上传到云盘...');
+    const resp = await uploadStream({ file, param });
+    // check response for error pattern
+    if (resp && (resp.status && String(resp.status).startsWith('err_'))) {
+      ElMessage.error('上传失败: ' + (resp.msg || resp.message || resp.status));
+    } else {
+      ElMessage.success('已保存到云盘');
+    }
+  } catch(e){ console.error('uploadStream error', e); ElMessage.error('上传失败'); }
+}
 
 // Language settings
 const sourceLanguage = ref('auto'); // 默认自动检测
@@ -568,6 +711,8 @@ async function extractTextFromFile() {
 
 // Update source text content in DOM
 function updateSourceTextContent() {
+  // don't overwrite DOM while user is actively editing to preserve caret/selection
+  if (sourceEditable && sourceEditable.value) return;
   if (sourceTextRef.value) {
     sourceTextRef.value.innerHTML = sourceText.value;
   }
@@ -575,6 +720,8 @@ function updateSourceTextContent() {
 
 // Update translated text content in DOM
 function updateTargetTextContent() {
+  // don't overwrite DOM while user is editing target (preserve caret)
+  if (targetEditable && targetEditable.value) return;
   if (targetTextRef.value) {
     targetTextRef.value.innerHTML = translatedText.value;
   }

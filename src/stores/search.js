@@ -28,6 +28,8 @@ export const useSearchStore = defineStore('search', {
     pagination: { currentPage: 1, pageSize: 10, total: 0 },
     tabCounts: { all: 0, document: 0, image: 0, multimedia: 0, archive: 0, other: 0 },
     filterOptions: { fileSpaces: [], creators: [], tags: [], formats: [] },
+  // last search response time in milliseconds (from backend)
+  searchTime: 0,
     activeTab: 'all',
   // Tag cloud
   tagCloud: [],
@@ -137,6 +139,8 @@ export const useSearchStore = defineStore('search', {
         const { results, pagination, tabCounts } = searchResp;
         this.results = results;
         this.pagination.total = pagination.total;
+  // 如果后端返回 searchTime，则保存到 store，单位毫秒
+  if (searchResp.searchTime != null) this.searchTime = Number(searchResp.searchTime) || 0;
         const merged = { ...tabCounts, ...aggCounts };
         merged.all = tabCounts.all;
         this.tabCounts = merged;

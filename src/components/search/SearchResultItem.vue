@@ -63,7 +63,10 @@
         </div>
       </div>
       
-      <div v-if="item.preview" class="item-preview" v-html="rawPreview"></div>
+      <div v-if="item.preview" class="item-preview" :class="{ clamped: !expanded }" v-html="rawPreview"></div>
+      <div v-if="showToggle" class="preview-toggle">
+        <el-button type="text" size="small" @click.stop="expanded = !expanded">{{ expanded ? '收起' : '展开' }}</el-button>
+      </div>
       
       <div v-if="item.tags && item.tags.length" class="item-tags">
         <el-tag 
@@ -120,6 +123,16 @@ const rawPreview = computed(() => {
   }
 });
 
+// 控制展开/收起（默认收起）
+const expanded = ref(false);
+// 使用 rawPreview（已处理高亮的 HTML）来判断展示按钮：去除 HTML 标签后按字符数判断
+const plainPreviewText = computed(() => {
+  const html = rawPreview.value || '';
+  return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+});
+// 如果纯文本超过阈值则显示展开按钮（阈值可调整）
+const showToggle = computed(() => plainPreviewText.value.length > 180);
+
 // 图片判定与缩略图
 const isImage = computed(() => props.item.type === 'image' || ['png','jpg','jpeg','gif','bmp','webp','tiff','svg'].includes((props.item.fileType||'').toLowerCase()));
 const thumbSrc = computed(() => props.item.thumbUrl || props.item.fsFileThumb || props.item.thumb || '');
@@ -152,10 +165,20 @@ function prettySize(size) {
 .item-header { display:flex; align-items:center; gap:12px; }
 .file-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
 .item-actions { display: flex; gap: 8px; }
-.item-preview { margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px; font-size: 14px; color: #606266; }
+.item-preview { margin-top: 10px;  margin-left: 20px;   padding: 2px 10px; background-color: #f8f9fa; border-radius: 4px; font-size: 14px; color: #606266; }
 .item-preview :deep(font) { background:#FBD9A7; padding:0 2px; border-radius:3px; font-weight:600; }
 .item-tags { margin-top: 10px; display: flex; gap: 6px; }
 .item-preview :deep(.hl) { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
+
+/* clamp to two lines when not expanded */
+.item-preview.clamped{
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.preview-toggle{ margin-top:6px; display:flex; justify-content:flex-end; }
 .thumb-box { width:64px; height:64px; flex:0 0 64px; display:flex; align-items:center; justify-content:center; border:1px solid #e5e7eb; border-radius:6px; background:#fff; overflow:hidden; position:relative; }
 .thumb { width:100%; height:100%; object-fit:cover; transition:.25s; }
 .thumb:hover { transform:scale(1.06); }

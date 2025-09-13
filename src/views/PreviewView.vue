@@ -22,13 +22,15 @@
       <!-- Translation workspace full screen -->
     <div v-show="contentMode === 'translate'" class="translate-full">
         <translation-workspace
-          class="tw-root"
-          :file-id="fileId"
-          :es-id="fileData?.esId || fileData?.esid || ''"
-          :active="contentMode === 'translate'"
-          :initial-source-text="fileData?.fileContents || fileData?.extractedText || ''"
-          :initial-translation="fileData?.fileTranslate || ''"
-        />
+            class="tw-root"
+            :file-id="fileId"
+            :file="fileData"
+            :es-id="fileData?.esId || fileData?.esid || ''"
+            :active="contentMode === 'translate'"
+            :initial-source-text="fileData?.fileContents || fileData?.extractedText || ''"
+            :initial-translation="fileData?.fileTranslate || ''"
+            @update-file-contents="handleUpdateFileContents"
+          />
       </div>
       <!-- Unified splitter with collapsible panels to preserve component instances -->
       <div v-show="contentMode !== 'translate'" class="split-wrapper">
@@ -102,12 +104,14 @@ const contentMode = ref('default'); // default / translate
 const showPreview = ref(true);
 const showText = ref(false);
 // size state (numeric percentages, converted to % strings in template)
-const PREVIEW_MAX = 50; // 预览最大 50%
+const PREVIEW_MAX = 50; // 预览最大 50%（相对于容器宽度）
 const TOOLS_MIN = 15;   // 工具栏最小 15%
-const previewSizeNum = ref(50); // 初始保持不超过最大值，避免首次布局异常
-const textSizeNum = ref(0); // 默认隐藏时占宽 0
-let prevPreviewSize = 60;
-let prevTextSize = 25; // 记住上次展开宽度
+const previewSizeNum = ref(40); // 初始默认两侧与工具共享空间（会在 adjustSizes 中被调节）
+const textSizeNum = ref(40); // 默认两侧相等
+let prevPreviewSize = 40;
+let prevTextSize = 40; // 记住上次展开宽度
+// minimum pixel width for ai wrapper (controls when to collapse)
+const AI_WRAPPER_MIN_PX = 460; // 保证 ai-wrapper 至少 460px
 let destroyed = false; // 组件销毁标记
 const previewSize = computed(() => previewSizeNum.value + '%');
 const textPanelSize = computed(() => textSizeNum.value + '%');
@@ -139,53 +143,57 @@ function toggleText() {
 function adjustSizes() {
   const hasPreview = showPreview.value;
   const hasText = showText.value;
+  // measure container width (fallback to window.innerWidth)
+  let containerWidth = document?.querySelector('.body-area')?.clientWidth || window.innerWidth || 1200;
+  // compute percentage space reserved for ai-wrapper in px
+  const toolsMinPx = Math.round((TOOLS_MIN / 100) * containerWidth);
+  const aiMinPx = AI_WRAPPER_MIN_PX;
 
+  // If neither preview nor text visible, tools take 100%
   if (!hasPreview && !hasText) {
     previewSizeNum.value = 0;
     textSizeNum.value = 0;
-    return; // tools 占满 100%
+    return;
   }
 
+  // When both preview and text visible, make them equal by default
   if (hasPreview && hasText) {
-    // 三栏: 预览与文本等宽, 预览不超 PREVIEW_MAX, 工具 >= TOOLS_MIN
-    const eachLimit = Math.min(PREVIEW_MAX, (100 - TOOLS_MIN) / 2);
-    previewSizeNum.value = eachLimit;
-    textSizeNum.value = eachLimit;
-    // 工具宽度 = 100 - 2*eachLimit, 已满足 >= TOOLS_MIN
+    // available width for two panels = containerWidth - aiMinPx (reserve)
+    const availablePx = Math.max(0, containerWidth - aiMinPx);
+    // If availablePx is small, fall back to distributing minimal percentages
+    if (availablePx <= 0) {
+      previewSizeNum.value = 10;
+      textSizeNum.value = 10;
+    } else {
+      const eachPx = Math.floor(availablePx / 2);
+      const eachPct = Math.max(0, Math.min(PREVIEW_MAX, Math.round((eachPx / containerWidth) * 100)));
+      const finalPct = Math.max(12, eachPct);
+      previewSizeNum.value = finalPct;
+      textSizeNum.value = finalPct;
+    }
   } else if (hasPreview && !hasText) {
-    // 仅预览 + 工具
-    const maxPreview = Math.min(PREVIEW_MAX, 100 - TOOLS_MIN);
-    // 若之前尺寸存在且 >0 则沿用，限制最大值
-    let target = prevPreviewSize || maxPreview;
-    target = Math.min(target, maxPreview);
-    if (target < 20) target = Math.min(60, maxPreview); // 给一个合理初始
-    previewSizeNum.value = target;
-    // 工具得到剩余，不小于 TOOLS_MIN
+    // preview + ai-wrapper (text hidden)
+    const availablePx = Math.max(0, containerWidth - aiMinPx);
+    const pct = availablePx <= 0 ? 20 : Math.max(20, Math.min(PREVIEW_MAX, Math.round((availablePx / containerWidth) * 100)));
+    previewSizeNum.value = pct;
+    textSizeNum.value = 0;
   } else if (!hasPreview && hasText) {
-    // 仅文本 + 工具
-    let target = prevTextSize || (100 - TOOLS_MIN);
-    if (target > 100 - TOOLS_MIN) target = 100 - TOOLS_MIN;
-    if (target < 30) target = 40; // 合理初始
-    textSizeNum.value = target;
+    const availablePx = Math.max(0, containerWidth - aiMinPx);
+    const pct = availablePx <= 0 ? 20 : Math.max(20, Math.min(PREVIEW_MAX, Math.round((availablePx / containerWidth) * 100)));
+    textSizeNum.value = pct;
+    previewSizeNum.value = 0;
   }
 
-  // Clamp 预览
-  if (previewSizeNum.value > PREVIEW_MAX) previewSizeNum.value = PREVIEW_MAX;
-
-  // 防止两者之和 >= 100
-  const sum = previewSizeNum.value + textSizeNum.value;
-  if (sum >= 100 - TOOLS_MIN) {
-    // 分配空间, 确保 tools >= TOOLS_MIN
-    const available = 100 - TOOLS_MIN;
-    if (hasPreview && hasText) {
-      const each = Math.min(PREVIEW_MAX, available / 2);
-      previewSizeNum.value = each;
-      textSizeNum.value = each;
-    } else if (hasPreview) {
-      previewSizeNum.value = Math.min(previewSizeNum.value, available);
-    } else if (hasText) {
-      textSizeNum.value = Math.min(textSizeNum.value, available);
-    }
+  // final safety: ensure left + right + tool >= 100 - allow small rounding error
+  const sum = previewSizeNum.value + textSizeNum.value + (100 - (previewSizeNum.value + textSizeNum.value));
+  if (previewSizeNum.value + textSizeNum.value > Math.max(0, 100 - TOOLS_MIN)) {
+    // scale them down proportionally
+    const maxAllowed = Math.max(0, 100 - TOOLS_MIN);
+    const total = previewSizeNum.value + textSizeNum.value || 1;
+    const scaledPreview = Math.floor((previewSizeNum.value / total) * maxAllowed);
+    const scaledText = Math.floor((textSizeNum.value / total) * maxAllowed);
+    previewSizeNum.value = Math.max(0, scaledPreview);
+    textSizeNum.value = Math.max(0, scaledText);
   }
 }
 watch(() => contentMode.value, v => { if (v !== 'translate') { /* revert to default mode */ } });
@@ -204,6 +212,17 @@ function downloadFile(ctx) {
       ctx?.fail && ctx.fail(e);
     }
   })();
+}
+// handle updates from translation workspace or module
+function handleUpdateFileContents(payload){
+  try {
+    if (!payload || !payload.fileId) return;
+    // if fileData corresponds to the fileId, update its contents
+    if (String(fileData.value?.fileId || fileData.value?.id || '') === String(payload.fileId) || String(props.fi || route.params.fi || '') === String(payload.fileId)) {
+      const updated = payload.content || '';
+      fileData.value = { ...(fileData.value || {}), extractedText: updated, fileContents: updated };
+    }
+  } catch (e) { console.warn('handleUpdateFileContents failed', e); }
 }
 function onDownloadFinish(){ /* 可加入提示 */ }
 function onDownloadError(_e){ /* 可加消息提示 */ }
@@ -438,8 +457,23 @@ async function load() {
   }
 }
 
-onMounted(() => { destroyed = false; load(); adjustSizes(); });
-onUnmounted(() => { destroyed = true; });
+onMounted(() => {
+  destroyed = false;
+  // ensure preview is shown after initial load completes
+  (async () => {
+    try {
+      await load();
+    } finally {
+      // explicitly open preview panel by default and adjust sizes
+      showPreview.value = true;
+      // if preview size is zero (was collapsed), restore previous size
+      if (!previewSizeNum.value || previewSizeNum.value === 0) previewSizeNum.value = prevPreviewSize || 40;
+      nextTick(() => adjustSizes());
+    }
+  })();
+  window.addEventListener('resize', adjustSizes);
+});
+onUnmounted(() => { destroyed = true; window.removeEventListener('resize', adjustSizes); });
 watch(() => [route.params.fc, route.params.fi, route.params.nsi, route.params.subp].join(':'), () => load());
 
 function buildPreviewUrl(fd) {
@@ -607,7 +641,7 @@ function buildPreviewUrl(fd) {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 460px;
+  min-width: 460px; /* match AI_WRAPPER_MIN_PX */
   /* allow panel to expand taking remaining space */
   flex: 1 1 auto;
   max-width: 100%;

@@ -23,31 +23,48 @@
               @remove="handleRemoveFilter"
             />
             <div class="extra-actions">
-              <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
-                <el-button size="small" circle @click.stop="toggleCloud">
-                  <el-icon><component :is="showTagCloud ? List : Cloudy" /></el-icon>
-                </el-button>
-              </el-tooltip>
+                      <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
+                        <el-button size="small" circle @click.stop="toggleCloud">
+                          <el-icon><component :is="showTagCloud ? List : Cloudy" /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                      <!-- Image mode controls: grid/list toggle and column count -->
+                      <template v-if="searchStore.isImageSearch">
+                        <el-tooltip content="切换展示: 网格/列表" placement="bottom">
+                          <el-button size="small" circle @click.stop="toggleImageDisplay">
+                            <el-icon><component :is="imageDisplayMode === 'grid' ? List : Iphone" /></el-icon>
+                          </el-button>
+                        </el-tooltip>
+                        <el-popover placement="bottom" width="80" trigger="click">
+                          <div style="padding:8px 12px; display:flex;align-items:center;">
+                            <el-slider v-model="imageGridCols" :min="2" :max="6" :step="1" vertical size="small" height="120px" />
+                          </div>
+                          <template #reference>
+                            <el-button size="small" type="text" icon>
+                              列数: {{ imageGridCols }}
+                            </el-button>
+                          </template>
+                        </el-popover>
+                      </template>
             </div>
           </div>
 
-          <search-result-tabs
-            v-if="!searchStore.isImageSearch"
-            :activeTab="activeTab"
-            :counts="tabCounts"
-            @tab-change="handleTabChange"
-          />
+           <search-result-tabs v-if="!searchStore.isImageSearch"
+              :activeTab="activeTab"
+              :counts="tabCounts"
+              @tab-change="handleTabChange"
+            />
 
           <TagCloud v-if="showTagCloud" @tag-click="handleTagClick" />
 
-          <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }">
+      <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }" :style="gridStyle">
               <search-result-item
               v-for="item in searchResults"
               :key="item.id"
               :item="item"
-              v-model:selected="selectedItems[item.id]"
-              :search-query="searchStore.query"
-              :display-mode="searchStore.isImageSearch ? 'grid' : 'list'"
+        v-model:selected="selectedItems[item.id]"
+        :search-query="searchStore.query"
+        :display-mode="searchStore.isImageSearch ? imageDisplayMode : 'list'"
               @click="navigateToPreview"
             />
             <el-empty v-if="searchResults.length === 0" description="没有结果" />
@@ -55,16 +72,21 @@
 
           <div class="search-footer" v-if="!showTagCloud">
             <div class="selection-actions" v-if="hasSelectedItems">
-              <el-button type="primary" @click="downloadSelected">导出选中文件</el-button>
+              <el-button type="primary" @click="downloadSelected">导出文件</el-button>
               <el-button @click="exportSelected">导出结果集</el-button>
             </div>
-            <search-pagination
-              v-model:currentPage="currentPage"
-              :total="total"
-              :pageSize="pageSize"
-              @size-change="handleSizeChange"
-              @current-change="handleCurrentChange"
-            />
+            <div class="footer-main">
+              <search-pagination
+                v-model:currentPage="currentPage"
+                :total="total"
+                :pageSize="pageSize"
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+              />
+              <div class="footer-right" v-if="searchStore.searchTime">
+                响应时间: {{ (searchStore.searchTime/1000).toFixed(2) }}s
+              </div>
+            </div>
           </div>
         </div>
 
@@ -80,7 +102,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { List, Cloudy } from '@element-plus/icons-vue';
+import { List, Cloudy, Iphone } from '@element-plus/icons-vue';
 import { useSearchStore } from '../stores/search';
 import AppHeader from '../components/common/AppHeader.vue';
 import FilterSidebar from '../components/search/FilterSidebar.vue';
@@ -113,8 +135,36 @@ const selectedItems = ref({});
 // 新增：侧栏 ref
 const filterSidebarRef = ref(null);
 
+// Image display controls
+const imageDisplayMode = ref('grid'); // 'grid' or 'list'
+const imageGridCols = ref(5); // 5 or 6
+
+function toggleImageDisplay(){ imageDisplayMode.value = imageDisplayMode.value === 'grid' ? 'list' : 'grid'; }
+function setImageCols(n){ imageGridCols.value = n; }
+
 // Computed properties
-const searchResults = computed(() => searchStore.getFilteredResults(activeTab.value));
+const searchResults = computed(() => {
+  const results = searchStore.getFilteredResults(activeTab.value) || [];
+  // when in image search mode and no real results, return mock images for layout tuning
+  if (searchStore.isImageSearch && (!Array.isArray(results) || results.length === 0)) {
+    const mock = Array.from({ length: 24 }).map((_, i) => ({
+      id: `mock-${i}`,
+      fileName: `mock-${i}.jpg`,
+      fileType: 'jpg',
+      // lightweight placeholder images for layout testing
+      thumb: `https://picsum.photos/seed/mock${i}/400/300`,
+      previewUrl: `https://picsum.photos/seed/mock${i}/1200/900`
+    }));
+    return mock;
+  }
+  return results;
+});
+
+const gridStyle = computed(() => {
+  if (!searchStore.isImageSearch || imageDisplayMode.value !== 'grid') return {};
+  const cols = imageGridCols.value || 5;
+  return { display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '12px' };
+});
 const total = computed(() => searchStore.getTotalCount);
 const tabCounts = computed(() => searchStore.getTabCounts);
 const hasSelectedItems = computed(() => Object.values(selectedItems.value).some(item => item));
@@ -291,4 +341,24 @@ onMounted(async () => {
 .search-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; border-top: 1px solid #ebeef5; }
 .summary-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;flex-wrap:wrap;}
 .extra-actions{display:flex;align-items:center;gap:8px;}
+
+/* Tabs row: tabs on left, response time on right. Wrap on small screens. */
+.tabs-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; margin-bottom:6px; }
+.tabs-row > search-result-tabs{ flex: 1 1 auto; }
+.tabs-response-time{ flex: 0 0 auto; color:var(--el-text-color-secondary,#909399); font-size:12px; padding-left:8px; white-space:nowrap; }
+
+@media (max-width: 720px){
+  .tabs-row{ flex-direction:column; align-items:flex-start; gap:6px; }
+  .tabs-response-time{ padding-left:0; }
+}
+
+/* Footer layout: pagination left, response time right */
+.footer-main{ display:flex; align-items:center; gap:12px; width:100%; justify-content:space-between; }
+.footer-main > search-pagination{ flex: 1 1 auto; }
+.footer-right{ flex: 0 0 auto; color:var(--el-text-color-secondary,#909399); font-size:12px; white-space:nowrap; margin-left:8px; }
+
+@media (max-width:720px){
+  .footer-main{ flex-direction:row; align-items:center; }
+  .footer-right{ margin-left:auto; }
+}
 </style>

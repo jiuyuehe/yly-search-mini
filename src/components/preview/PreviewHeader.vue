@@ -14,7 +14,7 @@
               <span v-else>下载</span>
             </el-button>
             <FavReal v-if="showFav" :file="file" />
-            <CloudSave v-if="showSaveToCloud" :file="file" />
+            <CloudSave v-if="showSaveToCloud" :file="file" type="copy"/>
           </div>
         </div>
         <div class="meta-line">

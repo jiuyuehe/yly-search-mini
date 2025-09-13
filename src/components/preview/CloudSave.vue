@@ -19,7 +19,6 @@
       <div class="tree-wrap" v-loading="treeLoading">
         <el-tree
           ref="treeRef"
-          :data="treeData"
           :props="treeProps"
           node-key="fileId"
           highlight-current
@@ -37,6 +36,10 @@
           </template>
         </el-tree>
       </div>
+      <div v-if="props.type !== 'copy'" style="padding:8px 12px; border-top:1px solid #f0f0f0; display:flex; gap:8px; align-items:center;">
+        <div style="font-size:12px;color:#606266;white-space:nowrap;">文件名：</div>
+        <el-input v-model="customFileName" size="small" placeholder="输入保存的文件名，如 note.txt" style="flex:1" clearable />
+      </div>
       <div class="select-info" v-if="currentNode">
         目标目录：<strong>{{ currentNode.name }}</strong>
       </div>
@@ -53,7 +56,8 @@ import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { fetchFolderTree, copyPublicToPersonal, createNasExportTask, pollNasExportTask } from '../../services/cloudSave';
 
-const props = defineProps({ file: { type: Object, default: null } });
+const props = defineProps({ file: { type: Object, default: null }, type: { type: String, default: 'create' }, defaultFileName: { type: String, default: '' } });
+const emit = defineEmits(['confirm']);
 
 const loading = ref(false);
 const visible = ref(false);
@@ -62,31 +66,59 @@ const treeData = ref([]);
 const currentNode = ref(null);
 const treeRef = ref();
 const keyword = ref('');
+const customFileName = ref('');
+let _rootLoadPromise = null;
 
-const treeProps = { label: 'name', children: 'children', isLeaf: (data)=> data.isLeaf === true || data.dir === false };
-
-function open(){ visible.value = true; if(!treeData.value.length) refreshRoot(); }
-
-function refreshRoot(){ loadRoot(); }
-
-async function loadRoot(){
-  treeLoading.value = true;
-  try {
-    treeData.value = await fetchFolderTree({ parentId:0 });
-  } finally { treeLoading.value = false; }
+function open(){
+  // prefill filename only when empty to avoid overwriting user input
+  if (!customFileName.value) {
+    if (props.defaultFileName) {
+      customFileName.value = props.defaultFileName;
+    } else if (props.file && props.file.fileName) {
+      const name = props.file.fileName;
+      const idx = name.lastIndexOf('.');
+      const base = idx > 0 ? name.slice(0, idx) : name;
+      customFileName.value = `${base}-译文.txt`;
+    } else {
+      customFileName.value = '';
+    }
+  }
+  visible.value = true;
 }
 
-async function loadNode(node, resolve){
-  // root
-  if(node.level === 0){
-    if(!treeData.value.length){ await loadRoot(); }
-    return resolve(treeData.value);
-  }
-  const data = node.data;
+function refreshRoot(){
+  loadRoot();
+}
+
+async function loadRoot(){
+  if (_rootLoadPromise) return _rootLoadPromise;
+  treeLoading.value = true;
+  _rootLoadPromise = (async () => {
+    try {
+      treeData.value = await fetchFolderTree({ parentId: null });
+      return treeData.value;
+    } finally { treeLoading.value = false; _rootLoadPromise = null; }
+  })();
+  return _rootLoadPromise;
+}
+
+async function loadNode(node, resolve) {
   try {
-    const children = await fetchFolderTree({ parentId: data.fileId });
-    resolve(children || []);
-  } catch(e){ console.warn('[CloudSave] loadNode error', e); resolve([]); }
+    let parentId;
+    if (node.level === 0) {
+      // 根节点，加载顶级目录（即 parentId 为 null 的文件夹）
+      parentId = null;
+    } else {
+      // 子节点，加载该节点的子目录
+      parentId = node.data.fileId;
+    }
+
+    const children = await fetchFolderTree({ parentId });
+    resolve(children || []); // 返回当前节点的子节点
+  } catch (e) {
+    console.warn('[CloudSave] loadNode error', e);
+    resolve([]); // 出错时返回空数组
+  }
 }
 
 function handleCurrentChange(data){ currentNode.value = data; }
@@ -98,15 +130,24 @@ async function confirm(){
   if(!currentNode.value){ ElMessage.warning('请选择目标目录'); return; }
   loading.value = true;
   try {
-    const fc = props.file?.fileCategory || props.file?.fc;
-    if(fc === 'nas'){
-      const taskId = await createNasExportTask({ file: props.file, targetParentId: currentNode.value.fileId });
-      await pollNasExportTask(taskId,{});
+    if (props.type === 'copy') {
+      // copy existing file into selected folder
+      const fc = props.file?.fileCategory || props.file?.fc;
+      if (fc === 'nas') {
+        const taskId = await createNasExportTask({ file: props.file, targetParentId: currentNode.value.fileId });
+        await pollNasExportTask(taskId, {});
+      } else {
+        await copyPublicToPersonal({ file: props.file, targetFolderId: currentNode.value.fileId });
+      }
+      visible.value = false;
+      ElMessage.success('已保存到云盘');
     } else {
-      await copyPublicToPersonal({ file: props.file, targetFolderId: currentNode.value.fileId });
+      // create new file in selected folder
+      visible.value = false;
+      const payload = Object.assign({}, currentNode.value, { fileName: customFileName.value && String(customFileName.value).trim() ? String(customFileName.value).trim() : undefined });
+      emit('confirm', payload);
+      ElMessage.success('已选择目标目录');
     }
-    visible.value = false;
-    ElMessage.success('已保存到云盘');
   } catch(e){
     console.warn('[CloudSave] save failed', e);
     ElMessage.error('保存失败');

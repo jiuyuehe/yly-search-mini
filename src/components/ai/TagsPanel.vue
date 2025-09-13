@@ -5,7 +5,7 @@
       <div class="actions">
         <el-input v-model="filter" placeholder="过滤" size="small" clearable class="filter-input" />
         <el-button size="small" @click="generateTags" :loading="loading">{{ loading ? '生成中...' : (displayTags.length? '重新生成':'生成标签') }}</el-button>
-        <el-button size="small" :disabled="!displayTags.length" @click="openEdit">调整</el-button>
+        <el-button size="small" @click="openEdit">调整</el-button>
         <el-button v-if="false" size="small" :disabled="!displayTags.length" @click="copyTags">复制</el-button>
       </div>
     </div>

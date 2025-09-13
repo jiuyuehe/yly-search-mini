@@ -9,8 +9,7 @@
           size="small"
           type="text"
           class="s-button"
-          @click="ocrText"
-          :loading="ocring"
+          @click="handleHeaderOcr"
         >
           <el-icon><Image /></el-icon>
           OCR识别
@@ -85,6 +84,25 @@
           <el-button type="primary" @click="saveCustomTag">保存</el-button>
         </span>
       </template>
+    </el-dialog>
+
+    <!-- OCR Dialog -->
+  <el-dialog v-model="showOcrDialog" title="OCR 识别" :width="ocrDialogFullscreen ? '98%' : '720px'" :class="ocrDialogFullscreen ? 'ocr-dialog-fullscreen' : ''">
+      <template #title>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%">
+          <div style="display:flex;align-items:center;gap:8px">
+            <el-button size="small" type="primary" @click="performOcr" :loading="ocring" :disabled="ocring">识别</el-button>
+            <div>OCR 识别</div>
+          </div>
+          <div>
+            <el-button size="small" type="text" @click="toggleOcrFullscreen">{{ ocrDialogFullscreen ? '还原' : '全屏' }}</el-button>
+          </div>
+        </div>
+      </template>
+      <div style="min-height:160px;max-height:60vh;overflow:auto;">
+        <el-input type="textarea" :rows="10" v-model="ocrResultText" placeholder="识别结果将在此显示" />
+      </div>
+  <!-- footer removed as requested -->
     </el-dialog>
 
     <!-- Terminology Dialog -->
@@ -208,7 +226,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:content', 'text-selected']);
+const emit = defineEmits(['update:content', 'text-selected', 'update:imageOcrText']);
 
 // Refs
 const textEditorRef = ref(null);
@@ -250,6 +268,18 @@ const tagSaving = ref(false);
 const existingTagValues = ref([]); // loaded from cached tags
 // OCR loading state
 const ocring = ref(false);
+// OCR dialog state
+const showOcrDialog = ref(false);
+const ocrResultText = ref('');
+const ocrDialogFullscreen = ref(false);
+
+// preload existing file.imageOcrText when dialog opens
+watch(() => showOcrDialog.value, (v) => {
+  if (v) {
+    const existing = props.file?.imageOcrText || '';
+    ocrResultText.value = existing;
+  }
+});
 
 // Terminology dialog
 const showTerminologyDialog = ref(false);
@@ -524,12 +554,28 @@ async function ocrText(){
   ocring.value = true;
   try {
     const txt = await aiService.ocrRecognize(esId);
+    console.log('ocrText result', txt);
     const finalText = (txt && typeof txt === 'string') ? txt : (txt?.text || txt?.result || txt?.content || '');
+    ElMessage.info(finalText);
+    return;
     if (finalText) {
-      textContent.value = finalText;
-      emit('update:content', finalText);
-      ElMessage.success('OCR 识别完成');
-      window.dispatchEvent(new Event('activate-preview'));
+      // 后端可能只返回提示字符串 "OCR识别完成" 表示任务已完成并异步写入结果，
+      // 无论后端返回提示还是实际文本，都不应直接写入主编辑内容 (textContent / update:content).
+      // 仅将识别结果放入弹窗显示 (ocrResultText) 并通过 update:imageOcrText 通知父组件。
+      const trimmed = String(finalText).trim();
+      if (trimmed === 'OCR识别完成') {
+        // 如果 props.file.imageOcrText 可用，优先在弹窗显示它，但不写回主编辑器
+        const existing = props.file?.imageOcrText || ocrResultText.value || '';
+        if (existing) {
+          ocrResultText.value = existing;
+        }
+        ElMessage.success('OCR 识别完成');
+      } else {
+        // 收到实际识别文本：仅更新弹窗与父组件的 imageOcrText，不修改主编辑内容
+        ocrResultText.value = finalText;
+        emit('update:imageOcrText', finalText);
+        ElMessage.success('OCR 识别完成');
+      }
     } else {
       ElMessage.error('OCR 未识别到文本');
     }
@@ -539,6 +585,85 @@ async function ocrText(){
     ocring.value = false;
   }
 }
+
+// Called from dialog button
+async function performOcr(){
+  // reuse ocrText which also fills ocrResultText and props.file.imageOcrText
+  await ocrText();
+}
+
+// Called from header OCR button: directly invoke OCR and open dialog when result present
+async function handleHeaderOcr(){
+  if (ocring.value) return;
+  // open dialog immediately to show progress and prevent duplicate clicks
+  // showOcrDialog.value = true;
+  // clear previous result for clarity
+  ocrResultText.value = '';
+  try {
+    await ocrText();
+    // if ocrText filled ocrResultText or file has imageOcrText, ensure dialog shows it
+    const existing = ocrResultText.value || props.file?.imageOcrText || '';
+    if (existing) {
+      ocrResultText.value = existing;
+      // dialog already opened above
+    } else {
+      // no immediate text returned; inform user that OCR task completed or is processing
+      // ocrText already displays a message; leave dialog open so user can close
+    }
+  } catch (e) {
+    // ocrText handles errors and messages, but ensure dialog is visible for diagnostics
+    console.warn('handleHeaderOcr error', e);
+  }
+}
+
+function copyOcrResult(){
+  if (!ocrResultText.value) return ElMessage.warning('没有可复制的识别内容');
+  navigator.clipboard.writeText(ocrResultText.value).then(()=> ElMessage.success('已复制')).catch(()=> ElMessage.error('复制失败'));
+}
+
+function downloadOcrResult(){
+  if (!ocrResultText.value) return ElMessage.warning('没有可下载的识别内容');
+  const blob = new Blob([ocrResultText.value], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ocr_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+  ElMessage.success('下载完成');
+}
+
+function toggleOcrFullscreen(){
+  ocrDialogFullscreen.value = !ocrDialogFullscreen.value;
+  // Add/remove class on the dialog wrapper (Element Plus wraps dialog in .el-dialog__wrapper)
+  nextTick(() => {
+    try {
+      const wrappers = Array.from(document.querySelectorAll('.el-dialog__wrapper'));
+      wrappers.forEach(w => {
+        if (w.querySelector('.ocr-dialog')) {
+          if (ocrDialogFullscreen.value) w.classList.add('ocr-fullscreen-wrapper'); else w.classList.remove('ocr-fullscreen-wrapper');
+          // also ensure dialog element gets a class for styling
+          const dlg = w.querySelector('.el-dialog');
+          if (dlg) {
+            if (ocrDialogFullscreen.value) dlg.classList.add('ocr-dialog-fullscreen-force'); else dlg.classList.remove('ocr-dialog-fullscreen-force');
+          }
+        }
+      });
+    } catch (e) { /* ignore DOM errors */ }
+  });
+}
+
+// ensure cleanup when dialog closes
+watch(() => showOcrDialog.value, (open) => {
+  if (!open) {
+    nextTick(()=>{
+      try { document.querySelectorAll('.el-dialog__wrapper.ocr-fullscreen-wrapper').forEach(w => w.classList.remove('ocr-fullscreen-wrapper')); } catch {};
+      try { document.querySelectorAll('.el-dialog.ocr-dialog-fullscreen-force').forEach(d => d.classList.remove('ocr-dialog-fullscreen-force')); } catch {};
+      // emit current ocrResultText so parent can save edits made in dialog
+      if (ocrResultText.value) emit('update:imageOcrText', ocrResultText.value);
+    });
+  }
+});
 
 // Download text content
 function downloadText() {
@@ -694,4 +819,43 @@ document.addEventListener('click', (e) => {
 .s-button {
   padding: 5px 0px;
 }
+
+/* OCR dialog fullscreen adjustments */
+.ocr-dialog-fullscreen .el-dialog__wrapper {
+  align-items: stretch;
+}
+.ocr-dialog-fullscreen .el-dialog {
+  width: 98% !important;
+  max-width: 98%;
+  margin: 0 auto;
+  top: 10px !important;
+  height: 94vh !important;
+}
+.ocr-dialog-fullscreen .el-dialog__body{
+  max-height: calc(94vh - 100px) !important;
+  overflow: auto !important;
+}
+
+/* Force wrapper to occupy full viewport when toggled to avoid parent layout interference */
+.ocr-fullscreen-wrapper{
+  position: fixed !important;
+  inset: 0px !important;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: center !important;
+  z-index: 2000 !important;
+}
+.ocr-fullscreen-wrapper .el-dialog{
+  height: 94vh !important;
+}
+
+/* stronger force class applied directly to .el-dialog when toggled */
+.ocr-dialog-fullscreen-force{
+  position: relative !important;
+  top: 0 !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  margin: 0 auto !important;
+}
+.ocr-dialog-fullscreen-force .el-dialog__body{ max-height: calc(100vh - 120px) !important; overflow:auto !important; }
 </style>

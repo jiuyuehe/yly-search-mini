@@ -9,12 +9,13 @@
           :class="{ active: active===tool.key }"
           @click="handleSelect(tool.key)"
         >
-          <el-icon><component :is="tool.icon" /></el-icon>
+          <el-icon><component v-if="tool.icon" :is="tool.icon" /></el-icon>
           <span class="tool-label">{{ tool.label }}</span>
         </div>
       </div>
-      <div class="tool-content" v-if="active && active!=='translation'">
+        <div class="tool-content" v-if="active && active!=='translation'">
         <component
+          v-if="currentComp"
           :is="currentComp"
           :file-id="fileId"
           :file="file"

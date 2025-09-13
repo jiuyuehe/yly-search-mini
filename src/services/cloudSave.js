@@ -1,6 +1,6 @@
 import { appsApi } from './api';
 
-export async function fetchFolderTree({ fc='personal', parentId=0 }) {
+export async function fetchFolderTree({ fc='personal', parentId}) {
   const params = { fc, fi: parentId, limit: 10000 };
   const res = await appsApi.get('/file/folders', { params });
   const files = res?.data?.data?.files || res?.data?.files || res?.files || [];

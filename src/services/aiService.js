@@ -26,11 +26,23 @@ class AIService {
   async ocrRecognize(esId) {
     if (!esId) throw new Error('缺少 esId');
     try {
-      const res = await api.post('/admin-api/rag/ocr/recognize', { esId }, { headers: { 'Content-Type': 'application/json' }, timeout: AI_REQUEST_TIMEOUT });
+  // 使用 application/x-www-form-urlencoded 形式提交 esId，兼容后端期待的表单格式
+  const form = new URLSearchParams();
+  form.append('esId', esId);
+  // Send as URL-encoded form string and include Accept header to match curl example
+  const path = '/admin-api/rag/ocr/recognize';
+  const bodyStr = form.toString();
+  try { console.debug('[AIService] ocrRecognize request', { path, body: bodyStr }); } catch {}
+  const res = await api.post(path, bodyStr, { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': '*/*' }, timeout: AI_REQUEST_TIMEOUT });
+  try { console.debug('[AIService] ocrRecognize response', res); } catch {}
       // 兼容后端返回格式
       if (res && typeof res === 'object') {
-        // 可能 res.data.text 或 res.data.result 或 res.data.content
-        const data = res.data || res.result || {};
+        // 支持多种后端返回格式：
+        // 1) { code:0, data: '...' } 返回字符串
+        // 2) { code:0, data: { text: '...' } } 或 { data: { result: '...' }}
+        const rawData = res.data;
+        if (typeof rawData === 'string') return rawData || '';
+        const data = rawData || res.result || {};
         return data.text || data.result || data.content || '';
       }
       return '';

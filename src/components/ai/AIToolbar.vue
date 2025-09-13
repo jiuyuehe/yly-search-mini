@@ -11,7 +11,7 @@
         :class="{ active: activeAITool === tool.key }"
         @click="$emit('tool-change', tool.key)"
       >
-        <el-icon :size="18"><component :is="tool.icon" /></el-icon>
+  <el-icon :size="18"><component v-if="tool.icon" :is="tool.icon" /></el-icon>
       </button>
     </el-tooltip>
   </div>
