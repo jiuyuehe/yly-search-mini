@@ -30,6 +30,10 @@
           <h4>日期</h4>
           <el-tag v-for="date in entities.dates" :key="date" type="info">{{ date }}</el-tag>
         </div>
+        <div v-if="entities.events?.length" class="entity-group">
+          <h4>事件</h4>
+          <el-tag v-for="ev in entities.events" :key="ev" type="primary">{{ ev }}</el-tag>
+        </div>
         <div v-if="entities.others?.length" class="entity-group">
           <h4>其它</h4>
           <el-tag v-for="o in entities.others" :key="o" type="info">{{ o }}</el-tag>
@@ -83,26 +87,28 @@ const error = ref('');
 const initTried = ref(false);
 const editVisible = ref(false);
 const saving = ref(false);
-const draft = ref({ persons:[], organizations:[], locations:[], dates:[], others:[] });
+const draft = ref({ persons:[], organizations:[], locations:[], dates:[], events:[], others:[] });
 const editGroups = [
   { key:'persons', label:'人员' },
   { key:'organizations', label:'组织' },
   { key:'locations', label:'地点' },
   { key:'dates', label:'日期' },
+  { key:'events', label:'事件' },
   { key:'others', label:'其它' }
 ];
 const hasData = computed(()=>{
   if(!entities.value) return false;
-  return ['persons','organizations','locations','dates','others'].some(k=> Array.isArray(entities.value[k]) && entities.value[k].length);
+  return ['persons','organizations','locations','dates','events','others'].some(k=> Array.isArray(entities.value[k]) && entities.value[k].length);
 });
 
 function syncDraftFromEntities() {
   draft.value = {
     persons:[...(entities.value.persons||[])],
     organizations:[...(entities.value.organizations||[])],
-    locations:[...(entities.value.locations||[])],
-    dates:[...(entities.value.dates||[])],
-    others:[...(entities.value.others||[])]
+  locations:[...(entities.value.locations||[])],
+  dates:[...(entities.value.dates||[])],
+  events:[...(entities.value.events||[])],
+  others:[...(entities.value.others||[])]
   };
 }
 
@@ -138,7 +144,6 @@ async function recognizeEntities() {
   entities.value = res && typeof res === 'object' ? res : {};
   syncDraftFromEntities();
   } catch (e) {
-    console.error('Failed to recognize entities:', e);
     error.value = e?.message || '识别失败';
     ElMessage.error(error.value);
   } finally {
@@ -149,7 +154,7 @@ async function recognizeEntities() {
 async function copyAll() {
   if (!hasData.value) return;
   const lines = [];
-  const groups = { 人员:'persons', 组织:'organizations', 地点:'locations', 日期:'dates', 其它:'others' };
+  const groups = { 人员:'persons', 组织:'organizations', 地点:'locations', 日期:'dates', 事件:'events', 其它:'others' };
   Object.entries(groups).forEach(([label,key])=>{ const arr = entities.value[key]; if (arr?.length) lines.push(`${label}: ${arr.join(', ')}`); });
   try { await navigator.clipboard.writeText(lines.join('\n')); ElMessage.success('已复制'); } catch { ElMessage.error('复制失败'); }
 }

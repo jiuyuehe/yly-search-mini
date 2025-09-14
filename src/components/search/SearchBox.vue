@@ -3,7 +3,7 @@
     <!-- Main search container (支持拖拽) -->
     <div class="search-container" @dragover.prevent @dragenter.prevent @drop.prevent="handleDrop">
       <div class="search-input-wrapper">
-        <el-input v-model="searchQuery" type="textarea" rows=3 placeholder="输入搜索关键词或问题（图片可拖入/上传，选择模式可调整策略）..."
+        <el-input ref="inputRef" v-model="searchQuery" type="textarea" rows=3 placeholder="输入搜索关键词或问题（图片可拖入/上传，选择模式可调整策略）..."
           class="search-textarea" @keydown.ctrl.enter="handleSearch" @keydown.meta.enter="handleSearch"
           @keydown.enter.exact.prevent="enterQuickSearch" />
 
@@ -35,8 +35,8 @@
           <div class="mode-select" v-if="!['image','qa'].includes(searchType)">
             <el-select v-model="textSearchMode" size="small" class="mode-select-inner" @change="handleModeChange">
               <el-option label="默认匹配" :value="1" />
-              <el-option label="普通搜索" :value="2" />
-              <el-option label="精准搜索" :value="3" />
+              <el-option label="精准搜索" :value="2" />
+              <el-option label="混合搜索" :value="3" />
             </el-select>
           </div>
 
@@ -67,9 +67,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Search, Upload, Close } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { useSearchStore } from '../../stores/search';
 
 const emit = defineEmits(['search']);
 
@@ -81,6 +82,7 @@ const textSearchMode = ref(1); // 1:全文 2:段落 3:精准
 
 // 图片相关
 const fileInput = ref(null);
+const inputRef = ref(null);
 const imageFile = ref(null);
 const imagePreview = ref('');
 const uploading = ref(false);
@@ -101,6 +103,10 @@ const canSearch = computed(() => {
   return true;
 });
 
+// sync to store for other components (FilterSidebar) to read
+const searchStore = useSearchStore();
+watch(textSearchMode, (v) => { try { searchStore.precisionMode = Number(v); } catch {} });
+
 function buildEmitPayload() {
   return { query: searchQuery.value.trim(), searchType: searchType.value, imageFile: imageFile.value, precisionMode: textSearchMode.value };
 }
@@ -112,7 +118,6 @@ function handleSearch() {
 }
 
 // keep internal searchQuery in sync if parent provides initialQuery
-import { watch } from 'vue';
 watch(() => props.initialQuery, (v) => {
   if (typeof v === 'string' && v !== searchQuery.value) searchQuery.value = v;
 });
@@ -124,7 +129,10 @@ function handleModeChange() {
 
 function enterQuickSearch(e) { if (!e.shiftKey) handleSearch(); }
 function triggerImageSelect() { fileInput.value && fileInput.value.click(); }
-function handleImageSelect(e) { const file = e.target.files && e.target.files[0]; if (file) processImageFile(file); e.target.value=''; }
+function handleImageSelect(e) { const file = e.target.files && e.target.files[0]; if (file) processImageFile(file); e.target.value='';
+  // focus back to the text input so Enter can trigger search immediately
+  setTimeout(()=>{ try{ inputRef.value && inputRef.value.focus && inputRef.value.focus(); }catch(e){} }, 50);
+}
 function processImageFile(file) {
   if (!file.type.startsWith('image/')) return;
   if (file.size > 10 * 1024 * 1024) { ElMessage.warning('图片大小不能超过10MB'); return; }
@@ -132,9 +140,14 @@ function processImageFile(file) {
   const reader = new FileReader();
   reader.onload = ev => { imagePreview.value = ev.target.result; };
   reader.readAsDataURL(file);
+  // focus input after selecting image so user can press Enter to search
+  setTimeout(()=>{ try{ inputRef.value && inputRef.value.focus && inputRef.value.focus(); }catch(e){} }, 50);
 }
 function handleDrop(e) { const file = e.dataTransfer.files && e.dataTransfer.files[0]; if (file) processImageFile(file); }
-function removeImage() { imageFile.value = null; imagePreview.value = ''; }
+function removeImage() { imageFile.value = null; imagePreview.value = '';
+  // return focus to input so user can press Enter
+  setTimeout(()=>{ try{ inputRef.value && inputRef.value.focus && inputRef.value.focus(); }catch(e){} }, 50);
+}
 
 // Listen for global requests to change the search type (e.g., returning from QA)
 if (typeof window !== 'undefined') {

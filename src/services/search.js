@@ -105,6 +105,29 @@ class SearchService {
       return this._cachedCreators;
     }
   }
+
+  // 获取 AI 标签列表（增强标签），后端接口: /admin-api/rag/enhancement/label/all
+  // 支持分页的标签查询，返回 { items: [{value,label,...}], total, page }
+  async getLabels(keyword = '', page = 1, pageSize = 20) {
+    try {
+      const params = { page, pageSize };
+      if (keyword) params.keyword = keyword;
+      const root = await api.get('/admin-api/rag/enhancement/label/all', { params });
+      if (root?.code !== 0) throw new Error(root?.msg || '获取标签失败');
+      const dataObj = root.data || {};
+      const raw = Array.isArray(dataObj.list) ? dataObj.list : [];
+      const total = Number(dataObj.total) || raw.length;
+      const mapped = raw.map(item => {
+        const name = item.labelName || item.name || item.label || item.tagName || '';
+        const id = item.id != null ? String(item.id) : name;
+        return { value: id, label: name, count: item.labelCount || 0, type: item.labelType || '' };
+      });
+      return { items: mapped, total, page: Number(page) };
+    } catch (e) {
+      console.warn('获取标签失败，降级为空列表', e);
+      return { items: [], total: 0, page };
+    }
+  }
   
   async getFileCount(_filters) {
     // TODO: 若有真实接口替换，此处返回 0

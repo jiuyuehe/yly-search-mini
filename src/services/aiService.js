@@ -75,18 +75,19 @@ class AIService {
     // 传全文还是 ID: 接口文档提供 text / texts / esId，可根据需要扩展
     return fileData?.fileContents || fileData?.extractedText || '';
   }
-  async getSummary(fileId, targetLanguage='zh', length=200, onChunk, fileData) {
+  async getSummary(fileId, targetLanguage='', length=200, onChunk, fileData) {
     if (typeof targetLanguage === 'function') { fileData = onChunk; onChunk = targetLanguage; targetLanguage='zh'; }
     // const text = this.buildTextFromFileData(fileData) || '';
   const esId = fileData?.esId || fileData?.esid || fileData?._raw?.esId || fileData?._raw?.esid || null;
   const normalizeToUi = (lang)=>{
-      if(!lang) return 'zh';
+      if(!lang) return '';
+      if(targetLanguage === 'zh' ) return '中文';
+      if(targetLanguage === 'en' ) return '英文';
       const low = String(lang).toLowerCase();
       const map = { '中文':'zh','zh':'zh','cn':'zh','chs':'zh','简体中文':'zh','zh-cn':'zh','zh_cn':'zh','英文':'en','english':'en','en':'en','日文':'ja','日本語':'ja','ja':'ja','jp':'ja','韩文':'ko','韓文':'ko','ko':'ko','kor':'ko' };
       return map[low] || low;
     };
-  const uiLang = normalizeToUi(targetLanguage);
-  const apiLang = uiLang === 'zh' ? 'cn' : uiLang; // 后端期望中文用 cn
+  const apiLang = normalizeToUi(targetLanguage);
   const body = {  targetLang: apiLang, outputFormat: 'plain', size:length};
   if (esId) { body.esId = esId;}
     try {
@@ -116,11 +117,8 @@ class AIService {
         const data = res.data || res.result || {};
         // 新结构： summarySource / summaryTarget / summary
         const targetRaw = data.summaryTarget || data.summary || data.target || '';
-        const sourceRaw = data.summarySource || data.summarySourceRaw || data.source || data.original || '';
         const targetObj = parseMaybeJson(targetRaw);
-        const sourceObj = parseMaybeJson(sourceRaw);
         let targetSummary = String(targetObj.summary || targetRaw || '');
-        let sourceSummary = String(sourceObj.summary || sourceRaw || '');
         if (length && targetSummary && targetSummary.length > length) targetSummary = targetSummary.slice(0,length) + '...';
         // Streaming only for target summary
         if (onChunk && targetSummary) {
@@ -128,16 +126,13 @@ class AIService {
             for (let i=0;i<chars.length;i++){ await new Promise(r=>setTimeout(r,8)); try { onChunk(chars.slice(0,i+1).join('')); } catch { /* ignore chunk error */ } }
         }
         return {
-          targetSummary,
-          sourceSummary,
+          summary: targetSummary,
           targetObj,
-          sourceObj,
           targetLang: normalizeToUi(data.targetLang || apiLang),
-          sourceLang: data.sourceLang || data.srcLang || '',
           esId: esId || body.esId || null
         };
       }
-  return { targetSummary:'', sourceSummary:'', targetObj:{}, sourceObj:{}, targetLang: uiLang, sourceLang:'', esId: esId||null };
+  return { summary:'',  targetObj:{}, sourceObj:{}, targetLang: uiLang, sourceLang:'', esId: esId||null };
     } catch (e) {
       // 不立即使用本地 fallback，直接抛出由上层界面显示“生成失败”或重试，避免用户误以为已完成
       console.warn('[AIService] summary failed', e);
@@ -159,8 +154,8 @@ class AIService {
         if (cleaned.startsWith('{') && cleaned.endsWith('}')) { try { const o=JSON.parse(cleaned); if(o) return o; } catch { /* ignore */ } }
         return { summary: cleaned };
       };
-      const targetRaw = data.summaryTarget || data.summary || data.target || '';
-      const sourceRaw = data.summarySource || data.source || '';
+      const targetRaw = data.summaryTarget || '';
+      const sourceRaw = data.summary|| '';
       const targetObj = parseMaybeJson(targetRaw);
       const sourceObj = parseMaybeJson(sourceRaw);
       const normalizeToUi = (lang)=>{
@@ -213,7 +208,8 @@ class AIService {
       const out = [];
       if (res && typeof res === 'object') {
         const data = res.data || res.result || {};
-        let kw = data.keywords || data.tags || data.list || data;
+        console.log('[AIService] getTags response', data);
+        let kw = data.keywords || data.TagItem || data.list || data;
         // 若是关键字数组对象: [{weight, tag}...]
         if (Array.isArray(kw)) {
           kw.forEach(it=>{
@@ -366,31 +362,85 @@ class AIService {
     } catch (e) { console.warn('[AIService] fetchCachedTags failed', e); return null; }
   }
   async getNEREntities(fileId, fileData) {
-    const text = this.buildTextFromFileData(fileData) || '';
-  const esId = fileData?.esId || fileData?.esid || fileData?._raw?.esId || fileData?._raw?.esid || null;
-  const body = { text, outputFormat: 'json' };
+    // fileId may be provided as esId when fileData is null
+    // const text = this.buildTextFromFileData(fileData) || '';
+  let esId = fileData?.esId || fileData?.esid || fileData?._raw?.esId || fileData?._raw?.esid || null;
+  if (!esId && fileId) esId = String(fileId || '').trim() || null;
+  const body = {  outputFormat: 'json' };
   if (esId) { body.esId = esId; body.esid = esId; }
     try {
       const res = await api.post('/admin-api/rag/ai/text/ner', body, { headers:{'Content-Type':'application/json'}, timeout: AI_REQUEST_TIMEOUT }).catch(e=>{ throw e; });
-      const grouped = { persons:[], organizations:[], locations:[], dates:[], others:[] };
+      const grouped = { persons:[], organizations:[], locations:[], dates:[], events:[], others:[] };
       if (res && typeof res === 'object') {
-        const arr = Array.isArray(res.data) ? res.data : (Array.isArray(res.result)? res.result : []);
-        if (Array.isArray(arr)) {
-          arr.forEach(it=>{
+        // Unwrap common wrappers: { code, data } or { data: { data: [...] } }
+        let data = res.data ?? res.result ?? res;
+        if (data && typeof data === 'object' && 'code' in data && data.data !== undefined) data = data.data;
+        // if data itself is wrapped: { data: [...] }
+        if (data && typeof data === 'object' && data.data !== undefined) data = data.data;
+        // Case A: data is an array whose first element is an object with uppercase keys
+        if (Array.isArray(data) && data.length > 0 && data[0] && typeof data[0] === 'object' && !Array.isArray(data[0])) {
+          const obj = data[0];
+          const pushArr = (val, key) => {
+            if (Array.isArray(val)) {
+              val.forEach(v => { if (v !== null && v !== undefined) grouped[key].push(String(v).trim()); });
+            } else if (val !== null && val !== undefined) {
+              grouped[key].push(String(val).trim());
+            }
+          };
+          pushArr(obj.PERSON ?? obj.PER ?? obj.PEOPLE, 'persons');
+          pushArr(obj.ORG ?? obj.ORGANIZATION, 'organizations');
+          pushArr(obj.ADDR ?? obj.LOCATION ?? obj.PLACE, 'locations');
+          pushArr(obj.TIME ?? obj.DATE, 'dates');
+          pushArr(obj.EVENT ?? obj.EVENTS, 'events');
+          // collect any other fields (strings or arrays)
+          Object.keys(obj).forEach(k => {
+            const upper = String(k).toUpperCase();
+            if (!['PERSON','PER','PEOPLE','ORG','ORGANIZATION','ADDR','LOCATION','PLACE','TIME','DATE','EVENT','EVENTS'].includes(upper)) {
+              const v = obj[k];
+              if (Array.isArray(v)) v.forEach(x => { if (x !== null && x !== undefined) grouped.others.push(String(x).trim()); });
+              else if (v !== null && v !== undefined) grouped.others.push(String(v).trim());
+            }
+          });
+        } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+          // Case B: backend returns a single object { PERSON: [...], ... } or already grouped
+          const obj = data;
+          const pushArr = (val, key) => {
+            if (Array.isArray(val)) val.forEach(v => { if (v !== null && v !== undefined) grouped[key].push(String(v).trim()); });
+            else if (val !== null && val !== undefined) grouped[key].push(String(val).trim());
+          };
+          // uppercase-style
+          pushArr(obj.PERSON ?? obj.PER ?? obj.PEOPLE, 'persons');
+          pushArr(obj.ORG ?? obj.ORGANIZATION, 'organizations');
+          pushArr(obj.ADDR ?? obj.LOCATION ?? obj.PLACE, 'locations');
+          pushArr(obj.TIME ?? obj.DATE, 'dates');
+          pushArr(obj.EVENT ?? obj.EVENTS, 'events');
+          // also accept already-normalized lowercase keys
+          ['persons','organizations','locations','dates','events','others'].forEach(k=>{ if (Array.isArray(obj[k])) grouped[k] = grouped[k].concat(obj[k].map(x=>String(x).trim())); });
+        } else if (Array.isArray(data)) {
+          // Case C: older format [{type:'PERSON', value:'张三'}, ...]
+          data.forEach(it => {
+            if (!it) return;
             try {
-              if (!it) return;
-              const t = (it.type||'').toLowerCase();
+              const t = (it.type || '').toLowerCase();
               const val = it.value || it.text || it.name || '';
               if (!val) return;
-              if (['person','per','persons'].includes(t)) grouped.persons.push(val);
-              else if (['org','organization','orgs'].includes(t)) grouped.organizations.push(val);
-              else if (['loc','location','place'].includes(t)) grouped.locations.push(val);
-              else if (['date','time'].includes(t)) grouped.dates.push(val);
-              else grouped.others.push(val);
+              if (['person','per','persons'].includes(t)) grouped.persons.push(String(val).trim());
+              else if (['org','organization','orgs'].includes(t)) grouped.organizations.push(String(val).trim());
+              else if (['loc','location','place'].includes(t)) grouped.locations.push(String(val).trim());
+              else if (['date','time'].includes(t)) grouped.dates.push(String(val).trim());
+              else grouped.others.push(String(val).trim());
             } catch { /* ignore item */ }
           });
         }
       }
+      // normalize and dedupe
+      const normalizeUnique = arr => Array.from(new Set((arr||[]).map(s => String(s).trim()).filter(Boolean)));
+      grouped.persons = normalizeUnique(grouped.persons);
+      grouped.organizations = normalizeUnique(grouped.organizations);
+      grouped.locations = normalizeUnique(grouped.locations);
+      grouped.dates = normalizeUnique(grouped.dates);
+      grouped.events = normalizeUnique(grouped.events);
+      grouped.others = normalizeUnique(grouped.others);
       return grouped;
     } catch (e) {
       console.warn('[AIService] ner failed', e);
@@ -402,36 +452,83 @@ class AIService {
     try {
       const res = await api.get(`/admin-api/rag/ai/text/ner/${encodeURIComponent(esId)}`, { timeout: 20000 });
       if (!res || typeof res !== 'object') return null;
-      const data = res.data || res.result || {};
-      // data.ner 可能是数组，或分类好的对象；接口文档示例如有差异，可再调整
-      const grouped = { persons:[], organizations:[], locations:[], dates:[], others:[] };
-      const arr = Array.isArray(data.ner) ? data.ner : (Array.isArray(data) ? data : data.ner || []);
-      const pushByType = (t,val)=>{
-        if (!val) return; const type=t.toLowerCase();
-        if (['person','per','persons'].includes(type)) grouped.persons.push(val);
-        else if (['org','organization','orgs'].includes(type)) grouped.organizations.push(val);
-        else if (['loc','location','place'].includes(type)) grouped.locations.push(val);
-        else if (['date','time'].includes(type)) grouped.dates.push(val);
-        else grouped.others.push(val);
-      };
-      if (Array.isArray(arr)) {
-  arr.forEach(it=>{ try { if (!it) return; pushByType(it.type||'', it.value||it.text||it.name||''); } catch{ /* ignore item parse */ } });
-      } else if (data && typeof data === 'object') {
-        // maybe already grouped { persons:[], organizations:[], ... }
-        ['persons','organizations','locations','dates','others'].forEach(k=>{ if (Array.isArray(data[k])) grouped[k]=[...data[k]]; });
+      let data = res.data || res.result || res;
+      if (data && typeof data === 'object' && 'code' in data && data.data !== undefined) data = data.data;
+      if (data && typeof data === 'object' && data.data !== undefined) data = data.data;
+      // normalize return into grouped { persons, organizations, locations, dates, events, others }
+      const grouped = { persons:[], organizations:[], locations:[], dates:[], events:[], others:[] };
+      // Case A: data is an array whose first element is an object with uppercase keys
+      if (Array.isArray(data) && data.length > 0 && data[0] && typeof data[0] === 'object' && !Array.isArray(data[0])) {
+        const obj = data[0];
+        const pushArr = (val, key) => {
+          if (Array.isArray(val)) val.forEach(v=> { if (v !== null && v !== undefined) grouped[key].push(String(v).trim()); });
+          else if (val !== null && val !== undefined) grouped[key].push(String(val).trim());
+        };
+        pushArr(obj.PERSON ?? obj.PER ?? obj.PEOPLE, 'persons');
+        pushArr(obj.ORG ?? obj.ORGANIZATION, 'organizations');
+        pushArr(obj.ADDR ?? obj.LOCATION ?? obj.PLACE, 'locations');
+        pushArr(obj.TIME ?? obj.DATE, 'dates');
+        pushArr(obj.EVENT ?? obj.EVENTS, 'events');
+        // collect any other fields
+        Object.keys(obj).forEach(k => {
+          const upper = String(k).toUpperCase();
+          if (!['PERSON','PER','PEOPLE','ORG','ORGANIZATION','ADDR','LOCATION','PLACE','TIME','DATE','EVENT','EVENTS'].includes(upper)) {
+            const v = obj[k];
+            if (Array.isArray(v)) v.forEach(x=> { if (x !== null && x !== undefined) grouped.others.push(String(x).trim()); });
+            else if (v !== null && v !== undefined) grouped.others.push(String(v).trim());
+          }
+        });
+      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+        // Case B: maybe already grouped object { PERSON: [...], ORG: [...] } or { persons:[], organizations:[] }
+        const pushArr = (val, key) => {
+          if (Array.isArray(val)) val.forEach(v=> { if (v !== null && v !== undefined) grouped[key].push(String(v).trim()); });
+          else if (val !== null && val !== undefined) grouped[key].push(String(val).trim());
+        };
+        // uppercase-style
+        pushArr(data.PERSON ?? data.PER ?? data.PEOPLE, 'persons');
+        pushArr(data.ORG ?? data.ORGANIZATION, 'organizations');
+        pushArr(data.ADDR ?? data.LOCATION ?? data.PLACE, 'locations');
+        pushArr(data.TIME ?? data.DATE, 'dates');
+        pushArr(data.EVENT ?? data.EVENTS, 'events');
+        // also accept already-normalized lowercase keys
+        ['persons','organizations','locations','dates','events','others'].forEach(k=>{ if (Array.isArray(data[k])) grouped[k] = grouped[k].concat(data[k].map(x=>String(x).trim())); });
+      } else if (Array.isArray(data)) {
+        // Case C: older format [{ type:'PERSON', value:'张三' }, ...]
+        data.forEach(it=>{ try { if (!it) return; const t=(it.type||'').toLowerCase(); const val = it.value||it.text||it.name||''; if (!val) return; if (['person','per','persons'].includes(t)) grouped.persons.push(String(val).trim()); else if (['org','organization','orgs'].includes(t)) grouped.organizations.push(String(val).trim()); else if (['loc','location','place'].includes(t)) grouped.locations.push(String(val).trim()); else if (['date','time'].includes(t)) grouped.dates.push(String(val).trim()); else grouped.others.push(String(val).trim()); } catch{ /* ignore */ } });
       }
-      const hasAny = Object.values(grouped).some(v=>v.length);
+      // dedupe & normalize
+      const normalizeUnique = arr => Array.from(new Set((arr||[]).map(s=>String(s).trim()).filter(Boolean)));
+      grouped.persons = normalizeUnique(grouped.persons);
+      grouped.organizations = normalizeUnique(grouped.organizations);
+      grouped.locations = normalizeUnique(grouped.locations);
+      grouped.dates = normalizeUnique(grouped.dates);
+      grouped.events = normalizeUnique(grouped.events);
+      grouped.others = normalizeUnique(grouped.others);
+      const hasAny = Object.values(grouped).some(a=>a.length);
       return hasAny ? grouped : null;
     } catch (e) { console.warn('[AIService] fetchCachedNER failed', e); return null; }
   }
   async saveNER(esId, nerGrouped) {
     if (!esId) return { success:false, message:'缺少 esId' };
-    // 扁平化为数组形式 [{type,value}]
-    const list=[]; const map = { persons:'person', organizations:'organization', locations:'location', dates:'date', others:'other' };
-    Object.entries(map).forEach(([k,t])=>{ const arr = nerGrouped?.[k]; if (Array.isArray(arr)) arr.forEach(v=>{ if (v) list.push({ type:t, value:v }); }); });
+    // 构造后端期望的单对象大写键数组结构
     try {
-      const res = await api.post('/admin-api/rag/ai/text/ner/update', { esId, esid: esId, ner: list }, { headers:{'Content-Type':'application/json'}, timeout: 20000 });
-      if (res && typeof res === 'object' && res.code === 0) return { success:true };
+      const makeArray = (arr) => Array.isArray(arr) ? arr.map(x => String(x).trim()).filter(Boolean) : [];
+      const personsArr = makeArray(nerGrouped?.persons);
+      const orgArr = makeArray(nerGrouped?.organizations);
+      const locArr = makeArray(nerGrouped?.locations);
+      const timeArr = makeArray(nerGrouped?.dates);
+      const eventsArr = makeArray(nerGrouped?.events);
+
+      const obj = {
+        PERSON: personsArr.length ? personsArr : null,
+        ADDR: locArr.length ? locArr : null,
+        TIME: timeArr,
+        ORG: orgArr,
+        EVENT: eventsArr
+      };
+      const payload = [ obj ];
+      const res = await api.post('/admin-api/rag/ai/text/ner/update', { esId, esid: esId, ner: payload }, { headers:{'Content-Type':'application/json'}, timeout: 20000 });
+      if (res && typeof res === 'object' && (res.code === 0 || res.success === true)) return { success:true };
       return { success:false, message: res?.msg || '保存失败' };
     } catch (e) { console.warn('[AIService] saveNER failed', e); return { success:false, message:e.message }; }
   }

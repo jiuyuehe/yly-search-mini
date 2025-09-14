@@ -36,7 +36,7 @@ export const useAiToolsStore = defineStore('aiTools', {
   }),
   
   actions: {
-  async getSummary(fileId, targetLanguage='zh', length=200, fileData) {
+  async getSummary(fileId, targetLanguage, length=200, fileData) {
       this.loading.summary = true;
       this.streaming = true;
       this.summary = '';
@@ -47,6 +47,8 @@ export const useAiToolsStore = defineStore('aiTools', {
           this.summary = chunk;
         }, fileData);
         // 兼容旧用法：若调用方只关心字符串，可读取 this.summary；返回包含 source/target 的完整对象
+
+        
         return fullResult || { targetSummary: this.summary };
       } catch (error) {
         this.error = error.message;
@@ -81,7 +83,7 @@ export const useAiToolsStore = defineStore('aiTools', {
       this.loading.ner = true;
       
       try {
-  const entities = await aiService.getNEREntities(fileId, fileData);
+      const entities = await aiService.getNEREntities(fileId, fileData);
         this.nerEntities = entities;
         return entities;
       } catch (error) {

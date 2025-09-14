@@ -3,12 +3,7 @@
     <div class="panel-header">
       <h3>文档摘要</h3>
       <div class="controls">
-        <el-select v-model="targetLanguage" size="small" class="lang-select" placeholder="目标语言">
-          <el-option label="中文" value="zh" />
-          <el-option label="英文" value="en" />
-          <el-option label="日文" value="ja" />
-          <el-option label="韩文" value="ko" />
-        </el-select>
+        
         <el-input-number v-model="summaryLength" :min="50" :max="2000" :step="50" size="small" class="len-input" />
         <el-button size="small" type="primary" :loading="loading" @click="generateSummary">{{ loading? '生成中...' : (hasAnySummary? '重新生成' : '生成摘要') }}</el-button>
         <el-button size="small" :disabled="!hasAnySummary" @click="copySummary">复制</el-button>
@@ -18,7 +13,7 @@
     <div class="summary-content">
       <div v-if="loading" class="loading"><el-skeleton :rows="4" animated /></div>
       <template v-else>
-  <div v-if="hasAnySummary && showDual" class="dual-wrapper">
+        <div v-if="hasAnySummary" class="dual-wrapper">
           <el-card shadow="never" class="summary-card">
             <div class="card-header">
               <span class="card-title">原文摘要 <small v-if="sourceLang">({{ sourceLang }})</small></span>
@@ -50,7 +45,14 @@
           </el-card>
           <el-card shadow="never" class="summary-card">
             <div class="card-header">
-              <span class="card-title">目标摘要 <small v-if="targetLang">({{ targetLang }})</small></span>
+              <span class="card-title">目标摘要 
+                <el-select v-model="targetLanguage" size="small" class="lang-select" placeholder="目标语言">
+          <el-option label="中文" value="zh" />
+          <el-option label="英文" value="en" />
+          <!-- <el-option label="日文" value="ja" />
+          <el-option label="韩文" value="ko" /> -->
+        </el-select>
+              </span>
               <div class="card-actions">
                 <el-button v-if="!editingTarget" link size="small" :disabled="!targetSummary" @click="startEdit('target')">修改</el-button>
                 <template v-else>
@@ -79,38 +81,7 @@
             </div>
           </el-card>
         </div>
-        <div v-else-if="hasAnySummary && !showDual" class="single-wrapper">
-          <el-card shadow="never" class="summary-card">
-            <div class="card-header">
-              <span class="card-title">摘要<small v-if="targetLang"> ({{ targetLang }})</small></span>
-              <div class="card-actions">
-                <el-button v-if="!editingTarget" link size="small" :disabled="!targetSummary" @click="startEdit('target')">修改</el-button>
-                <template v-else>
-                  <el-button link size="small" @click="cancelEdit('target')">取消</el-button>
-                </template>
-              </div>
-            </div>
-            <div v-if="!editingTarget" class="summary-view">
-              <pre class="summary-text" v-if="targetSummary">{{ targetSummary }}</pre>
-              <el-empty v-else description="无内容" />
-              <ul v-if="targetPoints.length" class="points-list">
-                <li v-for="(p,i) in targetPoints" :key="i">{{ i+1 }}. {{ p }}</li>
-              </ul>
-            </div>
-            <div v-else class="summary-edit">
-              <el-input v-model="editTarget" type="textarea" :autosize="{ minRows:6, maxRows:14 }" placeholder="编辑摘要" />
-              <div class="meta-line">
-                <span>长度: {{ editTarget.length }}</span>
-                <span>tokens≈{{ tokens(editTarget) }}</span>
-              </div>
-            </div>
-            <div class="meta-line" v-if="!editingTarget">
-              <span>长度: {{ targetSummary.length }}</span>
-              <span>tokens≈{{ tokens(targetSummary) }}</span>
-              <span v-if="durationMs">耗时: {{ (durationMs/1000).toFixed(2) }}s</span>
-            </div>
-          </el-card>
-        </div>
+      
         <el-empty v-else :description="error || '设置参数后点击生成摘要'" />
       </template>
     </div>
@@ -271,29 +242,27 @@ async function generateSummary() {
   editingSource.value = false; editingTarget.value=false;
   startTime.value = Date.now();
   try {
-  const res = await aiToolsStore.getSummary(String(props.fileId||''), targetLanguage.value, summaryLength.value, props.file||null);
+  const res = await aiToolsStore.getSummary(String(props.fileId||''), '', summaryLength.value, props.file||null);
   if (res && typeof res === 'object') {
-  // debug: getSummary raw res (removed noisy console.log)
-    targetSummary.value = normalizeSummary(res.targetSummary || res.targetObj || '');
-    sourceSummary.value = normalizeSummary(res.sourceSummary || res.sourceObj || '');
-    if(!sourceSummary.value && targetSummary.value && (res.sourceSummary===undefined && res.sourceObj===undefined)){
-      // 后端只返回单摘要，统一放到 targetSummary，source 为空时使用 target 作为唯一摘要
-      sourceSummary.value='';
-    }
-    targetPoints.value = extractPoints(res.targetObj || res.targetSummary);
+    sourceSummary.value = normalizeSummary(res.summary || res.sourceObj || '');
     sourcePoints.value = extractPoints(res.sourceObj || res.sourceSummary);
-  // debug: after generation summaries (removed noisy console.log)
-    originTarget.value = targetSummary.value;
     originSource.value = sourceSummary.value;
     sourceLang.value = res.sourceLang || '';
+  } else if (typeof res === 'string') {
+    sourceSummary.value = normalizeSummary(res);
+    originTarget.value = sourceSummary.value;
+  }
+  const resTarget = await aiToolsStore.getSummary(String(props.fileId||''), targetLanguage.value, summaryLength.value, props.file||null);
+    if (res && typeof res === 'object') {
+  // debug: getSummary raw res (removed noisy console.log)
+    targetSummary.value = normalizeSummary(resTarget.summary || resTarget.targetObj || '');
+    originTarget.value = targetSummary.value;
     targetLang.value = res.targetLang || targetLanguage.value;
   } else if (typeof res === 'string') {
     targetSummary.value = normalizeSummary(res);
-    targetPoints.value = extractPoints(res);
     originTarget.value = targetSummary.value;
   }
   } catch (e) {
-    console.error('Failed to generate summary:', e);
     error.value = e?.message || '生成摘要失败';
     ElMessage.error(error.value);
   } finally {
@@ -350,9 +319,7 @@ async function saveAll(){
   if (editingSource.value) { sourceSummary.value = editSource.value; editingSource.value=false; }
   if (editingTarget.value) { targetSummary.value = editTarget.value; editingTarget.value=false; }
   // Build JSON string payloads preserving key_points
-  const sourceJsonStr = JSON.stringify({ summary: sourceSummary.value, key_points: sourcePoints.value && sourcePoints.value.length ? sourcePoints.value : undefined }, null, 2);
-  const targetJsonStr = JSON.stringify({ summary: targetSummary.value, key_points: targetPoints.value && targetPoints.value.length ? targetPoints.value : undefined }, null, 2);
-  await aiService.saveSummary(esId, { sourceSummary: sourceJsonStr, targetSummary: targetJsonStr, sourceLang: sourceLang.value, targetLang: targetLang.value || targetLanguage.value });
+  await aiService.saveSummary(esId, { sourceSummary: sourceSummary.value, targetSummary: targetSummary.value, sourceLang: sourceLang.value, targetLang: targetLang.value || targetLanguage.value });
     originSource.value = sourceSummary.value;
     originTarget.value = targetSummary.value;
     ElMessage.success('已保存');

@@ -4432,3 +4432,83 @@ string
 	"msg": ""
 }
 ```
+
+
+
+
+## 获取AI标签和系统标签
+
+
+**接口地址**:`/admin-api/rag/enhancement/label/all`
+
+
+**请求方式**:`GET`
+
+
+**请求数据类型**:`application/x-www-form-urlencoded`
+
+
+**响应数据类型**:`*/*`
+
+
+**接口描述**:
+
+
+**请求参数**:
+
+
+**请求参数**:
+
+
+| 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
+| -------- | -------- | ----- | -------- | -------- | ------ |
+|label|标签，不传就代表全部获取|query|false|string||
+|label_type|标签类型，请求类型必须是 ai 或 sys 两者其中一个，不传类型就代表全部获取|query|false|string||
+|page|页码|query|false|integer(int32)||
+|pageSize|页数|query|false|integer(int32)||
+|sortType|排序类型：count（按次数排序），name（按名称排序），默认count|query|false|string||
+|sortOrder|排序方向：asc（升序），desc（降序），默认desc|query|false|string||
+|tenant-id|租户编号|header|false|integer(int32)||
+|Authorization|认证 Token|header|false|string||
+
+
+**响应状态**:
+
+
+| 状态码 | 说明 | schema |
+| -------- | -------- | ----- | 
+|200|OK|CommonResultPageResultLabelInfo|
+
+
+**响应参数**:
+
+
+| 参数名称 | 参数说明 | 类型 | schema |
+| -------- | -------- | ----- |----- | 
+|code||integer(int32)|integer(int32)|
+|data||PageResultLabelInfo|PageResultLabelInfo|
+|&emsp;&emsp;list|数据|array|LabelInfo|
+|&emsp;&emsp;&emsp;&emsp;labelName||string||
+|&emsp;&emsp;&emsp;&emsp;labelType||string||
+|&emsp;&emsp;&emsp;&emsp;labelCount||integer(int32)||
+|&emsp;&emsp;total|总量|integer(int64)||
+|msg||string||
+
+
+**响应示例**:
+```javascript
+{
+	"code": 0,
+	"data": {
+		"list": [
+			{
+				"labelName": "",
+				"labelType": "",
+				"labelCount": 0
+			}
+		],
+		"total": 0
+	},
+	"msg": ""
+}
+```

@@ -9,6 +9,7 @@ export const useSearchStore = defineStore('search', {
     query: '',
     searchType: 'fullText',
     precision: 0.9, // 固定默认精准度（UI 已移除滑块）
+  precisionMode: 1, // 1:全文 2:精准 3:混合 (同步自 SearchBox)
     filters: {
       fileCategory: [],
       fileSpace: [],
@@ -88,7 +89,7 @@ export const useSearchStore = defineStore('search', {
         case 'precision': searchMode = 'precision'; break; // 仍保留后端精准模式，仅通过 checkbox 触发
         default: searchMode = 'keyword';
       }
-  const base = { offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, fileSysTag, searchType: searchMode, searchMode };
+  const base = { offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, tag:fileSysTag, searchType: searchMode, searchMode };
   if (query && String(query).trim()) base.keyword = String(query).trim();
       if (fileCategory) base.fileCategory = fileCategory;
       if (fileSizeStr) base.fileSize = fileSizeStr;

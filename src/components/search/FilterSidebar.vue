@@ -1,13 +1,13 @@
 <template>
   <div class="filter-sidebar">
-    <div class="filter-header">
+      <div class="filter-header">
       <h3>筛选条件</h3>
       <el-button text type="primary" @click="resetFilters" size="small">
         重置
       </el-button>
-    </div>
+  </div>
     
-    <div class="filter-sections">
+  <div class="filter-sections">
       <!-- 文件空间 -->
       <div class="filter-section">
         <div class="section-title" @click="toggleSection('fileCategory')">
@@ -31,37 +31,37 @@
       </div>
 
       <!-- 创建者 -->
-      <div class="filter-section">
-        <div class="section-title" @click="toggleSection('creators')">
-          <span>创建者</span>
-          <el-icon class="toggle-icon" :class="{ expanded: expandedSections.creators }">
-            <ArrowDown />
-          </el-icon>
-        </div>
-        <div v-show="expandedSections.creators" class="section-content">
-          <el-select
-            v-model="filters.creator"
-            filterable
-            remote
-            reserve-keyword
-            :remote-method="querySearchCreators"
-            :loading="loadingCreators"
-            placeholder="搜索创建者并选择"
-            class="full-width-select"
-            size="small"
-          >
-            <el-option
-              v-for="item in creatorOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-          <div class="chosen-tags" v-if="filters.creator">
-            <el-tag closable size="small" @close="clearCreator">{{ findCreatorLabel(filters.creator) }}</el-tag>
-          </div>
+    <div class="filter-section">
+      <div class="section-title" @click="toggleSection('creators')">
+        <span>创建者</span>
+        <el-icon class="toggle-icon" :class="{ expanded: expandedSections.creators }">
+          <ArrowDown />
+        </el-icon>
+      </div>
+      <div v-show="expandedSections.creators" class="section-content">
+        <el-select
+          v-model="filters.creator"
+          filterable
+          remote
+          reserve-keyword
+          :remote-method="querySearchCreators"
+          :loading="loadingCreators"
+          placeholder="搜索创建者并选择"
+          class="full-width-select"
+          size="small"
+        >
+          <el-option
+            v-for="item in creatorOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <div class="chosen-tags" v-if="filters.creator">
+          <el-tag closable size="small" @close="clearCreator">{{ findCreatorLabel(filters.creator) }}</el-tag>
         </div>
       </div>
+    </div>
 
       <!-- 时间范围 -->
       <div class="filter-section">
@@ -133,16 +133,16 @@
 
       <!-- 标签 -->
       <div class="filter-section">
-        <div class="section-title" @click="toggleSection('tags')">
+        <div class="section-title" @click="toggleSection('tags')" v-if="searchStore.precisionMode === 3">
           <span>标签</span>
           <el-icon class="toggle-icon" :class="{ expanded: expandedSections.tags }">
             <ArrowDown />
           </el-icon>
         </div>
         <div v-show="expandedSections.tags" class="section-content">
+          <template v-if="searchStore.precisionMode === 3">
           <el-select
-            v-model="filters.tags"
-            multiple
+            v-model="filters.tag"
             filterable
             remote
             reserve-keyword
@@ -151,28 +151,29 @@
             placeholder="搜索标签并选择"
             class="full-width-select"
             size="small"
+            ref="tagSelectRef"
+            @visible-change="onTagDropdownVisibleChange"
+            @change="onTagsChange"
           >
-            <el-option
-              v-for="item in tagOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
+            <el-option v-for="item in tagOptions" :key="item.value" :label="item.label" :value="item.value" />
+            <!-- footer as a disabled el-option that contains a button to load more -->
+            <el-option v-if="tagTotal > (tagOptions.length || 0)" :key="'__load_more_footer'" :label="'加载更多'" :value="'__load_more_footer'" disabled>
+              <template #default>
+                <div class="select-footer">
+                  <el-button type="text" @click.stop.prevent="handleLoadMoreClick" class="load-more-btn">加载更多</el-button>
+                </div>
+              </template>
+            </el-option>
           </el-select>
-          <div class="chosen-tags" v-if="filters.tags.length">
-            <el-tag
-              v-for="t in filters.tags"
-              :key="t"
-              closable
-              size="small"
-              type="info"
-              @close="removeTagValue(t)"
-            >
-              {{ findTagLabel(t) }}
-            </el-tag>
+          <div class="chosen-tags" v-if="filters.tag">
+            <el-tag closable size="small" @close="() => { filters.tag = ''; tagPage.value = 1; querySearchTags(''); }">{{ findTagLabel(filters.tag) }}</el-tag>
           </div>
-        </div>
-      </div>
+          </template>
+          <template v-else>
+            <!-- 当非精准模式时隐藏并重置标签相关状态 -->
+            <div v-if="false"></div>
+          </template>
+  </div>
 
       <!-- 文件格式 -->
       <div class="filter-section">
@@ -197,10 +198,11 @@
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue';
 import { ArrowDown } from '@element-plus/icons-vue';
 import { useSearchStore } from '../../stores/search';
 import { searchService } from '../../services/search';
@@ -225,7 +227,7 @@ const filters = reactive({
   fileSize: [],
   hasHistory: false,
   folder: false,
-  tags: [],
+  tag: '',
   formats: []
 });
 
@@ -233,7 +235,8 @@ const filterOptions = reactive({
   fileCategory: [
     { label: '个人空间', value: 'personal' },
     { label: '团队空间', value: 'group' },
-    { label: '公共空间', value: 'public' }
+    { label: '公共空间', value: 'public' },
+    { label: 'Nas空间', value: 'nas' }
   ],
   creators: [
     { label: 'Alice Smith', value: '98' },
@@ -259,23 +262,12 @@ const creatorOptions = ref([]); // 当前搜索到的创建者候选
 const tagOptions = ref([]);     // 当前搜索到的标签候选
 const loadingCreators = ref(false);
 const loadingTags = ref(false);
-// 模拟后端接口 - 标签
-function mockFetchTags(keyword) {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      const base = [
-        { label: '重要', value: 'important' },
-        { label: '待审核', value: 'pending' },
-        { label: '已完成', value: 'completed' },
-        { label: '项目', value: 'project' },
-        { label: '归档', value: 'archived' }
-      ];
-      if (!keyword) return resolve(base.slice(0, 5));
-      resolve(base.filter(i => i.label.includes(keyword) || i.value.includes(keyword)));
-    }, 300);
-  });
-}
-
+// tags pagination state
+const tagPage = ref(1);
+const tagSize = ref(10);
+const tagTotal = ref(0);
+const tagQuery = ref('');
+const tagSelectRef = ref(null);
 async function querySearchCreators(query) {
   loadingCreators.value = true;
   const all = await searchService.getCreators();
@@ -294,16 +286,72 @@ async function querySearchCreators(query) {
   });
 }
 
-async function querySearchTags(query) {
+// fetch a page of tags; if append=true append to existing options
+async function fetchTagPage(query, page = 1, append = false) {
   loadingTags.value = true;
-  tagOptions.value = await mockFetchTags(query);
-  loadingTags.value = false;
-  tagOptions.value.forEach(o => {
-    if (!searchStore.filterOptions.tags.find(t => t.value === o.value)) {
-      searchStore.filterOptions.tags.push(o);
+  try {
+    const res = await searchService.getLabels(query || '', page, tagSize.value);
+    const items = Array.isArray(res.items) ? res.items.map(i => ({ value: i.value, label: i.label })) : [];
+    tagTotal.value = Number(res.total) || (append ? (tagTotal.value || 0) : items.length);
+    tagPage.value = Number(res.page) || page;
+    if (append) {
+      // merge unique
+      const existing = new Map(tagOptions.value.map(i => [i.value, i]));
+      items.forEach(it => { if (!existing.has(it.value)) existing.set(it.value, it); });
+      tagOptions.value = Array.from(existing.values());
+    } else {
+      tagOptions.value = items;
     }
-  });
+  // do not inject sentinel here; footer button will handle load more
+    // merge to global filterOptions.tags
+    tagOptions.value.forEach(o => {
+      if (o.value !== '__load_more__' && !searchStore.filterOptions.tags.find(t => t.value === o.value)) {
+        searchStore.filterOptions.tags.push(o);
+      }
+    });
+  } catch (e) {
+    console.warn('fetchTagPage failed', e);
+  } finally {
+    loadingTags.value = false;
+  }
 }
+
+async function querySearchTags(query) {
+  tagQuery.value = query || '';
+  // start from first page on new query
+  tagPage.value = 1;
+  await fetchTagPage(tagQuery.value, tagPage.value, false);
+}
+
+// handle selection changes for single-select
+function onTagsChange(newVal) {
+  // when user clears, reset pagination
+  if (!newVal) {
+    tagPage.value = 1;
+    tagQuery.value = '';
+    // refresh first page (optional)
+    fetchTagPage('', 1, false);
+  }
+  // otherwise, selection is just a single value; nothing special to do
+}
+
+function handleLoadMoreClick() {
+  if (loadingTags.value) return;
+  const nextPage = (tagPage.value || 1) + 1;
+  if (tagTotal.value && tagOptions.value.length >= tagTotal.value) return;
+  fetchTagPage(tagQuery.value, nextPage, true);
+}
+
+function onTagDropdownVisibleChange(visible) {
+  if (visible) {
+    // if no options loaded yet, load first page via querySearchTags (resets state)
+    if (!tagOptions.value || tagOptions.value.length === 0) {
+      querySearchTags('');
+    }
+  }
+}
+
+// no global click handler needed now; we render a footer inside the select dropdown
 
 function findCreatorLabel(val) {
   const item = [...creatorOptions.value, ...(searchStore.filterOptions.creators||[])].find(i => i.value === val);
@@ -314,7 +362,7 @@ function findTagLabel(val) {
   return item?.label || val;
 }
 function clearCreator() { filters.creator = ''; }
-function removeTagValue(v) { filters.tags = filters.tags.filter(t => t !== v); }
+function removeTagValue(v) { if (filters.tag === v) { filters.tag = ''; tagPage.value = 1; querySearchTags(''); } }
 
 function toggleSection(section) {
   expandedSections[section] = !expandedSections[section];
@@ -329,7 +377,7 @@ function resetFilters() {
     fileSize: [],
     hasHistory: false,
     folder: false,
-    tags: [],
+  tag: '',
     formats: []
   });
 }
@@ -337,6 +385,7 @@ defineExpose({ resetFilters /*, getCurrentFilters: () => ({...filters}) */ });
 
 // Watch filters and apply to store
 watch(filters, (newFilters) => {
+  const selectedTagName = newFilters.tag ? findTagLabel(newFilters.tag) : '';
   const payload = {
     fileCategory: [...newFilters.fileCategory],
   creators: newFilters.creator ? [newFilters.creator] : [],
@@ -345,11 +394,24 @@ watch(filters, (newFilters) => {
     fileSize: [...newFilters.fileSize],
     hasHistory: newFilters.hasHistory,
     folder: newFilters.folder,
-    tags: [...newFilters.tags],
+  tags: newFilters.tag ? [newFilters.tag] : [],
+  // fileAiTag: 传递选中标签的 labelName，后端期望字段
+  fileAiTag: selectedTagName,
     formats: [...newFilters.formats]
   };
   searchStore.updateFilters(payload);
 }, { deep: true });
+
+// when precision mode changes away from 3, clear tag-related state
+watch(() => searchStore.precisionMode, (m) => {
+  if (Number(m) !== 3) {
+    // clear selected tag and pagination
+    filters.tag = '';
+    tagOptions.value = [];
+    tagPage.value = 1;
+    tagTotal.value = 0;
+  }
+});
 </script>
 
 <style scoped>
@@ -490,5 +552,14 @@ watch(filters, (newFilters) => {
 
 .full-width-select { width: 100%; margin-bottom: 8px; }
 .chosen-tags { display:flex; flex-wrap:wrap; gap:6px; }
+
+/* load more option style */
+:deep(.load-more-option) {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.select-footer{ padding:8px 12px; text-align:center; border-top:1px solid var(--border-color); }
+.load-more-btn{ color:var(--primary-color); font-weight:600; }
 </style>
 
