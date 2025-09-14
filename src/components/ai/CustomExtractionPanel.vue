@@ -51,31 +51,36 @@
         </el-button>
       </div>
       
-      <!-- Extraction Result -->
-      <div v-if="extractionResult" class="extraction-result">
-        <div class="result-header">
-          <h4>抽取结果</h4>
-          <div class="result-actions">
-              <div class="left-actions">
-                <el-button size="small" @click="editResult">编辑</el-button>
-                <el-button size="small" @click="clearResult">清除</el-button>
-              </div>
-              <div class="right-actions">
-                <el-button  size="small" type="primary" @click="confirmResult" :loading="saving">
-                  确认保存
-                </el-button>
+      <!-- Extraction Result (support multiple candidates) -->
+      <div v-if="Array.isArray(extractionResult) && extractionResult.length" class="extraction-results">
+        <h4>抽取结果（候选：{{ extractionResult.length }}）</h4>
+        <div class="candidates-list">
+          <div v-for="(entry, idx) in extractionResult" :key="idx" class="extraction-result">
+            <div class="result-header">
+              <h5>候选 {{ idx + 1 }}</h5>
+              <div class="result-actions">
+                <div class="left-actions">
+                  <el-button size="small" @click="editResult(idx)">编辑</el-button>
+                  <el-button size="small" @click="clearResult(idx)">清除</el-button>
+                </div>
+                <div class="right-actions">
+                  <el-button size="small" type="primary" @click="confirmResult(idx)" :loading="entry.saving || saving">
+                    确认保存
+                  </el-button>
+                </div>
               </div>
             </div>
-        </div>
-        
-        <div class="result-content">
-          <ExtractionResultForm 
-            v-if="selectedForm && extractionResult"
-            :form-structure="selectedForm.structure"
-            :extracted-data="extractionResult"
-            :editable="resultEditable"
-            @update="updateResult"
-          />
+
+            <div class="result-content">
+              <ExtractionResultForm
+                v-if="selectedForm && entry"
+                :form-structure="selectedForm.structure"
+                :extracted-data="entry"
+                :editable="!!entry.editable"
+                @update="(d) => updateResult(d, idx)"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -114,6 +119,7 @@ const formsStore = useFormsStore();
 const extractionsStore = useExtractionsStore();
 
 const selectedFormId = ref(null);
+// extractionResult: null or array of entries { fields:[], editable:boolean, saving:boolean }
 const extractionResult = ref(null);
 // 保留原始后端返回结构(包含 meta)
 const rawExtractionPayload = ref(null);
@@ -161,17 +167,42 @@ async function extractInfo() {
       formId: selectedFormId.value,
       timeout: 180000
     });
+    console.log('Extraction result:', result);
     rawExtractionPayload.value = result;
     // 规范化为组件需要的 { fields:[{ name,value,confidence,notFound,snippet,offset }] }
-    const fieldsArr = Array.isArray(result?.fields) ? result.fields : Array.isArray(result?.data?.fields) ? result.data.fields : [];
-    extractionResult.value = { fields: fieldsArr.map(f=>({
-      name: f.name,
-      value: f.value,
-      confidence: f.confidence,
-      notFound: f.notFound,
-      snippet: f.snippet,
-      offset: f.offset
-    })) };
+    let candidateEntries = [];
+    // Priority 1: direct fields array (newer API)
+    if (Array.isArray(result?.fields)) {
+      candidateEntries = [ { fields: result.fields.map(f => ({ name: f.name, value: f.value ?? '', confidence: f.confidence, notFound: f.notFound, snippet: f.snippet, offset: f.offset })) } ];
+    } else if (Array.isArray(result?.data?.fields)) {
+      candidateEntries = [ { fields: result.data.fields.map(f => ({ name: f.name, value: f.value ?? '', confidence: f.confidence, notFound: f.notFound, snippet: f.snippet, offset: f.offset })) } ];
+    } else if (Array.isArray(result?.formResult) && result.formResult.length && selectedForm.value && Array.isArray(selectedForm.value.structure?.fields)) {
+      // Parse each entry in formResult as candidate
+      result.formResult.forEach(item => {
+        let parsed = null;
+        if (typeof item === 'string') {
+          try { parsed = JSON.parse(item); } catch (e) {
+            try { const cleaned = item.replace(/\n/g,' ').trim(); parsed = JSON.parse(cleaned); } catch { parsed = null; }
+          }
+        } else if (item && typeof item === 'object') parsed = item;
+        if (parsed && typeof parsed === 'object') {
+          const fields = selectedForm.value.structure.fields.map(f => ({
+            name: f.name,
+            value: parsed.hasOwnProperty(f.name) ? parsed[f.name] : '',
+            confidence: null,
+            notFound: parsed[f.name] === undefined || parsed[f.name] === null || String(parsed[f.name]).trim() === '',
+            snippet: '',
+            offset: 0
+          }));
+          candidateEntries.push({ fields, editable: false, saving: false });
+        }
+      });
+    } else {
+      const alt = Array.isArray(result?.data) ? result.data : result;
+      if (Array.isArray(alt?.fields)) candidateEntries = [ { fields: alt.fields.map(f => ({ name: f.name, value: f.value ?? '', confidence: f.confidence, notFound: f.notFound, snippet: f.snippet, offset: f.offset })) } ];
+    }
+
+    extractionResult.value = candidateEntries.length ? candidateEntries : null;
     resultEditable.value = false;
     ElMessage.success('数据抽取完成');
   } catch (error) {
@@ -182,21 +213,30 @@ async function extractInfo() {
   }
 }
 
-function editResult() {
-  resultEditable.value = true;
+function editResult(index) {
+  if (index === undefined || index === null) {
+    // backward-compatible: set global editable
+    resultEditable.value = true;
+    if (Array.isArray(extractionResult.value)) extractionResult.value.forEach(e=> e.editable = true);
+    return;
+  }
+  if (!Array.isArray(extractionResult.value)) return;
+  extractionResult.value[index].editable = true;
 }
 
-function updateResult(newData) {
+function updateResult(newData, index) {
   // `ExtractionResultForm` emits a flat map of fieldName -> value.
   // Convert it back to the component's expected { fields: [ { name, value, ...meta } ] } shape.
   if (!newData) {
-    extractionResult.value = null;
-    return;
+  if (index === undefined || index === null) { extractionResult.value = null; return; }
+  if (!Array.isArray(extractionResult.value)) return; extractionResult.value[index] = null; return;
   }
 
   // If caller already passed the normalized shape, keep it.
+  // If caller already passed the normalized shape, keep it.
   if (Array.isArray(newData.fields)) {
-    extractionResult.value = { fields: newData.fields.map(f=>({ ...f })) };
+    const entry = { fields: newData.fields.map(f=>({ ...f })), editable: false, saving: false };
+    if (index === undefined || index === null) { extractionResult.value = [ entry ]; } else { if (!Array.isArray(extractionResult.value)) extractionResult.value = []; extractionResult.value[index] = entry; }
     return;
   }
 
@@ -218,44 +258,36 @@ function updateResult(newData) {
     };
   });
 
-  extractionResult.value = { fields };
+  const entry = { fields };
+  if (index === undefined || index === null) extractionResult.value = { fields };
+  else extractionResult.value[index] = entry;
 }
 
-async function confirmResult() {
+async function confirmResult(index) {
+  // confirm single entry by index or the first entry if index not provided
   if (!extractionResult.value) return;
-  
-  saving.value = true;
-  
+  const entry = (index === undefined || index === null) ? (Array.isArray(extractionResult.value) ? extractionResult.value[0] : extractionResult.value) : extractionResult.value[index];
+  if (!entry || !Array.isArray(entry.fields)) return;
+  entry.saving = true; saving.value = true;
   try {
     const esId = resolveEsId(props.file, props.fileId);
     const formId = selectedFormId.value;
-    const fieldsForSave = (extractionResult.value.fields || extractionResult.value.data?.fields || []).map(f=>({
-      name: f.name,
-      value: f.value,
-      confidence: f.confidence,
-      notFound: f.notFound
-    }));
+    const fieldsForSave = entry.fields.map(f=>({ name: f.name, value: f.value, confidence: f.confidence, notFound: f.notFound }));
     await formsService.saveExtractionHistory({ esId, formId, fields: fieldsForSave, raw: rawExtractionPayload.value });
     ElMessage.success('抽取结果已保存');
-    resultEditable.value = false;
+    entry.editable = false;
     // refresh history list so the newly saved record becomes visible
-    try {
-      extractionsStore.setPagination(1, extractionsStore.pagination.pageSize);
-      await extractionsStore.loadExtractions({ form_id: formId, document_id: esId });
-    } catch (err) {
-      console.warn('Failed to reload extraction history after save', err);
-    }
-  } catch (error) {
-    ElMessage.error('保存失败: ' + error.message);
-  } finally {
-    saving.value = false;
-  }
+    try { extractionsStore.setPagination(1, extractionsStore.pagination.pageSize); await extractionsStore.loadExtractions({ form_id: formId, document_id: esId }); } catch (err) { console.warn('Failed to reload extraction history after save', err); }
+  } catch (error) { ElMessage.error('保存失败: ' + error.message); }
+  finally { entry.saving = false; saving.value = false; }
 }
 
-function clearResult() {
-  extractionResult.value = null;
-  rawExtractionPayload.value = null;
-  resultEditable.value = false;
+function clearResult(index) {
+  if (index === undefined || index === null) {
+    extractionResult.value = null; rawExtractionPayload.value = null; resultEditable.value = false; return;
+  }
+  if (!Array.isArray(extractionResult.value)) return; extractionResult.value.splice(index,1);
+  if (extractionResult.value.length === 0) { extractionResult.value = null; rawExtractionPayload.value = null; }
 }
 
 // refresh removed per latest requirement

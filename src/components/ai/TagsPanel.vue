@@ -148,7 +148,7 @@ async function copyTags(){
 }
 
 // 列表展示不再区分权重颜色与显示权重，仅在编辑弹窗中编辑。
-function openEdit(){ if (!displayTags.value.length) return; editTags.value = displayTags.value.map(t=>({ tag: t.tag, weight: Number(t.weight||0) })); editVisible.value = true; }
+function openEdit(){  editTags.value = displayTags.value.map(t=>({ tag: t.tag, weight: Number(t.weight||0) })); editVisible.value = true; }
 function addTag(){ editTags.value.push({ tag:'', weight:0 }); }
 function removeTag(idx){ editTags.value.splice(idx,1); }
 async function saveTagAdjust(){
