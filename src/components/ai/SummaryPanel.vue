@@ -5,7 +5,7 @@
       <div class="controls">
         
         <el-input-number v-model="summaryLength" :min="50" :max="2000" :step="50" size="small" class="len-input" />
-        <el-button size="small" type="primary" :loading="loading" @click="generateSummary">{{ loading? '生成中...' : (hasAnySummary? '重新生成' : '生成摘要') }}</el-button>
+  <el-button size="small" type="primary" :loading="loadingSource" @click="() => generateSummary(false)">{{ loadingSource? '生成中...' : (hasAnySummary? '重新生成' : '生成摘要') }}</el-button>
         <el-button size="small" :disabled="!hasAnySummary" @click="copySummary">复制</el-button>
         <el-button size="small" type="success" :disabled="!dirty || saving" :loading="saving" @click="saveAll">保存</el-button>
       </div>
@@ -45,13 +45,14 @@
           </el-card>
           <el-card shadow="never" class="summary-card">
             <div class="card-header">
-              <span class="card-title">目标摘要 
+              <span class="card-title">译文摘要 
                 <el-select v-model="targetLanguage" size="small" class="lang-select" placeholder="目标语言">
           <el-option label="中文" value="zh" />
           <el-option label="英文" value="en" />
           <!-- <el-option label="日文" value="ja" />
           <el-option label="韩文" value="ko" /> -->
         </el-select>
+  <el-button size="small" type="primary" :loading="loadingTarget" @click="() => generateSummary(true)">{{ loadingTarget? '生成中...' : (hasAnySummary? '重新生成' : '生成摘要') }}</el-button>
               </span>
               <div class="card-actions">
                 <el-button v-if="!editingTarget" link size="small" :disabled="!targetSummary" @click="startEdit('target')">修改</el-button>
@@ -101,7 +102,9 @@ const sourceSummary = ref('');
 const targetSummary = ref('');
 const originSource = ref('');
 const originTarget = ref('');
-const loading = ref(false);
+const loadingSource = ref(false);
+const loadingTarget = ref(false);
+const loading = computed(() => loadingSource.value || loadingTarget.value);
 const error = ref('');
 const targetLanguage = ref('zh'); // 默认中文(内部值用 zh)
 const summaryLength = ref(200); // 默认 200
@@ -233,60 +236,64 @@ const dirty = computed(()=> {
 const hasAnySummary = computed(()=> !!(sourceSummary.value || targetSummary.value));
 const showDual = computed(()=> !!sourceSummary.value);
 
-async function generateSummary() {
-  if (loading.value) return;
-  loading.value = true;
+async function generateSummary(isTarget) {
+  if (loadingSource.value || loadingTarget.value) return;
   error.value='';
-  sourceSummary.value = '';
-  targetSummary.value = '';
+  // Only clear the relevant summary
+  if (!isTarget) sourceSummary.value = '';
+  if (isTarget) targetSummary.value = '';
   editingSource.value = false; editingTarget.value=false;
   startTime.value = Date.now();
   try {
-  const res = await aiToolsStore.getSummary(String(props.fileId||''), '', summaryLength.value, props.file||null);
-  if (res && typeof res === 'object') {
-    sourceSummary.value = normalizeSummary(res.summary || res.sourceObj || '');
-    sourcePoints.value = extractPoints(res.sourceObj || res.sourceSummary);
-    originSource.value = sourceSummary.value;
-    sourceLang.value = res.sourceLang || '';
-  } else if (typeof res === 'string') {
-    sourceSummary.value = normalizeSummary(res);
-    originTarget.value = sourceSummary.value;
-  }
-  const resTarget = await aiToolsStore.getSummary(String(props.fileId||''), targetLanguage.value, summaryLength.value, props.file||null);
-    if (res && typeof res === 'object') {
-  // debug: getSummary raw res (removed noisy console.log)
-    targetSummary.value = normalizeSummary(resTarget.summary || resTarget.targetObj || '');
-    originTarget.value = targetSummary.value;
-    targetLang.value = res.targetLang || targetLanguage.value;
-  } else if (typeof res === 'string') {
-    targetSummary.value = normalizeSummary(res);
-    originTarget.value = targetSummary.value;
-  }
+    if (isTarget) {
+      loadingTarget.value = true;
+      const resTarget = await aiToolsStore.getSummary(String(props.fileId||''), targetLanguage.value || 'zh', summaryLength.value, props.file||null);
+      if (resTarget && typeof resTarget === 'object') {
+        targetSummary.value = normalizeSummary(resTarget.summary || resTarget.targetObj || resTarget.targetSummary || '');
+        originTarget.value = targetSummary.value;
+        targetLang.value = resTarget.targetLang || targetLanguage.value;
+      } else if (typeof resTarget === 'string') {
+        targetSummary.value = normalizeSummary(resTarget);
+        originTarget.value = targetSummary.value;
+      }
+    } else {
+      loadingSource.value = true;
+      const res = await aiToolsStore.getSummary(String(props.fileId||''), '', summaryLength.value, props.file||null);
+      if (res && typeof res === 'object') {
+        sourceSummary.value = normalizeSummary(res.summary || res.sourceObj || res.sourceSummary || '');
+        sourcePoints.value = extractPoints(res.sourceObj || res.sourceSummary);
+        originSource.value = sourceSummary.value;
+        sourceLang.value = res.sourceLang || '';
+      } else if (typeof res === 'string') {
+        sourceSummary.value = normalizeSummary(res);
+        originSource.value = sourceSummary.value;
+      }
+    }
   } catch (e) {
     error.value = e?.message || '生成摘要失败';
     ElMessage.error(error.value);
   } finally {
     durationMs.value = Date.now()-startTime.value;
-    loading.value = false;
+    // reset individual loading flags
+    loadingSource.value = false;
+    loadingTarget.value = false;
   }
 }
 
 async function loadCachedIfAny() {
   const esId = props.file?.esId || props.file?.esid || props.file?._raw?.esId || props.file?._raw?.esid || '';
   if (!esId) return;
-  loading.value = true;
+  loadingSource.value = true;
   try {
     const cached = await aiService.fetchCachedSummary(esId);
     if (cached && (cached.targetSummary || cached.sourceSummary)) {
-  // debug: cached summary raw (removed noisy console.log)
       targetSummary.value = normalizeSummary(cached.targetSummary || cached.targetObj || '');
       sourceSummary.value = normalizeSummary(cached.sourceSummary || cached.sourceObj || '');
-      if(!sourceSummary.value && targetSummary.value && (cached.sourceSummary===undefined && cached.sourceObj===undefined)){
-        sourceSummary.value='';
+      if (!sourceSummary.value && targetSummary.value && (cached.sourceSummary === undefined && cached.sourceObj === undefined)) {
+        sourceSummary.value = '';
       }
       targetPoints.value = extractPoints(cached.targetObj || cached.targetSummary);
       sourcePoints.value = extractPoints(cached.sourceObj || cached.sourceSummary);
-  // debug: after cached load (removed noisy console.log)
       originTarget.value = targetSummary.value;
       originSource.value = sourceSummary.value;
       sourceLang.value = cached.sourceLang || '';
@@ -294,10 +301,11 @@ async function loadCachedIfAny() {
     } else {
       // 未命中缓存，不自动生成，等待用户点击
     }
-    
   } catch (e) {
     console.warn('[SummaryPanel] load cached summary failed', e);
-  } finally { loading.value = false; }
+  } finally {
+    loadingSource.value = false;
+  }
 }
 
 onMounted(()=>{ loadCachedIfAny(); });

@@ -72,7 +72,7 @@
           </template>
         </el-table-column>
         
-        <el-table-column label="AI模型" width="120">
+        <el-table-column v-if="false" label="AI模型" width="120">
           <template #default="{ row }">
             <el-tag type="info" size="small">{{ row.ai_model }}</el-tag>
           </template>

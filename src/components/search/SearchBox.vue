@@ -42,7 +42,7 @@
 
           <!-- 图片上传按钮（仅图片/问答模式显示） -->
           <div class="extra-actions">
-            <el-button v-if="['image', 'qa'].includes(searchType)" size="small" class="image-upload-btn"
+            <el-button v-if="['image'].includes(searchType)" size="small" class="image-upload-btn"
               :disabled="uploading" @click="triggerImageSelect">
               <el-icon class="btn-icon">
                 <Upload />
@@ -77,7 +77,9 @@ const emit = defineEmits(['search']);
 const props = defineProps({ initialQuery: { type: String, default: '' } });
 
 const searchQuery = ref(props.initialQuery || '');
-const searchType = ref('fullText');
+// sync to store for other components (FilterSidebar) to read
+const searchStore = useSearchStore();
+const searchType = ref(searchStore.searchType || 'fullText');
 const textSearchMode = ref(1); // 1:全文 2:段落 3:精准
 
 // 图片相关
@@ -103,9 +105,11 @@ const canSearch = computed(() => {
   return true;
 });
 
-// sync to store for other components (FilterSidebar) to read
-const searchStore = useSearchStore();
 watch(textSearchMode, (v) => { try { searchStore.precisionMode = Number(v); } catch {} });
+// keep local select in sync with store (e.g., when returning from preview)
+watch(() => searchStore.searchType, (v) => { try { if (v && v !== searchType.value) searchType.value = v; } catch {} });
+// when user changes select, sync back to store
+watch(searchType, (v) => { try { if (v && v !== searchStore.searchType) searchStore.setSearchType && searchStore.setSearchType(v); } catch {} });
 
 function buildEmitPayload() {
   return { query: searchQuery.value.trim(), searchType: searchType.value, imageFile: imageFile.value, precisionMode: textSearchMode.value };

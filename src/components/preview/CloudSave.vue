@@ -1,8 +1,10 @@
 <template>
   <div style="display:inline">
     <el-button size="small" text :loading="loading" @click="open" title="保存到我的云盘">
-      <span style="font-size:15px;">📁</span>
-      <span style="margin-left:2px;">云盘</span>
+      <el-icon style="font-size:15px;">
+        <Folder />
+      </el-icon>
+      <span style="margin-left:6px;">云盘</span>
     </el-button>
     <el-dialog v-model="visible" title="保存至我的云盘" width="520px">
       <div class="toolbar">
@@ -53,6 +55,7 @@
 
 <script setup>
 import { ref } from 'vue';
+import { Folder } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { fetchFolderTree, copyPublicToPersonal, createNasExportTask, pollNasExportTask } from '../../services/cloudSave';
 

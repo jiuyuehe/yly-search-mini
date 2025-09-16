@@ -52,7 +52,10 @@ export const useSearchStore = defineStore('search', {
     }
   },
   actions: {
-  async loadInitialData() { try { const fo = await searchService.getFilterOptions(); this.filterOptions = fo; await this.search('', 'fullText'); } catch (e) { this.error = e.message; } },
+  async loadInitialData() { try { const fo = await searchService.getFilterOptions(); this.filterOptions = fo; // preserve current searchType if set (e.g., returning from preview)
+    const initialType = this.searchType || 'fullText';
+    await this.search('', initialType);
+  } catch (e) { this.error = e.message; } },
   async fetchTagCloud(force=false){ if(!force && this.tagCloud && this.tagCloud.length) return this.tagCloud; const { tagCloudService } = await import('../services/tagCloud'); this.tagCloud = await tagCloudService.getKeywordsCloud(); return this.tagCloud; },
   async refreshTagCloud(){ const { tagCloudService } = await import('../services/tagCloud'); await tagCloudService.updateKeywordsCloud(); this.tagCloud = await tagCloudService.getKeywordsCloud(); },
     buildParams(query, searchType) {
@@ -116,6 +119,12 @@ export const useSearchStore = defineStore('search', {
       this.query = query;
   this.searchType = searchType;
   this.tagSearchActive = false; // 离开标签搜索模式
+      // If switching to image search, clear previous list results to avoid UI remnants
+      if (searchType === 'image') {
+        this.results = [];
+        this.pagination.total = 0;
+        this.searchTime = 0;
+      }
       if (options && typeof options.precision === 'number') {
         this.precision = options.precision;
       }
@@ -171,6 +180,16 @@ export const useSearchStore = defineStore('search', {
       finally { this.loading=false; }
     },
     setActiveTab(tab) { this.activeTab = tab; this.pagination.currentPage = 1; if(this.tagSearchActive){ this.searchFilesByTags(this.tagSearchTags); } else { this.search(this.query, this.searchType); } },
+    // setSearchType: switch mode and clear previous results to avoid stale UI
+    setSearchType(type) {
+      this.searchType = type || 'fullText';
+      // clear old results and reset pagination
+      this.results = [];
+      this.pagination.currentPage = 1;
+      this.pagination.total = 0;
+      this.searchTime = 0;
+      this.tagSearchActive = false;
+    },
     updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1; console.log('[Store] merged filters =>', this.filters); this.search(this.query, this.searchType); },
     updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType); },
     updatePageSize(s) { this.pagination.pageSize = s; this.pagination.currentPage = 1; this.search(this.query, this.searchType); },

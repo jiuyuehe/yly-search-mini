@@ -1,7 +1,7 @@
 <template>
   <div class="file-meta-info" v-if="file">
       <div class="top-line">
-        <img :src="fileIcon" alt="icon" class="file-icon-img" />
+        <img v-if="showIcon" :src="fileIcon" alt="icon" class="file-icon-img" />
         <span class="file-name" :title="rawName" v-html="nameHtml" @click.stop="handleOpenPreview" role="button" aria-label="open-preview"></span>
       </div>
     <div class="bottom-line">
@@ -28,7 +28,8 @@ import { parseftsIcon } from '../../filters/filters';
 
 const props = defineProps({
   file: { type: Object, required: true },
-  highlight: { type: String, default: '' } // 需要高亮的关键词
+  highlight: { type: String, default: '' }, // 需要高亮的关键词
+  showIcon: { type: Boolean, default: true }
 });
 
 const rawName = computed(() => props.file?.name || props.file?.fileName || '');

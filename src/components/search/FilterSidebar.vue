@@ -84,6 +84,7 @@
             </el-radio-group>
             <div v-if="filters.timeRange === 'custom'" class="custom-time">
               <el-date-picker
+              style="width: -webkit-fill-available;"
                 v-model="filters.customTimeRange"
                 type="daterange"
                 range-separator="至"
@@ -106,17 +107,17 @@
           </el-icon>
         </div>
         <div v-show="expandedSections.fileSize" class="section-content">
-          <el-checkbox-group v-model="filters.fileSize" class="checkbox-group">
-            <el-checkbox label="0-10M" class="filter-checkbox">小于 10MB</el-checkbox>
-            <el-checkbox label="10-100M" class="filter-checkbox">10MB - 100MB</el-checkbox>
-            <el-checkbox label="100-1G" class="filter-checkbox">100MB - 1GB</el-checkbox>
-            <el-checkbox label="1G-0" class="filter-checkbox">大于 1GB</el-checkbox>
-          </el-checkbox-group>
+          <el-radio-group v-model="filters.fileSize" class="file-size-group">
+            <el-radio label="0-10M" class="filter-radio">小于 10MB</el-radio>
+            <el-radio label="10-100M" class="filter-radio">10MB - 100MB</el-radio>
+            <el-radio label="100-1G" class="filter-radio">100MB - 1GB</el-radio>
+            <el-radio label="1G-" class="filter-radio">大于 1GB</el-radio>
+          </el-radio-group>
         </div>
       </div>
 
       <!-- 历史版本 -->
-      <div class="filter-section">
+      <div class="filter-section" v-if="false">
         <div class="section-title" @click="toggleSection('versions')">
           <span>文件夹与版本</span>
           <el-icon class="toggle-icon" :class="{ expanded: expandedSections.versions }">
@@ -224,7 +225,7 @@ const filters = reactive({
   creator: '',
   timeRange: 'all',
   customTimeRange: null,
-  fileSize: [],
+  fileSize: '',
   hasHistory: false,
   folder: false,
   tag: '',
@@ -374,7 +375,7 @@ function resetFilters() {
   creator: '',
     timeRange: 'all',
     customTimeRange: null,
-    fileSize: [],
+  fileSize: '',
     hasHistory: false,
     folder: false,
   tag: '',
@@ -386,17 +387,42 @@ defineExpose({ resetFilters /*, getCurrentFilters: () => ({...filters}) */ });
 // Watch filters and apply to store
 watch(filters, (newFilters) => {
   const selectedTagName = newFilters.tag ? findTagLabel(newFilters.tag) : '';
+
+  // helper to format Date to 'YYYY-MM-DD HH:mm:ss'
+  function fmt(d) {
+    if (!d) return d;
+    const pad = (n) => String(n).padStart(2, '0');
+    const y = d.getFullYear();
+    const m = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mm = pad(d.getMinutes());
+    const ss = pad(d.getSeconds());
+    return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+  }
+
+  let customRangeFormatted = null;
+  if (newFilters.timeRange === 'custom' && Array.isArray(newFilters.customTimeRange) && newFilters.customTimeRange.length === 2) {
+    try {
+      const [s, e] = newFilters.customTimeRange;
+      customRangeFormatted = [fmt(new Date(s)), fmt(new Date(e))];
+    } catch (err) { customRangeFormatted = null; }
+  }
+
+  // normalize fileSize into array; accept the new '1G+' token unchanged
+  const standardizedFileSize = newFilters.fileSize ? [newFilters.fileSize] : [];
+
   const payload = {
     fileCategory: [...newFilters.fileCategory],
-  creators: newFilters.creator ? [newFilters.creator] : [],
+    creators: newFilters.creator ? [newFilters.creator] : [],
     timeRange: newFilters.timeRange,
-    customTimeRange: newFilters.customTimeRange,
-    fileSize: [...newFilters.fileSize],
+    customTimeRange: customRangeFormatted,
+    fileSize: standardizedFileSize,
     hasHistory: newFilters.hasHistory,
     folder: newFilters.folder,
-  tags: newFilters.tag ? [newFilters.tag] : [],
-  // fileAiTag: 传递选中标签的 labelName，后端期望字段
-  fileAiTag: selectedTagName,
+    tags: newFilters.tag ? [newFilters.tag] : [],
+    // fileAiTag: 传递选中标签的 labelName，后端期望字段
+    fileAiTag: selectedTagName,
     formats: [...newFilters.formats]
   };
   searchStore.updateFilters(payload);
@@ -410,6 +436,19 @@ watch(() => searchStore.precisionMode, (m) => {
     tagOptions.value = [];
     tagPage.value = 1;
     tagTotal.value = 0;
+  }
+});
+
+// When switching to custom timeRange, provide a sensible default range (last 7 days)
+watch(() => filters.timeRange, (val) => {
+  if (val === 'custom') {
+    try {
+      if (!filters.customTimeRange || !Array.isArray(filters.customTimeRange)) {
+        const end = new Date();
+        const start = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000); // last 7 days including today
+        filters.customTimeRange = [start, end];
+      }
+    } catch (e) { /* ignore */ }
   }
 });
 </script>
@@ -497,6 +536,19 @@ watch(() => searchStore.precisionMode, (m) => {
   padding: var(--spacing-xs) 0;
 }
 
+/* file-size radio specific styling: left align like time radios */
+.file-size-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-xs);
+}
+
+.filter-radio {
+  margin: 0;
+  padding: var(--spacing-xs) 0;
+}
+
 :deep(.filter-checkbox .el-checkbox__label) {
   font-size: 14px;
   color: var(--text-color-secondary);
@@ -512,6 +564,7 @@ watch(() => searchStore.precisionMode, (m) => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+  min-width: 0;
 }
 
 .time-radio-group {
@@ -539,10 +592,18 @@ watch(() => searchStore.precisionMode, (m) => {
 
 .custom-time {
   margin-top: var(--spacing-sm);
+  /* allow wrapping inside the sidebar to avoid overflow */
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  word-break: break-word;
+  overflow: hidden;
 }
 
 .date-picker {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 :deep(.date-picker .el-input__wrapper) {

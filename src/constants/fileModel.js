@@ -70,6 +70,7 @@ export const DEFAULT_FILE_OBJECT = Object.freeze({
   tags: [],                // 标签数组
   aiMeta: null,            // AI 生成的结构化元信息
   thumbUrl: '',            // 缩略图 (图片/视频)
+  imageThumbnail: null,    // 后端返回的缩略图 base64 或 data URL
 
   // 前端辅助字段
   highlight: null,         // 高亮命中信息 (备用)
@@ -152,7 +153,9 @@ export function normalizeFile(raw = {}) {
     highlight: raw.highlight || null,
     esId: raw.esId || raw.esid || null,
     pathBreadcrumb: raw.pathBreadcrumb || null,
-    _raw: raw
+  _raw: raw,
+  // preserve any raw thumbnail fields the backend may return
+  imageThumbnail: raw.imageThumbnail ?? raw.image_thumb ?? raw.thumbnail ?? null
   };
 
   return obj;

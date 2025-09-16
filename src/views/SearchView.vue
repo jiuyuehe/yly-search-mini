@@ -57,21 +57,31 @@
 
           <TagCloud v-if="showTagCloud" @tag-click="handleTagClick" />
 
-      <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }" :style="gridStyle">
-              <search-result-item
-              v-for="item in searchResults"
-              :key="item.id"
-              :item="item"
-        v-model:selected="selectedItems[item.id]"
-        :search-query="searchStore.query"
-        :display-mode="searchStore.isImageSearch ? imageDisplayMode : 'list'"
-              @click="navigateToPreview"
-            />
-            <el-empty v-if="searchResults.length === 0" description="没有结果" />
+      <div class="results-wrapper" style="position:relative; display:flex; flex-direction:column; flex:1; min-height:0;">
+        <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }" :style="gridStyle">
+          <search-result-item
+            v-for="item in searchResults"
+            :key="item.id"
+            :item="item"
+            v-model:selected="selectedItems[item.id]"
+            :search-query="searchStore.query"
+            :display-mode="searchStore.isImageSearch ? imageDisplayMode : 'list'"
+            :is-image-search="searchStore.isImageSearch"
+            @click="navigateToPreview"
+          />
+          <el-empty v-if="searchResults.length === 0" description="没有结果" />
+        </div>
+  <!-- Overlay loading so grid layout isn't affected -->
+  <div v-if="searchStore.isImageSearch && searchStore.loading" class="results-overlay" style="pointer-events:auto;">
+          <div class="image-loading-center full-area">
+            <el-icon class="loading-icon spinner"><component :is="Loading" /></el-icon>
+            <div class="loading-text">图片识别中，请稍候...</div>
           </div>
+        </div>
+      </div>
 
           <div class="search-footer" v-if="!showTagCloud">
-            <div class="selection-actions" v-if="hasSelectedItems">
+            <div class="selection-actions" v-if="hasSelectedItems" style="width: 280px;">
               <el-button type="primary" @click="downloadSelected">导出文件</el-button>
               <el-button @click="exportSelected">导出结果集</el-button>
             </div>
@@ -102,7 +112,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { List, Cloudy, Iphone } from '@element-plus/icons-vue';
+import { List, Cloudy, Iphone, Loading } from '@element-plus/icons-vue';
 import { useSearchStore } from '../stores/search';
 import AppHeader from '../components/common/AppHeader.vue';
 import FilterSidebar from '../components/search/FilterSidebar.vue';
@@ -146,17 +156,17 @@ function setImageCols(n){ imageGridCols.value = n; }
 const searchResults = computed(() => {
   const results = searchStore.getFilteredResults(activeTab.value) || [];
   // when in image search mode and no real results, return mock images for layout tuning
-  if (searchStore.isImageSearch && (!Array.isArray(results) || results.length === 0)) {
-    const mock = Array.from({ length: 24 }).map((_, i) => ({
-      id: `mock-${i}`,
-      fileName: `mock-${i}.jpg`,
-      fileType: 'jpg',
-      // lightweight placeholder images for layout testing
-      thumb: `https://picsum.photos/seed/mock${i}/400/300`,
-      previewUrl: `https://picsum.photos/seed/mock${i}/1200/900`
-    }));
-    return mock;
-  }
+  // if (searchStore.isImageSearch && (!Array.isArray(results) || results.length === 0)) {
+  //   const mock = Array.from({ length: 3 }).map((_, i) => ({
+  //     id: `mock-${i}`,
+  //     fileName: `mock-${i}.jpg`,
+  //     fileType: 'jpg',
+  //     // lightweight placeholder images for layout testing
+  //     thumb: `https://picsum.photos/seed/mock${i}/400/300`,
+  //     previewUrl: `https://picsum.photos/seed/mock${i}/1200/900`
+  //   }));
+  //   return mock;
+  // }
   return results;
 });
 
@@ -178,6 +188,15 @@ function handleSearch(query, searchType, imageFile, options) {
   // ensure chat panel mounted before sending question
   waitForChatRef(2000).then(() => { try { chatPanelRef.value?.askQuestion?.(query); } catch { /* ignore */ } }).catch(()=>{});
     return;
+  }
+  // If image search is requested, clear previous UI artifacts before issuing request
+  if (searchType === 'image' || imageFile) {
+    // clear selected items and hide tag cloud to avoid showing prior list remnants
+    selectedItems.value = {};
+    showTagCloud.value = false;
+    // reset pagination so visual list doesn't show stale totals
+    currentPage.value = 1;
+    pageSize.value = searchStore.pagination.pageSize || pageSize.value;
   }
   searchStore.search(query, searchType, imageFile, options || null);
   currentPage.value = 1;
@@ -260,7 +279,7 @@ function onModeChange(mode){ uiMode.value = mode === 'qa' ? 'qa' : 'search'; }
 
 function handleReturnToSearch(){
   uiMode.value = 'search';
-  try { window.dispatchEvent(new CustomEvent('set-search-type', { detail: 'fullText' })); } catch { /* ignore in non-browser env */ }
+  try { window.dispatchEvent(new CustomEvent('set-search-type', { detail: searchStore.searchType || 'fullText' })); } catch { /* ignore in non-browser env */ }
 }
 
 // wait up to timeoutMs for chatPanelRef to be available
@@ -336,11 +355,22 @@ onMounted(async () => {
 .sidebar-toggle { position: absolute; top: 20px; right: 10px; cursor: pointer; background-color: #ffffff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
 .search-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px 0 0 0; }
 .search-content-inner { width: 900px; max-width: 100%; margin: 0 auto; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 20px; }
-.search-results { flex: 1; overflow-y: auto; padding: 10px 0; }
-.search-results.grid-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.search-results { flex: 1 1 auto; overflow-y: auto; padding: 10px 0; min-height: 0; }
+  .search-results.grid-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; align-items: start; }
 .search-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; border-top: 1px solid #ebeef5; }
 .summary-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;flex-wrap:wrap;}
 .extra-actions{display:flex;align-items:center;gap:8px;}
+
+.image-loading-center{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 10px;width:100%;}
+.image-loading-center .loading-icon{font-size:48px;color:var(--primary-color);}
+.image-loading-center .loading-text{margin-top:8px;color:var(--text-color-secondary);}
+.image-loading-center.full-area{min-height:320px;height:320px;display:flex;align-items:center;justify-content:center;}
+.spinner{animation:spin 1s linear infinite;}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+
+/* Overlay that covers the results area without affecting its layout */
+.results-wrapper{position:relative;}
+.results-overlay{position:absolute;left:0;top:0;right:0;bottom:60px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.72);z-index:40;border-radius:8px;pointer-events:none;}
 
 /* Tabs row: tabs on left, response time on right. Wrap on small screens. */
 .tabs-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; margin-bottom:6px; }

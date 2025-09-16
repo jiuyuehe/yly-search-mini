@@ -19,8 +19,8 @@
         </el-select>
         <el-select v-model="stylePreset" size="small" style="width:110px" @change="scheduleRender(0)" :disabled="loading">
           <el-option label="动态" value="dynamic" />
-          <el-option label="示例样式" value="example" />
-          <el-option label="India 2" value="example-india-2" />
+          <!-- <el-option label="示例样式" value="example" />
+          <el-option label="India 2" value="example-india-2" /> -->
         </el-select>
         <el-button size="small" text @click="advancedOpen = !advancedOpen">高级</el-button>
         <el-button size="small" :loading="loading" @click="onRefresh">刷新</el-button>
@@ -192,7 +192,7 @@ function renderCloud(){
   nextTick(()=>{
     try {
       const el = cloudCanvas.value || cloudContainer.value;
-      const rect = cloudContainer.value.getBoundingClientRect();
+  const rect = cloudContainer.value.getBoundingClientRect();
       // Set canvas size
       if(cloudCanvas.value){
         const dpr = window.devicePixelRatio || 1;
@@ -216,7 +216,9 @@ function renderCloud(){
         hctx.setTransform(dpr,0,0,dpr,0,0);
         hctx.clearRect(0,0,rect.width, props.height);
       }
-      const list = buildList();
+  const list = buildList();
+  // ensure default origin center for non-cardioid shapes to keep items centered
+  const defaultOrigin = [Math.floor(rect.width/2), Math.floor(props.height/2)];
       // 根据词数量自适应 gridSize，保证内容尽量排满
   const dpr = window.devicePixelRatio || 1;
   // 动态模式使用更小基准：基准 3，范围 [2,8]
@@ -256,13 +258,13 @@ function renderCloud(){
   // 兼容旧值 example-min -> dynamic
   if(stylePreset.value === 'example-min') stylePreset.value = 'dynamic';
 
-    if(stylePreset.value === 'example' || stylePreset.value === 'example-india-2') {
+  if(stylePreset.value === 'example' || stylePreset.value === 'example-india-2') {
         // 从 WordsService 示例载入 'india' 预设
         const preset = getExamplePreset(stylePreset.value === 'example-india-2' ? 'india_2' : 'india');
         wcOptions = preset ? {
           list,
           ...preset,
-      origin: originOverride || preset.origin || undefined,
+      origin: originOverride || preset.origin || defaultOrigin,
           click: function(item){ if(item && item[0]) handleClick(item[0]); },
           hover: function(item, dimension){
             if(!cloudContainer.value) return;
@@ -280,7 +282,7 @@ function renderCloud(){
           },
           done: function(){ rendering.value=false; }
         } : { list };
-      } else { // dynamic 模式参照示例风格
+  } else { // dynamic 模式参照示例风格
         const example = getExamplePreset('india');
         const baseGrid = example ? example.gridSize : 4;
         const egDprGrid = Math.max(2, Math.round(baseGrid * dpr));
@@ -309,7 +311,7 @@ function renderCloud(){
           drawOutOfBound: false,
           origin: null,
           abortThreshold: 1500,
-          ...(originOverride ? { origin: originOverride } : {}),
+          ...(originOverride ? { origin: originOverride } : { origin: defaultOrigin }),
           click: function(item){ if(item && item[0]) handleClick(item[0]); },
           hover: function(item, dimension){
             if(!cloudContainer.value) return;
@@ -335,7 +337,7 @@ function renderCloud(){
           done: function(){ rendering.value=false; }
         };
       }
-      try {
+  try {
   const inspect = { ...wcOptions };
         inspect.listSample = inspect.list.slice(0,8);
         inspect.totalWords = inspect.list.length;
@@ -352,10 +354,20 @@ function renderCloud(){
   inspect.adaptiveGridBase = adaptiveGrid;
   inspect.dpr = window.devicePixelRatio || 1;
   inspect.stylePreset = stylePreset.value;
-  inspect.origin = wcOptions.origin || '(auto)';
+        inspect.origin = wcOptions.origin || '(auto)';
         console.log('[TagCloud][WordCloud options]', inspect);
   } catch{ /* log ignore */ }
       WordCloud(el, wcOptions);
+      // Attach click fallback on container: if WordCloud click didn't fire, use last hoverWord
+      try {
+        if (cloudContainer.value && !cloudContainer.value.__tagCloudClickAttached) {
+          cloudContainer.value.addEventListener('click', (ev)=>{
+            // prefer WordCloud's click; fallback to hoverWord when clicking on canvas
+            if (hoverWord.value) { handleClick(hoverWord.value); }
+          });
+          cloudContainer.value.__tagCloudClickAttached = true;
+        }
+      } catch(e){ /* ignore */ }
     } catch(e){
       console.warn('渲染标签云失败, 使用回退模式', e);
       fallback.value = true;

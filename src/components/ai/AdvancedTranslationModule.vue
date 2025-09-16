@@ -1,5 +1,5 @@
 <template>
-  <div class="advanced-translation-module">
+  <div class="advanced-translation-module" :class="{ 'theme-dark': settings.theme === 'dark' }">
     <!-- Top Toolbar (50px height) -->
     <div class="translation-toolbar">
       <div class="language-selectors">
@@ -148,29 +148,9 @@
       </div>
     </div>
 
-    <!-- Context Menu for Text Selection -->
-    <div 
-      v-if="showContextMenu" 
-      ref="contextMenuRef"
-      class="context-menu"
-      :style="contextMenuStyle"
-    >
-      <div class="menu-item" @click="lookupEncyclopedia">
-        <el-icon><Search /></el-icon>
-        百科查询
-      </div>
-      <div class="menu-item" @click="markAsTerminology">
-        <el-icon><BookmarkIcon /></el-icon>
-        标记术语
-      </div>
-      <div class="menu-item" @click="markAsWarning">
-        <el-icon><Warning /></el-icon>
-        标记警告
-      </div>
-      <div class="menu-item" @click="addCustomTag">
-        <el-icon><Tag /></el-icon>
-        自定义标签
-      </div>
+    <!-- Context Menu for Text Selection (temporarily disabled) -->
+    <div v-if="false" ref="contextMenuRef" class="context-menu" :style="contextMenuStyle">
+      <!-- menu intentionally disabled during debugging -->
     </div>
 
     <!-- Settings Modal -->
@@ -622,14 +602,36 @@ let autoTranslateTimer = null;
 // Text alignment maps for synchronized highlighting
 const textAlignmentMap = ref({});
 
+let _ignoreNextDocumentClick = false;
+let _suppressSelectionClear = false;
+
+function onDocumentClick(e) {
+  if (_ignoreNextDocumentClick) {
+    _ignoreNextDocumentClick = false;
+    return;
+  }
+  hideContextMenu();
+}
+
 onMounted(async () => {
   loadSettings();
   applyFontSize();
-  document.addEventListener('click', hideContextMenu);
+  applyTheme();
+  // use a wrapped document click handler so we can ignore the immediate click that
+  // sometimes follows contextmenu on some platforms/browsers
+  document.addEventListener('click', onDocumentClick);
   if (props.active) { await initLoad(); }
 });
 watch(()=>props.fileId, ()=>{ initTried=false; if (props.active) initLoad(); });
-watch(()=>props.active, (v)=>{ if (v) { initLoad(); } });
+watch(()=>props.active, (v)=>{
+  if (v) {
+    // 每次激活时优先从 localStorage 读取配置并应用
+    loadSettings();
+    applyFontSize();
+  applyTheme();
+    initLoad();
+  }
+});
 
 async function initLoad(){
   if (initTried) return; initTried = true;
@@ -679,10 +681,18 @@ async function loadCachedOrTranslate(){
         return;
       }
     }
+    // 如果源目标语言相同，直接复制
     if (sourceLanguage.value === targetLanguage.value) {
-  translatedText.value = sourceText.value; emit('translated', translatedText.value); updateTargetTextContent(); return;
+      translatedText.value = sourceText.value;
+      emit('translated', translatedText.value);
+      updateTargetTextContent();
+      return;
     }
-    await translateText();
+
+    // 仅当设置允许自动翻译时才触发翻译
+    if (settings.autoTranslate) {
+      await translateText();
+    }
   } catch (e) { console.warn('loadCachedOrTranslate failed', e); }
 }
 
@@ -896,12 +906,48 @@ function onTextSelection(event) {
   if (selection && selection.toString().trim()) {
     const txt = selection.toString().trim();
     selectedText.value = txt;
-    try { selectedRange.value = selection.getRangeAt(0).cloneRange(); } catch { /* ignore */ }
-    highlightSelectionBoth(txt);
-    showContextMenuAt(event);
+    // attempt to get a range that overlaps editor and wrap it directly
+    try { selectedRange.value = selection.getRangeAt(0).cloneRange(); } catch { selectedRange.value = null; }
+    // Prefer Range-based wrapping in the editor that contains the range.
+    const editorsToTry = [];
+    if (selectedRange.value) {
+      try {
+        if (sourceTextRef.value && sourceTextRef.value.contains(selectedRange.value.commonAncestorContainer)) editorsToTry.push(sourceTextRef.value);
+        if (targetTextRef.value && targetTextRef.value.contains(selectedRange.value.commonAncestorContainer)) editorsToTry.push(targetTextRef.value);
+      } catch (e) { /* ignore */ }
+    }
+    // also add the event target's editor first if available
+    const evtEditor = event && event.target ? (event.target.closest && event.target.closest('.text-editor')) : null;
+    if (evtEditor) editorsToTry.unshift(evtEditor);
+
+    let wrapped = false;
+    for (const ed of editorsToTry) {
+      const rr = extractSelectionRange(ed) || selectedRange.value;
+      if (rr) {
+        clearSelectionHighlights();
+        try { wrapped = wrapSelectionRange(ed, rr, SELECTION_CLASS) || wrapped; } catch (e) { wrapped = wrapped; }
+        if (wrapped) break;
+      }
+    }
+
+    // If still not wrapped, try text-based wrapping in both editors as fallback
+    if (!wrapped) {
+      clearSelectionHighlights();
+      // try source first
+      if (sourceTextRef.value) {
+        wrapRangeByText(sourceTextRef.value, txt, SELECTION_CLASS);
+      }
+      // then target
+      if (targetTextRef.value) {
+        wrapRangeByText(targetTextRef.value, txt, SELECTION_CLASS);
+      }
+    }
+    // do not open context menu on mouseup/key selection (only on contextmenu)
   } else {
-    hideContextMenu();
-    clearCrossHighlights();
+    if (!_suppressSelectionClear) {
+      hideContextMenu();
+      clearCrossHighlights();
+    }
   }
 }
 
@@ -988,14 +1034,67 @@ function onEditorHover(e, which) {
     if (sentence) highlightSentenceBoth(sentence);
   });
 }
-function onEditorContextMenu(e, which) {
+function extractSelectionRange(editor) {
   const sel = window.getSelection();
-  if (!sel || !sel.toString().trim()) {
-    const editor = which === 'source' ? sourceTextRef.value : targetTextRef.value;
-    const sentence = getSentenceAtPoint(editor, e.clientX, e.clientY);
-    if (sentence) highlightSentenceBoth(sentence);
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0).cloneRange();
+  // ensure range overlaps editor in some way (start or end inside)
+  if (!editor) return null;
+  try {
+    const startContained = editor.contains(range.startContainer);
+    const endContained = editor.contains(range.endContainer);
+    if (!startContained && !endContained) {
+      // maybe the range encloses the editor node itself? check commonAncestor
+      if (!editor.contains(range.commonAncestorContainer)) return null;
+    }
+    return range;
+  } catch (e) { return null; }
+}
+
+function wrapSelectionRange(editor, range, className) {
+  if (!editor || !range || range.collapsed) return false;
+  try {
+    const span = document.createElement('span');
+    span.className = className;
+    range.surroundContents(span);
+    return true;
+  } catch (e) {
+    // surroundContents can fail if range partially selects non-text nodes; fallback to manual method
+    try {
+      const docFrag = range.extractContents();
+      const wrapper = document.createElement('span');
+      wrapper.className = className;
+      wrapper.appendChild(docFrag);
+      range.insertNode(wrapper);
+      return true;
+    } catch (err) {
+      return false;
+    }
   }
-  showContextMenuAt(e);
+}
+
+function onEditorContextMenu(e, which) {
+  // Temporarily suppress showing the context menu; only perform selection highlighting.
+  const editor = which === 'source' ? sourceTextRef.value : targetTextRef.value;
+  _ignoreNextDocumentClick = true;
+  _suppressSelectionClear = true;
+  const selRange = extractSelectionRange(editor);
+  if (selRange) {
+    clearSelectionHighlights();
+    if (wrapSelectionRange(editor, selRange, SELECTION_CLASS)) {
+      // menu suppressed: keep highlight
+      return;
+    }
+    const text = selRange.toString().trim();
+    if (text) {
+      clearSelectionHighlights();
+      highlightSelectionBoth(text);
+      return;
+    }
+  }
+  // Fallback: highlight sentence under cursor
+  const sentence = getSentenceAtPoint(editor, e.clientX, e.clientY);
+  if (sentence) highlightSentenceBoth(sentence);
 }
 // ==== 新高亮实现 END ====
 
@@ -1007,6 +1106,40 @@ function loadSettings() {
   }
 }
 
+function applyTheme() {
+  // 目前通过根元素 class 切换（template 绑定），这里做一些全局或 body 级别的需要时可扩展
+  if (settings.theme === 'dark') {
+    document.documentElement.classList.add('app-theme-dark');
+  } else {
+    document.documentElement.classList.remove('app-theme-dark');
+  }
+}
+
+function saveSettings() {
+  try {
+    const toSave = {
+      provider: settings.provider,
+      theme: settings.theme,
+      fontSize: settings.fontSize,
+      autoTranslate: settings.autoTranslate,
+      translateDelay: settings.translateDelay
+    };
+    localStorage.setItem('translation_settings', JSON.stringify(toSave));
+  applyFontSize();
+  applyTheme();
+    showSettings.value = false;
+    ElMessage.success('设置已保存');
+    // 如果开启了自动翻译且有源文本，则触发一次翻译
+    if (settings.autoTranslate && sourceText.value.trim()) {
+      // 延迟一小会儿以确保对话框关闭并 DOM 更新
+      setTimeout(() => { translateText().catch(()=>{}); }, 50);
+    }
+  } catch (e) {
+    console.warn('saveSettings failed', e);
+    ElMessage.error('保存设置失败');
+  }
+}
+
 // Apply font size
 function applyFontSize() {
   if (sourceTextRef.value) sourceTextRef.value.style.fontSize = settings.fontSize + 'px';
@@ -1015,14 +1148,29 @@ function applyFontSize() {
 
 // Show context menu at specified event
 function showContextMenuAt(event) {
+  // prevent the immediate document click from closing the menu/highlight
+  _ignoreNextDocumentClick = true;
+  _suppressSelectionClear = true;
   showContextMenu.value = true;
   nextTick(() => {
     contextMenuStyle.value = { position:'fixed', left: event.clientX + 'px', top: event.clientY + 'px', zIndex: 9999 };
+    // small timeout to allow any native click to finish; then allow clears again when appropriate
+    setTimeout(() => { _suppressSelectionClear = false; }, 200);
   });
 }
 
 // Hide context menu
-function hideContextMenu() { showContextMenu.value = false; }
+function hideContextMenu() {
+  showContextMenu.value = false;
+  // allow a short delay before clearing so menu click handlers can run
+  setTimeout(() => {
+    if (!_suppressSelectionClear) {
+      clearSelectionHighlights();
+      clearCrossHighlights();
+    }
+    _suppressSelectionClear = false;
+  }, 120);
+}
 
 // Terminology Management Functions
 function getTermTypeLabel(type) {
@@ -1204,7 +1352,7 @@ function importTerminology() {
 }
 
 // 组件卸载清理
-onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
+onUnmounted(() => { document.removeEventListener('click', onDocumentClick); });
 </script>
 
 <style scoped>
@@ -1260,4 +1408,18 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   .text-panel:last-child { border-bottom:none; }
   .language-selectors { flex-wrap:wrap; gap:8px; }
 }
+
+/* Dark theme overrides */
+.advanced-translation-module.theme-dark { background: #1f2937; color: #e5e7eb; }
+.advanced-translation-module.theme-dark .translation-toolbar { background: #111827; border-bottom-color: #2d3748; color: #e6eef8; }
+.advanced-translation-module.theme-dark .translation-toolbar label { color: #cbd5e1; }
+.advanced-translation-module.theme-dark .panel-header { background: #111827; border-bottom-color: #2d3748; color: #e6eef8; }
+.advanced-translation-module.theme-dark .panel-header .panel-title { color: #f3f4f6; }
+.advanced-translation-module.theme-dark .panel-header .char-count { color: #cbd5e1; }
+.advanced-translation-module.theme-dark .text-editor { background: #0b1220; color:#e6eef8; }
+.advanced-translation-module.theme-dark .lang-display { background: rgba(255,255,255,0.03); border-color: #374151; color: #cbd5e1; }
+.advanced-translation-module.theme-dark .toolbar-actions .el-button { color: #e6eef8; }
+.advanced-translation-module.theme-dark .context-menu { background: #0b1220; color: #e6eef8; border-color: #2d3748; }
+.advanced-translation-module.theme-dark .menu-item { color: #e6eef8; }
+.app-theme-dark { background: #0b1220; color: #e6eef8; }
 </style>

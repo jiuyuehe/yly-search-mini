@@ -19,8 +19,9 @@
         <img 
           v-if="thumbSrc && !thumbBroken" 
           :src="thumbSrc" 
-          class="grid-thumb" 
-          @error="onThumbError" 
+          class="grid-thumb clickable" 
+          @error="onThumbError"
+          @click.stop="handleThumbClick"
         />
         <div v-else class="grid-thumb-fallback">
           <img :src="fallbackIcon" class="fallback-icon" />
@@ -47,12 +48,12 @@
         />
         <!-- 缩略图（图片类型） -->
         <div v-if="isImage" class="thumb-box">
-          <img v-if="thumbSrc" :src="thumbSrc" class="thumb" @error="onThumbError" />
+          <img v-if="thumbSrc" :src="thumbSrc" class="thumb clickable" @error="onThumbError" @click.stop="handleThumbClick" />
           <img v-else :src="fallbackIcon" class="thumb fallback" />
         </div>
         <!-- 文件信息 -->
         <div class="file-info">
-          <FileMetaInfo :file="metaFile" :highlight="searchQuery" @open-path="openPath" @open-preview="(f,e) => $emit('click', item, e)" />
+          <FileMetaInfo :file="metaFile" :highlight="searchQuery" :show-icon="!isImageSearch" @open-path="openPath" @open-preview="(f,e) => $emit('click', item, e)" />
           <div v-if="hasScore" class="score-line">
             <el-tag size="small" type="warning" effect="light">Score: {{ displayScore }}</el-tag>
           </div>
@@ -83,7 +84,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { goCloudPath } from '../../services/navigation';
 import FileMetaInfo from '../preview/FileMetaInfo.vue';
 import { parseftsIcon } from '../../filters/filters';
@@ -92,7 +93,8 @@ const props = defineProps({
   item: { type: Object, required: true },
   selected: { type: Boolean, default: false },
   searchQuery: { type: String, default: '' },
-  displayMode: { type: String, default: 'list' } // 'list' or 'grid'
+  displayMode: { type: String, default: 'list' }, // 'list' or 'grid'
+  isImageSearch: { type: Boolean, default: false }
 });
 const _emit = defineEmits(['click', 'update:selected']);
 
@@ -134,11 +136,45 @@ const plainPreviewText = computed(() => {
 const showToggle = computed(() => plainPreviewText.value.length > 180);
 
 // 图片判定与缩略图
-const isImage = computed(() => props.item.type === 'image' || ['png','jpg','jpeg','gif','bmp','webp','tiff','svg'].includes((props.item.fileType||'').toLowerCase()));
-const thumbSrc = computed(() => props.item.thumbUrl || props.item.fsFileThumb || props.item.thumb || '');
+const isImage = computed(() => {
+  try {
+    if (!props.item) return false;
+    if (props.item.type === 'image') return true;
+    if (props.item.isImage === true) return true;
+    const ft = (props.item.fileType || '').toLowerCase();
+    const imgExts = ['png','jpg','jpeg','gif','bmp','webp','tiff','svg'];
+    if (ft && imgExts.includes(ft)) return true;
+    const name = (props.item.fileName || props.item.name || '').toLowerCase();
+    const parts = name.split('.');
+    const ext = parts.length > 1 ? parts[parts.length-1] : '';
+    if (ext && imgExts.includes(ext)) return true;
+    // backend may provide thumbnails even when fileType is absent
+    if (props.item.imageThumbnail || props.item.image_thumb || props.item.fsFileThumb || props.item.thumb) return true;
+    return false;
+  } catch (e) { return false; }
+});
+const thumbSrc = computed(() => {
+  // Prefer backend-provided imageThumbnail (may be base64 string or data URL)
+  const t = props.item && (props.item.imageThumbnail || props.item.image_thumb || props.item.thumbnail);
+  if (t && typeof t === 'string') {
+    const trimmed = t.trim();
+    if (/^data:\w+\/[a-zA-Z+.-]+;base64,/.test(trimmed)) return trimmed;
+    // if it's pure base64 (may optionally start with '/'), assume jpeg
+    const compact = trimmed.replace(/\s+/g,'');
+    if (/^\/?[A-Za-z0-9+/=]+$/.test(compact) && compact.length > 50) {
+      return 'data:image/jpeg;base64,' + compact;
+    }
+  }
+  return props.item.thumbUrl || props.item.fsFileThumb || props.item.thumb || '';
+});
 const fallbackIcon = computed(() => { try { return parseftsIcon(props.item); } catch { return ''; } });
 const thumbBroken = ref(false);
 function onThumbError() { thumbBroken.value = true; }
+
+function handleThumbClick(e) {
+  e && e.stopPropagation && e.stopPropagation();
+  _emit('click', props.item, e);
+}
 
 // 得分显示（0~1）
 const hasScore = computed(() => typeof props.item.score === 'number');
@@ -160,6 +196,8 @@ function prettySize(size) {
 <style scoped>
 .search-result-item { border: 1px solid #e4e7ed; border-radius: 8px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s; }
 .search-result-item:hover { border-color: #409eff; box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1); }
+/* Prevent stretching when parent is a grid/flex container (single item case) */
+.search-result-item { align-self: start; }
 
 /* List layout (default) */
 .item-header { display:flex; align-items:center; gap:12px; }
@@ -182,6 +220,7 @@ function prettySize(size) {
 .thumb-box { width:64px; height:64px; flex:0 0 64px; display:flex; align-items:center; justify-content:center; border:1px solid #e5e7eb; border-radius:6px; background:#fff; overflow:hidden; position:relative; }
 .thumb { width:100%; height:100%; object-fit:cover; transition:.25s; }
 .thumb:hover { transform:scale(1.06); }
+.clickable { cursor: pointer; }
 .score-line { display:flex; align-items:center; gap:6px; }
 
 /* Grid layout for image search */
