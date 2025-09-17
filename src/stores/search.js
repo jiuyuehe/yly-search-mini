@@ -108,19 +108,22 @@ export const useSearchStore = defineStore('search', {
       return base;
     },
     async search(query, searchType = 'fullText', imageFile = null, options = null) {
-      const seq = ++this._reqSeq; // 本次请求序列
-      // 根据前端下拉: 1全文 2段落 3精准
+      const seq = ++this._reqSeq; // 本次请求序
+      // 不要直接修改传入的 searchType（这是 UI 的选择），使用局部变量作为请求时的类型
+      let reqType = searchType;
+      // 根据前端下拉: 1全文 2段落 3精准 — 仅用于构建请求，不写回 store.searchType
       if (options && typeof options.precisionMode !== 'undefined' && !['image','qa'].includes(searchType)) {
         const mode = Number(options.precisionMode);
-        if (mode === 3) searchType = 'precision';
-        else searchType = 'fullText'; // 1/2 都归为全文类型，后端可用附加字段区分
+        if (mode === 3) reqType = 'precision';
+        else reqType = 'fullText'; // 1/2 都归为全文类型，后端可用附加字段区分
       }
       this.loading = true;
       this.query = query;
-  this.searchType = searchType;
-  this.tagSearchActive = false; // 离开标签搜索模式
-      // If switching to image search, clear previous list results to avoid UI remnants
-      if (searchType === 'image') {
+      // 保持 store.searchType 为 UI 的选择值，不因混合模式而变更
+      this.searchType = searchType;
+      this.tagSearchActive = false; // 离开标签搜索模式
+      // If switching to image search for the request, clear previous list results to avoid UI remnants
+      if (reqType === 'image') {
         this.results = [];
         this.pagination.total = 0;
         this.searchTime = 0;
@@ -130,13 +133,13 @@ export const useSearchStore = defineStore('search', {
       }
 
       try {
-        const params = this.buildParams(query, searchType);
+  const params = this.buildParams(query, reqType);
         if (options && typeof options.precisionMode !== 'undefined') {
           // 使用后端约定的参数名 precisionMode（数值 1/2/3）
           params.precisionMode = Number(options.precisionMode);
         }
         let searchResp, aggCounts;
-        if (searchType === 'image') {
+  if (reqType === 'image') {
           searchResp = await imageSearchService.searchByVisual(params, imageFile);
           aggCounts = {};
         } else {
