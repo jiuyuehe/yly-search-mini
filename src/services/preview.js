@@ -49,6 +49,14 @@ class PreviewService {
     return root.data || {};
   }
 
+   async getDetailByEsId(esid) {
+    if (!esid) throw new Error('缺少 esid');
+    const body = { esid: esid };
+    const root = await api.post('/admin-api/rag/documents/detail', body, { headers: { 'Content-Type': 'application/json' } });
+    if (root?.code !== 0 || !root?.data) throw new Error(root?.msg || '获取详细信息失败');
+    return root.data || {};
+  }
+
   /** 获取文件预览视图 (非 NAS)
    * 普通文件: /apps/file/view  params: { fi, fc }
    */

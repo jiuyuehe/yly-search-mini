@@ -138,15 +138,23 @@ export const useSearchStore = defineStore('search', {
           // 使用后端约定的参数名 precisionMode（数值 1/2/3）
           params.precisionMode = Number(options.precisionMode);
         }
-        let searchResp, aggCounts;
-  if (reqType === 'image') {
+    let searchResp, aggCounts;
+    let gotAgg = false;
+        if (reqType === 'image') {
           searchResp = await imageSearchService.searchByVisual(params, imageFile);
           aggCounts = {};
         } else {
-          [searchResp, aggCounts] = await Promise.all([
-            searchService.search(params, imageFile || null),
-            searchService.getAggregationStats(params)
-          ]);
+          if (params && !params.docType) {
+            [searchResp, aggCounts] = await Promise.all([
+              searchService.search(params, imageFile || null),
+              searchService.getAggregationStats(params)
+            ]);
+            gotAgg = true;
+          } else {
+            // skip aggregation call when no docType filter is provided
+            searchResp = await searchService.search(params, imageFile || null);
+            aggCounts = {};
+          }
         }
         if (seq !== this._reqSeq) return; // 只应用最新
         const { results, pagination, tabCounts } = searchResp;
@@ -154,9 +162,17 @@ export const useSearchStore = defineStore('search', {
         this.pagination.total = pagination.total;
   // 如果后端返回 searchTime，则保存到 store，单位毫秒
   if (searchResp.searchTime != null) this.searchTime = Number(searchResp.searchTime) || 0;
-        const merged = { ...tabCounts, ...aggCounts };
-        merged.all = tabCounts.all;
-        this.tabCounts = merged;
+        // only replace tabCounts when we actually fetched aggregation stats
+        if (gotAgg) {
+          const merged = { ...tabCounts, ...aggCounts };
+          merged.all = tabCounts.all;
+          this.tabCounts = merged;
+        } else {
+          // keep previous this.tabCounts, but update the overall 'all' count from response
+          const kept = { ...this.tabCounts };
+          kept.all = tabCounts.all;
+          this.tabCounts = kept;
+        }
         this.error = null;
       } catch (e) {
         if (seq === this._reqSeq) this.error = e.message || '搜索失败';
