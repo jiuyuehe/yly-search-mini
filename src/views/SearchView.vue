@@ -215,6 +215,7 @@ function handleClearFilters() {
 
 function handleRemoveFilter(tag) {
   const f = { ...searchStore.filters };
+  const clearAiTag = () => { f.fileAiTag = ''; if (Array.isArray(f.tags)) f.tags = []; };
   if (Array.isArray(f[tag.key])) {
     f[tag.key] = f[tag.key].filter(v => v !== tag.value);
   } else if (tag.key === 'timeRange') {
@@ -224,6 +225,15 @@ function handleRemoveFilter(tag) {
       f.versions = f.versions.filter(v => v !== tag.value);
       if (!f.versions.length) f.versions = ['latest'];
     }
+  } else if (tag.key === 'fileAiTag' || tag.key === 'tag' || tag.key === 'aiTag') {
+    // 移除 AI 标签筛选：同时清空 fileAiTag 与系统 tags
+    clearAiTag();
+  try { filterSidebarRef.value?.clearTagSelection?.(); } catch {}
+  } else if (tag.key === 'tags') {
+    // 从系统标签数组移除对应项，若无项则同步清空 fileAiTag
+    if (Array.isArray(f.tags)) f.tags = f.tags.filter(v => v !== tag.value);
+    if (!f.tags || f.tags.length === 0) f.fileAiTag = '';
+  if (!f.fileAiTag) { try { filterSidebarRef.value?.clearTagSelection?.(); } catch {} }
   }
   searchStore.updateFilters(f);
 }

@@ -119,14 +119,14 @@ export async function initAuth(force = false) {
   _authInited = true;
   const ct = getCT();
   if (!ct) {
-    ElMessage.warning('未检测到登录令牌 ct');
+    console.log('未检测到登录令牌 ct');
     return null;
   }
   const user = await fetchUserInfo();
   if (!user) {
     // 已在 fetch 内部提示
   } else {
-    ElMessage.success({ message: '用户已登录：' + (user.name || user.username || ''), duration: 1800 });
+    console.log({ message: '用户已登录：' + (user.name || user.username || ''), duration: 1800 });
   }
   return user;
 }

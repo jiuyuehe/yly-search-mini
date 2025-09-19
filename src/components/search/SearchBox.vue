@@ -80,7 +80,7 @@ const searchQuery = ref(props.initialQuery || '');
 // sync to store for other components (FilterSidebar) to read
 const searchStore = useSearchStore();
 const searchType = ref(searchStore.searchType || 'fullText');
-const textSearchMode = ref(1); // 1:全文 2:段落 3:精准
+const textSearchMode = ref(3); // 
 
 // 图片相关
 const fileInput = ref(null);
@@ -105,7 +105,7 @@ const canSearch = computed(() => {
   return true;
 });
 
-watch(textSearchMode, (v) => { try { searchStore.precisionMode = Number(v); } catch {} });
+watch(textSearchMode, (v) => { try { searchStore.precisionMode = Number(v); } catch {} }, { immediate: true });
 // keep local select in sync with store (e.g., when returning from preview)
 watch(() => searchStore.searchType, (v) => { try { if (v && v !== searchType.value) searchType.value = v; } catch {} });
 // when user changes select, sync back to store
