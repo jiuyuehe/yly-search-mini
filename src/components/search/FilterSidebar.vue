@@ -381,7 +381,12 @@ function resetFilters() {
     formats: []
   });
 }
-defineExpose({ resetFilters /*, getCurrentFilters: () => ({...filters}) */ });
+function clearTagSelection() {
+  filters.tag = '';
+  tagPage.value = 1;
+  tagQuery.value = '';
+}
+defineExpose({ resetFilters, clearTagSelection /*, getCurrentFilters: () => ({...filters}) */ });
 
 // Watch filters and apply to store
 watch(filters, (newFilters) => {
@@ -436,6 +441,33 @@ watch(() => searchStore.precisionMode, (m) => {
     tagPage.value = 1;
     tagTotal.value = 0;
   }
+});
+
+// 当通过结果列表点击标签时（store.fileAiTag 会被设置），这里反显到下拉选择框
+watch(() => searchStore.filters.fileAiTag, async (label) => {
+  try {
+    if (!label) {
+      filters.tag = '';
+      return;
+    }
+    // 确保 tags 折叠面板打开
+    expandedSections.tags = true;
+    // 确保选项中包含该标签（按名称匹配 label）
+    const exists = tagOptions.value.some(o => o.label === label);
+    if (!exists) {
+      // 以标签名作为关键字检索一次
+      await querySearchTags(label);
+    }
+    // 选择该项（按 label 匹配；若有多个同名，取第一个）
+    const found = tagOptions.value.find(o => o.label === label);
+    if (found) {
+      filters.tag = found.value;
+    } else {
+      // 回退：直接把标签名显示成 value（便于反显）
+      tagOptions.value = [{ value: label, label }, ...tagOptions.value];
+      filters.tag = label;
+    }
+  } catch {}
 });
 
 // When switching to custom timeRange, provide a sensible default range (last 7 days)

@@ -9,7 +9,7 @@ export const useSearchStore = defineStore('search', {
     query: '',
     searchType: 'fullText',
     precision: 0.9, // 固定默认精准度（UI 已移除滑块）
-  precisionMode: 1, // 1:全文 2:精准 3:混合 (同步自 SearchBox)
+  precisionMode: 3, // 1:全文 2:精准 3:混合 (默认改为 3，并由 SearchBox 同步)
     filters: {
       fileCategory: [],
       fileSpace: [],
@@ -92,7 +92,9 @@ export const useSearchStore = defineStore('search', {
         case 'precision': searchMode = 'precision'; break; // 仍保留后端精准模式，仅通过 checkbox 触发
         default: searchMode = 'keyword';
       }
-  const base = { offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, tag:fileSysTag, searchType: searchMode, searchMode };
+    const aiTagLabel = f.fileAiTag || '';
+    const base = { offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, tag: (aiTagLabel || fileSysTag), searchType: searchMode, searchMode };
+  // 如果筛选中携带了 fileAiTag（标签名），同时传递给后端
   if (query && String(query).trim()) base.keyword = String(query).trim();
       if (fileCategory) base.fileCategory = fileCategory;
       if (fileSizeStr) base.fileSize = fileSizeStr;
@@ -158,6 +160,72 @@ export const useSearchStore = defineStore('search', {
         }
         if (seq !== this._reqSeq) return; // 只应用最新
         const { results, pagination, tabCounts } = searchResp;
+        // robustly parse AI tags from fileAiTag and populate fileSysTag/tags
+        function parseAiKeywords(aiTag) {
+          if (!aiTag && aiTag !== 0) return [];
+          try {
+            // If already an object with keywords
+            if (typeof aiTag === 'object' && aiTag) {
+              const list = Array.isArray(aiTag.keywords) ? aiTag.keywords : [];
+              return list.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+            }
+            let txt = String(aiTag).trim();
+            if (!txt) return [];
+            // Try direct JSON parse
+            try {
+              const obj = JSON.parse(txt);
+              if (obj && Array.isArray(obj.keywords)) {
+                return obj.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+              }
+            } catch {}
+            // Try double-JSON (quoted JSON string), e.g. "{\"keywords\":...}"
+            try {
+              const unwrapped = JSON.parse(txt);
+              if (unwrapped && typeof unwrapped === 'string') {
+                const obj2 = JSON.parse(unwrapped);
+                if (obj2 && Array.isArray(obj2.keywords)) {
+                  return obj2.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+                }
+              } else if (unwrapped && typeof unwrapped === 'object' && Array.isArray(unwrapped.keywords)) {
+                return unwrapped.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+              }
+            } catch {}
+            // Try unescape common patterns and parse again
+            try {
+              const stripped = txt.replace(/^"|"$/g, '');
+              const normalized = stripped.replace(/\\"/g, '"').replace(/\\n/g, '');
+              const obj3 = JSON.parse(normalized);
+              if (obj3 && Array.isArray(obj3.keywords)) {
+                return obj3.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+              }
+            } catch {}
+            // Regex fallback: extract "keyword":"..." pairs
+            const matches = [];
+            const re = /"keyword"\s*:\s*"([^"]+)"/g;
+            let m;
+            while ((m = re.exec(txt)) && matches.length < 10) { matches.push(m[1]); }
+            return matches;
+          } catch {
+            return [];
+          }
+        }
+
+        if (Array.isArray(results)) {
+          results.forEach(r => {
+            // 兼容数据在 r._raw.fileAiTag 的情况
+            const rawAi = r ? (r.fileAiTag != null ? r.fileAiTag : (r._raw && r._raw.fileAiTag)) : null;
+            const kws = parseAiKeywords(rawAi);
+            if (kws && kws.length) {
+              r.fileSysTag = kws.join(',');
+              // UI 只显示前 10 个关键词
+              r.tags = kws.slice(0, 10);
+            }
+            // 如果前端对象缺少 fileAiTag 字段，则回填，便于后续导出/展示使用
+            if (r && r.fileAiTag == null && rawAi != null) {
+              r.fileAiTag = rawAi;
+            }
+          });
+        }
         this.results = results;
         this.pagination.total = pagination.total;
   // 如果后端返回 searchTime，则保存到 store，单位毫秒
@@ -198,7 +266,7 @@ export const useSearchStore = defineStore('search', {
       } catch(e){ this.error=e.message||'标签搜索失败'; }
       finally { this.loading=false; }
     },
-    setActiveTab(tab) { this.activeTab = tab; this.pagination.currentPage = 1; if(this.tagSearchActive){ this.searchFilesByTags(this.tagSearchTags); } else { this.search(this.query, this.searchType); } },
+  setActiveTab(tab) { this.activeTab = tab; this.pagination.currentPage = 1; if(this.tagSearchActive){ this.searchFilesByTags(this.tagSearchTags); } else { this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); } },
     // setSearchType: switch mode and clear previous results to avoid stale UI
     setSearchType(type) {
       this.searchType = type || 'fullText';
@@ -209,9 +277,9 @@ export const useSearchStore = defineStore('search', {
       this.searchTime = 0;
       this.tagSearchActive = false;
     },
-    updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1; console.log('[Store] merged filters =>', this.filters); this.search(this.query, this.searchType); },
-    updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType); },
-    updatePageSize(s) { this.pagination.pageSize = s; this.pagination.currentPage = 1; this.search(this.query, this.searchType); },
+  updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1; console.log('[Store] merged filters =>', this.filters); this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
+  updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
+  updatePageSize(s) { this.pagination.pageSize = s; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
     async downloadFiles(ids) { try { await searchService.downloadFiles(ids); } catch (e) { this.error = e.message; } },
     async exportResults(ids) {
       try {
@@ -223,6 +291,9 @@ export const useSearchStore = defineStore('search', {
         const formatSize = (sz) => { if (!sz && sz!==0) return ''; const units=['B','KB','MB','GB','TB']; let v=Number(sz); let i=0; while(v>=1024 && i<units.length-1){ v/=1024; i++; } return (v.toFixed(i?2:0)) + units[i]; };
         let csv = headers.map(h=>escapeCsv(h)).join(',') + '\n';
         rows.forEach(r => {
+          // 兼容导出时 AI 标签位于 r._raw.fileAiTag
+          const aiTagVal = r && r.fileAiTag != null ? r.fileAiTag : (r && r._raw ? r._raw.fileAiTag : undefined);
+          const aiTagStr = aiTagVal == null ? '' : (typeof aiTagVal === 'string' ? aiTagVal : JSON.stringify(aiTagVal));
           csv += [
             escapeCsv(r.fileName||r.name||''),
             escapeCsv(formatSize(r.fileSize)),
@@ -234,7 +305,7 @@ export const useSearchStore = defineStore('search', {
             escapeCsv(r.fileCategory||''),
             escapeCsv(r.fileSummary||''),
             escapeCsv(r.fileSummaryTranslate||''),
-            escapeCsv(r.fileAiTag||''),
+            escapeCsv(aiTagStr),
             escapeCsv(r.fileSysTag||''),
             escapeCsv(r.fileEntities||''),
             escapeCsv(r.fileTranslate||''),
@@ -256,6 +327,6 @@ export const useSearchStore = defineStore('search', {
         ElMessage.error(this.error);
       }
     },
-    resetFilters() { this.filters = { fileCategory: [], fileSpace: [], creators: [], tags: [], formats: [], timeRange: 'all', customTimeRange: null, fileSize: [], hasHistory: false, folder: false, fileAiTag: '', fileSysTag: '', extname: '' }; this.pagination.currentPage = 1; this.search(this.query, this.searchType); }
+  resetFilters() { this.filters = { fileCategory: [], fileSpace: [], creators: [], tags: [], formats: [], timeRange: 'all', customTimeRange: null, fileSize: [], hasHistory: false, folder: false, fileAiTag: '', fileSysTag: '', extname: '' }; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); }
   }
 });

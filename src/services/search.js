@@ -221,6 +221,8 @@ class SearchService {
       const formatSize = (sz) => { if (!sz && sz!==0) return ''; const units=['B','KB','MB','GB','TB']; let v=Number(sz); let i=0; while(v>=1024 && i<units.length-1){ v/=1024; i++; } return (v.toFixed(i?2:0))+units[i]; };
       let csv = headers.map(h=>escapeCsv(h)).join(',') + '\n';
       rows.forEach(r => {
+        const aiTagVal = r && r.fileAiTag != null ? r.fileAiTag : (r && r._raw ? r._raw.fileAiTag : undefined);
+        const aiTagStr = aiTagVal == null ? '' : (typeof aiTagVal === 'string' ? aiTagVal : JSON.stringify(aiTagVal));
         csv += [
           escapeCsv(r.fileName||r.name||''),
           escapeCsv(formatSize(r.fileSize)),
@@ -232,7 +234,7 @@ class SearchService {
           escapeCsv(r.fileCategory||''),
           escapeCsv(r.fileSummary||''),
           escapeCsv(r.fileSummaryTranslate||''),
-          escapeCsv(r.fileAiTag||''),
+          escapeCsv(aiTagStr),
           escapeCsv(r.fileSysTag||''),
           escapeCsv(r.fileEntities||''),
           escapeCsv(r.fileTranslate||''),

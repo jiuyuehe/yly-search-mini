@@ -54,8 +54,18 @@
         <!-- 文件信息 -->
         <div class="file-info">
           <FileMetaInfo :file="metaFile" :highlight="searchQuery" :show-icon="!isImageSearch" @open-path="openPath" @open-preview="(f,e) => $emit('click', item, e)" />
-          <div v-if="hasScore" class="score-line">
-            <el-tag size="small" type="warning" effect="light">Score: {{ displayScore }}</el-tag>
+          <!-- 标签行：替换原先的得分行 -->
+          <div v-if="item.tags && item.tags.length" class="tags-line">
+            <el-tag
+              v-for="tag in item.tags"
+              :key="tag"
+              size="small"
+              type="primary"
+              class="clickable"
+              @click.stop="onTagClick(tag)"
+            >
+              {{ tag }}
+            </el-tag>
           </div>
         </div>
         <div class="item-actions">
@@ -69,22 +79,14 @@
         <el-button type="text" size="small" @click.stop="expanded = !expanded">{{ expanded ? '收起' : '展开' }}</el-button>
       </div>
       
-      <div v-if="item.tags && item.tags.length" class="item-tags">
-        <el-tag 
-          v-for="tag in item.tags" 
-          :key="tag" 
-          size="small" 
-          type="info"
-        >
-          {{ tag }}
-        </el-tag>
-      </div>
+      
     </template>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { useSearchStore } from '../../stores/search';
 import { goCloudPath } from '../../services/navigation';
 import FileMetaInfo from '../preview/FileMetaInfo.vue';
 import { parseftsIcon } from '../../filters/filters';
@@ -97,6 +99,15 @@ const props = defineProps({
   isImageSearch: { type: Boolean, default: false }
 });
 const _emit = defineEmits(['click', 'update:selected']);
+
+const searchStore = useSearchStore();
+
+function onTagClick(tag) {
+  try {
+  // 设置筛选并触发搜索：只设置 fileAiTag（后端期望标签名）
+  searchStore.updateFilters({ fileAiTag: tag, tags: [] });
+  } catch {}
+}
 
 const metaFile = computed(() => ({
   name: props.item.name || props.item.fileName,
@@ -205,7 +216,8 @@ function prettySize(size) {
 .item-actions { display: flex; gap: 8px; }
 .item-preview { margin-top: 10px;  margin-left: 20px;   padding: 2px 10px; background-color: #f8f9fa; border-radius: 4px; font-size: 14px; color: #606266; }
 .item-preview :deep(font) { background:#FBD9A7; padding:0 2px; border-radius:3px; font-weight:600; }
-.item-tags { margin-top: 10px; display: flex; gap: 6px; }
+.item-tags { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.tags-line { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; }
 .item-preview :deep(.hl) { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
 
 /* clamp to two lines when not expanded */
