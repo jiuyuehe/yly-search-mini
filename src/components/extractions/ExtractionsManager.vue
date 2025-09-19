@@ -3,18 +3,6 @@
     <div class="manager-header">
       <el-row :gutter="20" align="middle">
         <el-col :span="8">
-          <el-input
-            v-model="searchKeyword"
-            placeholder="搜索抽取数据"
-            clearable
-            @input="onSearch"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-        </el-col>
-        <el-col :span="8">
           <el-select 
             v-model="filters.form_id" 
             placeholder="按表单筛选"
@@ -72,11 +60,7 @@
           </template>
         </el-table-column>
         
-        <el-table-column v-if="false" label="AI模型" width="120">
-          <template #default="{ row }">
-            <el-tag type="info" size="small">{{ row.ai_model }}</el-tag>
-          </template>
-        </el-table-column>
+      
         
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -92,7 +76,11 @@
         <el-table-column label="抽取数据预览" min-width="300">
           <template #default="{ row }">
             <div class="data-preview">
-              <DataPreview :data="row.extracted_data" />
+              <!-- 传入新格式 fields（字符串数组）供 DataPreview 解析；回退使用 extracted_data -->
+              <DataPreview :data="row.extracted_data" :fields="row.fields" />
+              <div v-if="Array.isArray(row.fields)" class="fields-count-hint">
+                <el-tag size="small" type="info">结果块: {{ row.fields.length }}</el-tag>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -118,11 +106,7 @@
         </el-table-column>
       </el-table>
 
-      <div v-if="extractionsStore.extractions.length === 0 && !extractionsStore.loading.list" class="empty-extractions">
-        <el-empty description="暂无抽取数据">
-          <el-button type="primary" @click="goToPreview">开始抽取数据</el-button>
-        </el-empty>
-      </div>
+
     </div>
 
     <!-- Pagination -->
@@ -361,9 +345,6 @@ async function exportSelected() {
   }
 }
 
-function goToPreview() {
-  router.push('/');
-}
 
 function onPageChange(page) {
   pagination.page = page;

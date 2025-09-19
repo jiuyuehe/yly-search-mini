@@ -123,6 +123,9 @@ class FormsService {
     if(raw) body.raw = raw; // 允许透传原始结果 (便于后端调试)
     try {
       const res = await api.post('/admin-api/rag/ai/text/extract/form/history/save', body, { headers:{'Content-Type':'application/json'}, timeout });
+      if(res.code === 500) {
+        throw new Error(res.msg || '保存抽取历史失败');
+      }
       const root = this._normalize(res);
       return root.data || root.result || root;
     } catch(e){
