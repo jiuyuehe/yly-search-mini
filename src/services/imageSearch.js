@@ -31,7 +31,7 @@ class ImageSearchService {
         createUserId,
         createrId, // 前端可能传递的字段名
         scoreThreshold = 0.4,
-        similarity = 0.5,
+        similarity = 0.1,
         sortField,
         sortDirection
       } = params;
