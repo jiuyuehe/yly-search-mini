@@ -159,6 +159,7 @@ import { resolveEsId } from '../../utils/esid';
 
 const props = defineProps({ file: { type:Object, required:false, default:null }, fileId: { type:String, required:false }, esId:{ type:String, default:'' }, userId:{ type:[String,Number], default:'' }, expandSessions: { type:Boolean, default:false } });
 const showSessions = ref(false);
+const encyclopediaOnly = computed(() => { return !props.file && !props.fileId && !(props.esId && String(props.esId).trim()); });
 function toggleSessions(){
   showSessions.value = !showSessions.value;
   if(showSessions.value){ reloadSessions(); }
@@ -273,6 +274,10 @@ const recentQuestions = ref([]);
 
 // 统一解析 esId（可为空：百科模式）
 const effectiveEsId = computed(()=> resolveEsId(props.file, props.esId || props.fileId) || '');
+// 对于全局百科模式，使用 per-user key 避免不同用户冲突
+const esKey = computed(()=> {
+  return effectiveEsId.value || (`global:${effectiveUserId.value || 'anonymous'}`);
+});
 // encyclopedia/global mode: 不强制要求 esId
 const canSend = computed(()=> !streaming.value && inputText.value.trim().length>0 && currentSessionId.value);
 const currentSessionTitle = computed(()=>{ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return ''; if(s.title) return s.title; const firstUser = messages.value.find(m=>m.role==='user'); return firstUser ? firstUser.content.slice(0,20) : `会话 ${s.id}`; });
@@ -286,12 +291,27 @@ function makeTitle(txt=''){
 }
 const modelDisplayName = computed(()=>{ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return ''; return s.raw?.modelName || s.raw?.model || ''; });
 function sessionDisplayTitle(s){ return s.title || (s.raw?.title) || (s.id?`会话 ${s.id}`:'未命名'); }
-function loadRecentQuestions(){ const es = effectiveEsId.value || 'global'; const key = `fileChat:recentQuestions:${es}`; try { const arr = JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(arr)) recentQuestions.value=arr; } catch { /* ignore */ } }
-function pushRecentQuestion(q){ if(!q) return; const es = effectiveEsId.value || 'global'; const key = `fileChat:recentQuestions:${es}`; const list = [...recentQuestions.value.filter(i=>i!==q)]; list.unshift(q); if(list.length>10) list.length=10; recentQuestions.value=list; try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* ignore */ } }
-function persistLastSession(){ const es = effectiveEsId.value || 'global'; if(!currentSessionId.value) return; try { localStorage.setItem(`fileChat:lastSession:${es}`, currentSessionId.value); } catch { /* ignore */ } }
-function loadPersistedLastSession(){ const es = effectiveEsId.value || 'global'; try { return localStorage.getItem(`fileChat:lastSession:${es}`); } catch { return null; } }
+function loadRecentQuestions(){ const es = esKey.value; const key = `fileChat:recentQuestions:${es}`; try { const arr = JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(arr)) recentQuestions.value=arr; } catch { /* ignore */ } }
+function pushRecentQuestion(q){ if(!q) return; const es = esKey.value; const key = `fileChat:recentQuestions:${es}`; const list = [...recentQuestions.value.filter(i=>i!==q)]; list.unshift(q); if(list.length>10) list.length=10; recentQuestions.value=list; try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* ignore */ } }
+function persistLastSession(){ const es = esKey.value; if(!currentSessionId.value) return; try { localStorage.setItem(`fileChat:lastSession:${es}`, currentSessionId.value); } catch { /* ignore */ } }
+function loadPersistedLastSession(){ const es = esKey.value; try { return localStorage.getItem(`fileChat:lastSession:${es}`); } catch { return null; } }
 const inputRef = ref(null);
-async function init(){ resolveUserId(); loadRecentQuestions(); if(effectiveEsId.value){ await loadLatest(); await reloadSessions(); } bindEsc(); }
+async function init(){
+  resolveUserId();
+  loadRecentQuestions();
+  // 如果没有任何文件标识，进入百科/全局模式，默认不使用上下文
+  if (encyclopediaOnly.value) {
+    useContext.value = false;
+  }
+  // 尝试加载会话列表与最近会话（支持 per-esId 或 global）
+  try { await reloadSessions(); } catch (e) { /* ignore */ }
+  try { await loadLatest(); } catch (e) { /* ignore */ }
+  // 如果没有任何会话，则自动新建一个，便于直接输入即发送
+  if (!currentSessionId.value) {
+    try { await createNewSession('', ''); } catch (e) { /* ignore */ }
+  }
+  bindEsc();
+}
 function bindEsc(){ window.addEventListener('keydown', escHandler); window.addEventListener('keydown', shortcutHandler); }
 function escHandler(e){ if(e.key==='Escape' && streaming.value){ stopStreaming(); } }
 function shortcutHandler(e){ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='n'){ e.preventDefault(); quickNewSession(); } }
@@ -340,12 +360,12 @@ function askQuestion(q) {
 
 function resetAll(){ sessions.value=[]; currentSessionId.value=null; messages.value=[]; }
 async function loadLatest(){
-  const esId = effectiveEsId.value;
-  if(!esId) return;
+  const esForApi = effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`;
   const stored = loadPersistedLastSession();
   try {
     const { aiService } = await import('../../services/aiService');
-    const { success, session, messages:history } = await aiService.getLatestFileChatSession({ esId, returnHistory:true, userId: effectiveUserId.value });
+    // esForApi used to represent either document esId or per-user global key
+    const { success, session, messages:history } = await aiService.getLatestFileChatSession({ esId: esForApi, returnHistory:true, userId: effectiveUserId.value });
   // loadLatest fetched
     if(success && session){
       // merge with any local session info to preserve raw/config fields
@@ -357,7 +377,7 @@ async function loadLatest(){
       messages.value = history;
       scrollSoon();
       if(stored && stored!==merged.id){
-        const localStored = sessions.value.find(s=>s.id===stored) || { id: stored, esId, title:'', raw:{} };
+        const localStored = sessions.value.find(s=>s.id===stored) || { id: stored, esId: esForApi, title:'', raw:{} };
         sessions.value.push(localStored);
       }
     }
@@ -367,9 +387,9 @@ async function loadLatest(){
 }
 
 async function ensureSession(){ /* 延迟创建：不在初始化阶段自动创建 */ }
-async function createNewSession(userPromptForCreate='', titleForCreate=''){
+async function createNewSession(userPromptForCreate='', titleForCreate='', esIdOverride=undefined){
   if(creatingSession.value) return;
-  const esId = effectiveEsId.value || undefined;
+  const esId = (typeof esIdOverride !== 'undefined') ? esIdOverride : (effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`);
   creatingSession.value=true;
   try {
     const { aiService } = await import('../../services/aiService');
@@ -378,7 +398,7 @@ async function createNewSession(userPromptForCreate='', titleForCreate=''){
       titleForCreate = makeTitle(inputText.value || userPromptForCreate || '');
     }
     // pass title to backend when available
-    const payload = { esId, userPrompt: userPromptForCreate || configForm.userPrompt || '', userId: effectiveUserId.value };
+  const payload = { esId, userPrompt: userPromptForCreate || configForm.userPrompt || '', userId: effectiveUserId.value };
     if(titleForCreate) payload.title = titleForCreate;
     const { success, sessionId, raw } = await aiService.createFileChatSession(payload);
     if(success){
@@ -404,12 +424,12 @@ function quickNewSession(){ if(streaming.value) return;
   createNewSession('', derived);
 }
 async function reloadSessions(){
-  const esId = effectiveEsId.value;
-  // if(!esId){ sessions.value=[]; return; }
+  const esForApi = effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`;
+  // if(!esForApi){ sessions.value=[]; return; }
   loadingSessions.value=true;
   try {
     const { aiService } = await import('../../services/aiService');
-    const { list } = await aiService.listFileChatSessions({ esId, pageNo:1, pageSize:50, userId: effectiveUserId.value });
+    const { list } = await aiService.listFileChatSessions({ esId: esForApi, pageNo:1, pageSize:50, userId: effectiveUserId.value });
     if(list && list.length){
       const cur = currentSessionId.value;
       // map local sessions for merging raw/title
@@ -423,7 +443,7 @@ async function reloadSessions(){
       const remoteIds = new Set(list.map(s=>s.id));
       const extras = sessions.value.filter(s=> !remoteIds.has(s.id));
       if(cur && !remoteIds.has(cur)){
-        merged.unshift(extras.find(e=>e.id===cur) || { id: cur, esId, title:'', raw:{} });
+        merged.unshift(extras.find(e=>e.id===cur) || { id: cur, esId: esForApi, title:'', raw:{} });
       }
       extras.filter(e=> e.id!==cur).forEach(e=> merged.push(e));
       const uniq=[];
@@ -461,13 +481,13 @@ async function sendMessage(){ if(streaming.value) return; const text = inputText
 async function streamAnswer(aiMsg, question){
   streaming.value=true;
   try {
-  const esId = effectiveEsId.value || undefined;
+  const esForApi = effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`;
     const { aiService } = await import('../../services/aiService');
     const controller = new AbortController();
     abortRef.value=controller;
     await aiService.streamFileChatMessage({
       sessionId: currentSessionId.value,
-      esId,
+      esId: esForApi,
       content: question,
       useContext: useContext.value,
       topK: topK.value,
@@ -516,7 +536,15 @@ function handleEncyclopediaQA(e){
   const ask = async ()=>{
   // set inputText first so createNewSession can use it as the session title
   inputText.value = txt;
-  if(!currentSessionId.value){ await createNewSession(); }
+  // prefer esId passed by the event (when TextPanel can resolve it)
+  const incomingEs = e?.detail?.esId || undefined;
+  if (!incomingEs) {
+    // encyclopedia/global mode: do not use context
+    useContext.value = false;
+  } else {
+    useContext.value = true;
+  }
+  if(!currentSessionId.value){ await createNewSession('', '', incomingEs); }
   if(!currentSessionId.value) { ElMessage.error('无法创建会话'); return; }
   sendMessage();
   };

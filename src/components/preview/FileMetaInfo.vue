@@ -23,6 +23,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useSearchStore } from '../../stores/search';
 import { goCloudPath } from '../../services/navigation';
 import { parseftsIcon } from '../../filters/filters';
 
@@ -40,19 +41,34 @@ function handleOpenPreview(e){
 }
 
 function escapeHtml(str='') {
-  const map = { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\u0027':'&#39;' };
-  return str.replace(/[&<>"']/g, c => (c === "'" ? map['\u0027'] : map[c]));
+  const s = String(str || '');
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]||c));
 }
-function escapeReg(str='') { return str.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function stripTags(str='') { return String(str || '').replace(/<[^>]+>/g, ''); }
+function escapeReg(str='') { return String(str).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+const searchStore = useSearchStore();
+
+const highlightTerm = computed(() => {
+  const p = (props.highlight || '').trim();
+  if (p) return p;
+  try { return (searchStore.query || '').trim(); } catch { return ''; }
+});
 
 const nameHtml = computed(() => {
-  const name = escapeHtml(rawName.value);
-  const kw = (props.highlight || '').trim();
+  // 先去掉后端可能注入的 HTML 标签，使用纯文本进行前端高亮
+  const raw = stripTags(rawName.value);
+  const name = escapeHtml(raw);
+  const kw = (highlightTerm.value || '').trim();
   if (!kw) return name;
   try {
-    const reg = new RegExp(escapeReg(kw), 'gi');
+    const parts = kw.split(/\s+/).filter(Boolean).map(p => escapeReg(p));
+    if (parts.length === 0) return name;
+    const reg = new RegExp('(' + parts.join('|') + ')', 'gi');
     return name.replace(reg, m => `<span class="hl">${m}</span>`);
-  } catch { return name; }
+  } catch {
+    return name;
+  }
 });
 
 const fileIcon = computed(() => {
@@ -101,5 +117,5 @@ function formatSize(size) { if (!size) return ''; const units=['B','KB','MB','GB
 .bottom-line span { display:inline-flex; align-items:center; gap:4px; }
 .bottom-line .path a { color:#1671f2; text-decoration:none; max-width:320px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .bottom-line .path a:hover { text-decoration:underline; }
-.hl { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
+.file-name :deep(.hl) { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
 </style>

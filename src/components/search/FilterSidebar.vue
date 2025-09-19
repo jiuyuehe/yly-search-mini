@@ -17,16 +17,16 @@
           </el-icon>
         </div>
         <div v-show="expandedSections.fileCategory" class="section-content">
-          <el-checkbox-group v-model="filters.fileCategory" class="checkbox-group">
-            <el-checkbox 
-              v-for="space in filterOptions.fileCategory" 
-              :key="space.value" 
+          <el-radio-group v-model="filters.fileCategory" class="file-category-group">
+            <el-radio
+              v-for="space in filterOptions.fileCategory"
+              :key="space.value"
               :label="space.value"
-              class="filter-checkbox"
+              class="filter-radio"
             >
               {{ space.label }}
-            </el-checkbox>
-          </el-checkbox-group>
+            </el-radio>
+          </el-radio-group>
         </div>
       </div>
 
@@ -220,7 +220,7 @@ const expandedSections = reactive({
 });
 
 const filters = reactive({
-  fileCategory: [],
+  fileCategory: '',
   creator: '',
   timeRange: 'all',
   customTimeRange: null,
@@ -370,7 +370,7 @@ function toggleSection(section) {
 
 function resetFilters() {
   Object.assign(filters, {
-    fileCategory: [],
+  fileCategory: '',
   creator: '',
     timeRange: 'all',
     customTimeRange: null,
@@ -417,7 +417,8 @@ watch(filters, (newFilters) => {
   const standardizedFileSize = newFilters.fileSize ? [newFilters.fileSize] : [];
 
   const payload = {
-    fileCategory: [...newFilters.fileCategory],
+    // store expects fileCategory as array; wrap single-select value into array
+    fileCategory: newFilters.fileCategory ? [newFilters.fileCategory] : [],
     creators: newFilters.creator ? [newFilters.creator] : [],
     timeRange: newFilters.timeRange,
     customTimeRange: customRangeFormatted,
@@ -577,6 +578,25 @@ watch(() => filters.timeRange, (val) => {
 .filter-radio {
   margin: 0;
   padding: var(--spacing-xs) 0;
+}
+
+/* file-category single select: align left and match other controls */
+.file-category-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-xs);
+}
+
+:deep(.file-category-group .el-radio__label) {
+  font-size: 14px;
+  color: var(--text-color-secondary);
+  padding-left: var(--spacing-sm);
+}
+
+:deep(.file-category-group .el-radio__input.is-checked .el-radio__inner) {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 :deep(.filter-checkbox .el-checkbox__label) {

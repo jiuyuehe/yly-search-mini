@@ -88,7 +88,7 @@ export const useSearchStore = defineStore('search', {
       let searchMode = 'keyword';
       switch (searchType) {
         case 'image': searchMode = 'image'; break;
-        case 'qa': searchMode = 'hybrid'; break;
+        // case 'qa': searchMode = 'hybrid'; break;
         case 'precision': searchMode = 'precision'; break; // 仍保留后端精准模式，仅通过 checkbox 触发
         default: searchMode = 'keyword';
       }
@@ -277,7 +277,7 @@ export const useSearchStore = defineStore('search', {
       this.searchTime = 0;
       this.tagSearchActive = false;
     },
-  updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1; console.log('[Store] merged filters =>', this.filters); this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
+  updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1;  this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
   updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
   updatePageSize(s) { this.pagination.pageSize = s; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
     async downloadFiles(ids) { try { await searchService.downloadFiles(ids); } catch (e) { this.error = e.message; } },

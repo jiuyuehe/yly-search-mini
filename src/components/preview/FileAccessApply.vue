@@ -112,7 +112,7 @@ async function submitApply() {
   try {
     const perm = PERMISSION_MAP[form.value.permissionKey] || PERMISSION_MAP.preview;
     const body = { fileCategory: props.fileCategory, isFolder: props.isFolder, fileId: Number(props.fileId), permissions: perm, applyDesc: form.value.applyDesc.trim() };
-    const resp = await appsApi.post('/apps/file-apply/request', body);
+    const resp = await appsApi.post('/file-apply/request', body);
     if (resp && resp.status === 'ok') {
       ElMessage.success('申请已提交');
       dialogVisible.value = false;

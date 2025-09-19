@@ -400,11 +400,16 @@ function lookupEncyclopedia() {
     const MAX_LEN = 600;
     let clippedPara = paragraph.length > MAX_LEN ? (paragraph.slice(0,MAX_LEN) + '...') : paragraph;
     let clippedSel = rawSel.length > 200 ? (rawSel.slice(0,200)+'...') : rawSel;
-    const question = `[百科] 请基于文档内容回答与以下内容相关的背景、定义、关键要点：\n“${clippedSel}”\n\n原文片段：\n${clippedPara}`;
+  const esId = resolveEsId(props.file, props.fileId);
+  const question = `[百科] 请基于文档内容回答与以下内容相关的背景、定义、关键要点：\n“${clippedSel}”\n\n原文片段：\n${clippedPara}`;
     ElMessage.info('已发送百科查询');
     hideContextMenu();
+    // 打开 chat 面板，让 FileChatPanel 挂载并注册事件处理器
     window.dispatchEvent(new Event('activate-qa'));
-    window.dispatchEvent(new CustomEvent('encyclopedia-qa', { detail: { text: question, selection: rawSel, paragraph } }));
+    // 延迟发送百科查询事件，确保 FileChatPanel 能接收到（首次打开时可能尚未完成 mounted）
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('encyclopedia-qa', { detail: { text: question, selection: rawSel, paragraph, esId } }));
+    }, 150);
   }
 }
 

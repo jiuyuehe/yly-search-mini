@@ -53,7 +53,9 @@
         </div>
         <!-- 文件信息 -->
         <div class="file-info">
-          <FileMetaInfo :file="metaFile" :highlight="searchQuery" :show-icon="!isImageSearch" @open-path="openPath" @open-preview="(f,e) => $emit('click', item, e)" />
+          <!-- 传入 highlight 字段给 FileMetaInfo 以使用前端高亮，保持 metaFile 不变 -->
+          <!-- 使用 props.searchQuery 优先，回退到 store.query 以确保高亮在所有情况下生效 -->
+          <FileMetaInfo :file="metaFile" :highlight="highlightTerm" :show-icon="!isImageSearch" @open-path="openPath" @open-preview="(f,e) => $emit('click', item, e)" />
           <!-- 标签行：替换原先的得分行 -->
           <div v-if="item.tags && item.tags.length" class="tags-line">
             <el-tag
@@ -74,7 +76,8 @@
         </div>
       </div>
       
-      <div v-if="item.preview" class="item-preview" :class="{ clamped: !expanded }" v-html="rawPreview"></div>
+  <!-- 使用前端高亮处理 preview，移除后端可能带的 <em> 标签的样式并用本地高亮替换 -->
+  <div v-if="item.preview" class="item-preview" :class="{ clamped: !expanded }" v-html="frontendPreview"></div>
       <div v-if="showToggle" class="preview-toggle">
         <el-button type="text" size="small" @click.stop="expanded = !expanded">{{ expanded ? '收起' : '展开' }}</el-button>
       </div>
@@ -123,16 +126,43 @@ const metaFile = computed(() => ({
 
 function openPath() { goCloudPath(props.item); }
 
-const rawPreview = computed(() => {
+// helpers
+function escapeHtml(str='') {
+  return String(str).replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c));
+}
+function escapeReg(str='') { return String(str).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+// 确定用于高亮的关键词：优先使用组件 prop（例如来自父组件的即时输入），回退到 store 的 query
+const highlightTerm = computed(() => {
+  const local = (props.searchQuery || '').trim();
+  if (local) return local;
+  try { return (searchStore.query || '').trim(); } catch { return ''; }
+});
+
+// 原始后端 preview 可能包含 <em> 标签或其他 HTML，我们不会直接使用后端的高亮样式。
+// frontendPreview 会：
+// 1) 先将后端的 <em> 标签去掉（保留文本）
+// 2) 基于 highlightTerm 在前端匹配关键词并用 <span class="hl">...</span> 包裹
+// 3) 不改变 props.item.preview 原始内容
+const frontendPreview = computed(() => {
   if (!props.item || typeof props.item.preview !== 'string') return '';
   try {
-    // 后端返回高亮格式如: <em>关键词</em>
-    // 把 <em> 替换为统一的高亮样式 <span class="hl">关键词</span>
-    const src = props.item.preview;
-    const replaced = src.replace(/<em\b[^>]*>([\s\S]*?)<\/em>/gi, '<span class="hl">$1</span>');
-    return replaced;
+    // 1) remove <em> and any tags but keep inner text
+    let src = props.item.preview.replace(/<em\b[^>]*>([\s\S]*?)<\/em>/gi, '$1');
+    // also strip other tags but preserve their inner text
+    src = src.replace(/<[^>]+>/g, '');
+    // escape HTML
+    let escaped = escapeHtml(src);
+  const kw = (highlightTerm.value || '').trim();
+    if (!kw) return escaped;
+    // 2) build regex from keywords (support multiple words separated by spaces)
+    const parts = kw.split(/\s+/).filter(Boolean).map(p => escapeReg(p));
+    if (parts.length === 0) return escaped;
+    const reg = new RegExp('(' + parts.join('|') + ')', 'gi');
+    return escaped.replace(reg, m => `<span class="hl">${m}</span>`);
   } catch (e) {
-    return props.item.preview || '';
+    // fallback to sanitized raw preview
+    try { return escapeHtml(props.item.preview); } catch { return props.item.preview || ''; }
   }
 });
 
@@ -140,7 +170,7 @@ const rawPreview = computed(() => {
 const expanded = ref(false);
 // 使用 rawPreview（已处理高亮的 HTML）来判断展示按钮：去除 HTML 标签后按字符数判断
 const plainPreviewText = computed(() => {
-  const html = rawPreview.value || '';
+  const html = frontendPreview.value || '';
   return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 });
 // 如果纯文本超过阈值则显示展开按钮（阈值可调整）
@@ -176,7 +206,9 @@ const thumbSrc = computed(() => {
       return 'data:image/jpeg;base64,' + compact;
     }
   }
-  return props.item.thumbUrl || props.item.fsFileThumb || props.item.thumb || '';
+  let url = props.item.thumbUrl || props.item.fsFileThumb || props.item.thumb || '';
+  const abs = /^https?:/i.test(url) ? url : (window.location.origin.replace(/\/$/,'') + '/' + url.replace(/^\//,''));
+  return abs;
 });
 const fallbackIcon = computed(() => { try { return parseftsIcon(props.item); } catch { return ''; } });
 const thumbBroken = ref(false);

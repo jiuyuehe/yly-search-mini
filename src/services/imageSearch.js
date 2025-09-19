@@ -31,7 +31,7 @@ class ImageSearchService {
         createUserId,
         createrId, // 前端可能传递的字段名
         scoreThreshold = 0.4,
-        similarity = 0.1,
+        similarity = 0.5,
         sortField,
         sortDirection
       } = params;
@@ -172,66 +172,7 @@ class ImageSearchService {
    */
   getImageSearchMockData() {
     const imageResults = [
-      {
-        fileId: 1,
-        fileName: 'design-mockup.png',
-        fileType: 'png',
-        fileSize: 2048000,
-        updateTime: '2024-01-15T10:30:00Z',
-        createrName: '设计师A',
-        filePath: '/design/mockups/ui-design.png',
-        thumbUrl: '/api/files/1/thumb',
-        score: 0.92,
-        similarity: 0.92
-      },
-      {
-        fileId: 2,
-        fileName: 'product-photo.jpg',
-        fileType: 'jpg',
-        fileSize: 1536000,
-        updateTime: '2024-01-14T15:20:00Z',
-        createrName: '摄影师B',
-        filePath: '/photos/products/item-001.jpg',
-        thumbUrl: '/api/files/2/thumb',
-        score: 0.88,
-        similarity: 0.88
-      },
-      {
-        fileId: 3,
-        fileName: 'chart-diagram.png',
-        fileType: 'png',
-        fileSize: 512000,
-        updateTime: '2024-01-13T09:15:00Z',
-        createrName: '分析师C',
-        filePath: '/reports/charts/sales-2024.png',
-        thumbUrl: '/api/files/3/thumb',
-        score: 0.75,
-        similarity: 0.75
-      },
-      {
-        fileId: 4,
-        fileName: 'screenshot-app.png',
-        fileType: 'png',
-        fileSize: 856000,
-        updateTime: '2024-01-12T14:45:00Z',
-        createrName: '测试员D',
-        filePath: '/screenshots/app/main-screen.png',
-        thumbUrl: '/api/files/4/thumb',
-        score: 0.71,
-        similarity: 0.71
-      },
-      {
-        fileId: 5,
-        fileName: 'logo-variations.svg',
-        fileType: 'svg',
-        fileSize: 64000,
-        updateTime: '2024-01-11T11:20:00Z',
-        createrName: '品牌经理E',
-        filePath: '/brand/logos/logo-v2.svg',
-        thumbUrl: '/api/files/5/thumb',
-        score: 0.68,
-        similarity: 0.68
-      }
+      
     ];
 
     // 标准化并转换
