@@ -457,7 +457,6 @@ watch(() => filters.timeRange, (val) => {
   width: 280px;
   background-color: var(--background-color);
   border: 1px solid var(--border-color-light);
-  border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   height:100%;

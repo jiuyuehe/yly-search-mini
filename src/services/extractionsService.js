@@ -1,40 +1,50 @@
 import api from './api';
 
-// 将后端历史记录标准化
-function normalizeHistoryItem(raw){
-  if(!raw || typeof raw !== 'object') return raw;
+// 将后端返回的抽取历史记录对象统一标准化，便于前端 UI 处理。
+// 输入可能为多种不同字段命名的形式（兼容历史遗留接口），输出为统一字段：
+// - id, document_id, form_id, ai_model, status, created_at, updated_at
+// - extracted_data: { fieldName: value }
+// - _fields: 原始 fields 数组的浅拷贝（如果存在）
+// - fieldFoundCount / fieldTotalCount / avgConfidence: 统计信息（如可推断则填充）
+function normalizeHistoryItem(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
   const item = { ...raw };
-  // map identifiers
+
+  // 标准化 id 与常见别名
   item.id = item.id || item.historyId || item.recordId;
-  item.form_id = item.formId || item.form_id || item.form_id;
+
+  // 标准化 form/document 标识
+  item.form_id = item.formId || item.form_id || item.formId;
   item.document_id = item.esId || item.documentId || item.fileId || item.document_id;
-  // ai model / status
+
+  // AI 模型与状态
   item.ai_model = item.model || item.aiModel || item.ai_model || '';
   item.status = item.status || 'completed';
-  // timestamps
-  // createTime may be epoch millis
+
+  // 创建/更新时间：后端可能返回多种字段名或毫秒数时间戳
   if (item.createTime && !item.created_at) {
+    // 如果 createTime 是毫秒数，尝试转换为 ISO 字符串
     try { item.created_at = new Date(Number(item.createTime)).toISOString(); } catch { item.created_at = item.createTime; }
   }
   item.created_at = item.created_at || item.createdAt || item.createTime || item.created_at;
   item.updated_at = item.updateTime || item.updated_at || item.updatedAt;
 
-  // normalize fields array -> extracted_data object and keep raw fields
-  if (item.fields && Array.isArray(item.fields)){
+  // 如果后端返回 fields 数组（[{name, value, ...}, ...]），将其转换为键值对象 extracted_data，
+  // 以便 UI 直接通过 fieldName 访问对应值；同时保留原始数组的浅拷贝到 _fields
+  if (item.fields && Array.isArray(item.fields)) {
     const obj = {};
-    item.fields.forEach(f=>{ if(!f || !f.name) return; obj[f.name] = f.value; });
+    item.fields.forEach(f => { if (!f || !f.name) return; obj[f.name] = f.value; });
     item.extracted_data = obj;
-    // keep original fields array in a stable property for UI that expects details
     item._fields = item.fields.map(f => ({ ...f }));
   }
 
-  // map returned userId into older createUserId/createUser aliases for permission checks
+  // 兼容不同后端返回的用户 id 字段，便于权限判断
   if ((item.userId || item.user_id) && !item.createUserId && !item.createUser) {
     item.createUserId = item.userId || item.user_id;
   }
 
-  // field counts and avgConfidence -> keep for metrics
-  item.fieldFoundCount = item.fieldFoundCount ?? item.field_found_count ?? (item.fields ? item.fields.filter(f=>!f.notFound).length : 0);
+  // 统计字段（若后端未提供则做合理默认）
+  item.fieldFoundCount = item.fieldFoundCount ?? item.field_found_count ?? (item.fields ? item.fields.filter(f => !f.notFound).length : 0);
   item.fieldTotalCount = item.fieldTotalCount ?? item.field_total_count ?? (item.fields ? item.fields.length : 0);
   item.avgConfidence = item.avgConfidence ?? item.avg_confidence ?? item.avgConfidence;
 
@@ -42,9 +52,14 @@ function normalizeHistoryItem(raw){
 }
 
 class ExtractionsService {
+  /**
+   * 查询抽取历史记录列表，适配后端多种返回结构。
+   * filters 支持字段：page, pageSize, form_id/formId, esId, document_id
+   * 返回格式：{ list: [], total: Number, page?: Number, pageSize?: Number }
+   */
   async getExtractions(filters = {}) {
-    // 对接 /admin-api/rag/ai/text/extract/form/history/list
-    const { page=1, pageSize=20, form_id, formId, esId, document_id } = filters;
+    // 对接后端历史记录列表接口（若后端路径或参数变化，可在此处调整）
+    const { page = 1, pageSize = 20, form_id, formId, esId, document_id } = filters;
     const params = {
       pageNo: page,
       pageSize,
@@ -52,16 +67,14 @@ class ExtractionsService {
       esId,
       documentId: document_id
     };
-    Object.keys(params).forEach(k=> params[k]==null && delete params[k]);
+    // 删除未设置的参数
+    Object.keys(params).forEach(k => params[k] == null && delete params[k]);
+
     try {
-      const res = await api.get('/admin-api/rag/ai/text/extract/form/history/list', { params, timeout:20000 });
-      // Backend may return multiple shapes, including:
-      // 1) raw array: [ ... ]
-      // 2) { code:0, data: [...] }
-      // 3) { data: { list: [], total, page, pageSize } }
-      // 4) { total, size, page, items: [...] }
+      const res = await api.get('/admin-api/rag/ai/text/extract/form/history/list', { params, timeout: 20000 });
       const body = res?.data ?? res;
 
+      // 适配常见返回形态：数组、{ items: [...] }、{ data: [...] }、{ data: { list: [...] } }
       let rawList = [];
       let total = 0;
       let respPage = undefined;
@@ -71,20 +84,15 @@ class ExtractionsService {
         rawList = body;
         total = rawList.length;
       } else if (body && typeof body === 'object') {
-        // shape: { total, size, page, items }
         if (Array.isArray(body.items)) {
           rawList = body.items;
           total = Number(body.total ?? rawList.length ?? 0);
           respPage = body.page ?? body.pageNo ?? undefined;
           respPageSize = body.size ?? body.pageSize ?? undefined;
-        }
-        // shape: { code:0, data: [...] }
-        else if (Array.isArray(body.data)) {
+        } else if (Array.isArray(body.data)) {
           rawList = body.data;
           total = rawList.length;
-        }
-        // shape: { data: { list: [], total, page, pageSize } }
-        else if (body.data && typeof body.data === 'object') {
+        } else if (body.data && typeof body.data === 'object') {
           const d = body.data;
           if (Array.isArray(d.list) || Array.isArray(d.rows) || Array.isArray(d.items)) {
             rawList = d.list || d.rows || d.items || [];
@@ -100,101 +108,73 @@ class ExtractionsService {
 
       const list = (rawList || []).map(normalizeHistoryItem);
       return { list, total: Number(total || 0), page: respPage, pageSize: respPageSize };
-    } catch(e){
+    } catch (e) {
+      // 记录失败原因并返回空列表，调用方应处理空结果场景
       console.warn('[ExtractionsService] history list failed', e);
       return { list: [], total: 0 };
     }
   }
 
+  /**
+   * 获取单条抽取记录详情。参数 id 为后端记录 id。
+   * 若后端返回包装结构（{ data: {...} }），会自动拆箱并通过 normalizeHistoryItem 进行标准化。
+   */
   async getExtraction(id) {
     try {
-      // Uncomment when backend API is ready
-      // const response = await api.get(`/admin-api/extractions/${id}`);
-      // return response.data;
-      
-      // Mock response for now
-  const res = await api.get('/admin-api/rag/ai/text/extract/form/history/detail', { params:{ id }, timeout:15000 });
-  const root = res?.data?.data ? res.data : res;
-  const data = root.data || root.record || root;
-  return normalizeHistoryItem(data);
+      const res = await api.get('/admin-api/rag/ai/text/extract/form/history/detail', { params: { id }, timeout: 15000 });
+      // 有些接口会将实际对象包装在 data 字段下
+      const root = res?.data?.data ? res.data : res;
+      const data = root.data || root.record || root;
+      return normalizeHistoryItem(data);
     } catch (error) {
-  console.warn('[ExtractionsService] getExtraction fallback error', error);
-  throw error;
-    }
-  }
-
-  async createExtraction(_extractionData) {
-    try {
-      // Uncomment when backend API is ready
-      // const response = await api.post('/admin-api/extractions', extractionData);
-      // return response.data;
-      
-      // Mock response for now
-  // 暂无创建接口：直接抛出
-  throw new Error('不支持手动创建抽取记录');
-    } catch (error) {
-      console.warn('Create extraction API not available, using mock data');
+      // 向上抛出错误，调用方可选择捕获或展示错误信息
+      console.warn('[ExtractionsService] getExtraction fallback error', error);
       throw error;
     }
   }
 
-  async updateExtraction(_id, _extractionData) {
-    try {
-      // Uncomment when backend API is ready
-      // const response = await api.put(`/admin-api/extractions/${id}`, extractionData);
-      // return response.data;
-      
-      // Mock response for now
-  // 推测更新接口（如果后端后续提供可替换）
-  throw new Error('暂不支持编辑历史记录');
-    } catch (error) {
-      console.warn('Update extraction API not available, using mock data');
-      throw error;
-    }
-  }
-
+  /**
+   * 删除单个抽取记录（调用后端删除接口）。
+   * 返回 { success: true } 表示删除请求已发出且未抛出异常。
+   */
   async deleteExtraction(id) {
     try {
-      // Uncomment when backend API is ready
-      // await api.delete(`/admin-api/extractions/${id}`);
-      
-      // Mock response for now
-  await api.delete('/admin-api/rag/ai/text/extract/form/history/delete', { params:{ id }, timeout:15000 });
-  return { success: true };
+      await api.delete('/admin-api/rag/ai/text/extract/form/history/delete', { params: { id }, timeout: 15000 });
+      return { success: true };
     } catch (error) {
-      console.warn('Delete extraction API not available, using mock data');
+      console.warn('[ExtractionsService] deleteExtraction failed', error);
       throw error;
     }
   }
 
+  /**
+   * 批量删除抽取记录。ids 为 id 数组。
+   */
   async deleteExtractions(ids) {
     try {
-      // Uncomment when backend API is ready
-      // await api.delete('/admin-api/extractions', { data: { ids } });
-      
-      // Mock response for now
-  await api.delete('/admin-api/rag/ai/text/extract/form/history/delete/batch', { data:{ ids }, headers:{'Content-Type':'application/json'}, timeout:20000 });
-  return { success: true };
+      await api.delete('/admin-api/rag/ai/text/extract/form/history/delete/batch', { data: { ids }, headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
+      return { success: true };
     } catch (error) {
-      console.warn('Batch delete extractions API not available, using mock data');
+      console.warn('[ExtractionsService] deleteExtractions failed', error);
       throw error;
     }
   }
 
+  /**
+   * 在本地通过 getExtractions 返回的列表进行简单搜索（用于后端未实现搜索接口时的兜底实现）。
+   * - keyword: 要搜索的字符串
+   * - filters: 与 getExtractions 相同的过滤参数
+   * 返回匹配的记录数组
+   */
   async searchExtractions(keyword, filters = {}) {
     try {
-      // Uncomment when backend API is ready
-      // const params = new URLSearchParams({ ...filters, q: keyword });
-      // const response = await api.get(`/admin-api/extractions/search?${params}`);
-      // return response.data;
-      
-      // Mock search for now
-  const { list } = await this.getExtractions(filters);
-  if(!keyword) return list;
-  return list.filter(extraction => JSON.stringify(extraction.extracted_data||{}).toLowerCase().includes(keyword.toLowerCase()));
+      const { list } = await this.getExtractions(filters);
+      if (!keyword) return list;
+      const lower = keyword.toLowerCase();
+      return list.filter(extraction => JSON.stringify(extraction.extracted_data || {}).toLowerCase().includes(lower));
     } catch (error) {
-  console.warn('[ExtractionsService] search fallback error', error);
-  return [];
+      console.warn('[ExtractionsService] search fallback error', error);
+      return [];
     }
   }
 

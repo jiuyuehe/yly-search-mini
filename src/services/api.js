@@ -53,7 +53,30 @@ function attachCt(config) {
 }
 
 [searchApi, appsApi].forEach(ins => {
-  ins.interceptors.request.use(cfg => attachCt(cfg), err => Promise.reject(err));
+  // 在每次请求前强制进行 initAuth 验证：
+  // - 如果请求设置了跳过标识（cfg._skipAuth 或 header 'X-Skip-Auth'），则不再调用 initAuth，直接注入 ct 后发起请求。
+  //   这样可以避免 initAuth -> fetchUserInfo 使用 appsApi 导致的拦截器递归/死循环问题。
+  ins.interceptors.request.use(async cfg => {
+    // 支持两种跳过方式：显式的请求配置 `_skipAuth: true` 或者 header `X-Skip-Auth`。
+    if (cfg && (cfg._skipAuth || (cfg.headers && (cfg.headers['X-Skip-Auth'] || cfg.headers['x-skip-auth'])))) {
+      return attachCt(cfg);
+    }
+    try {
+      // initAuth 会检查 ct 并尝试拉取用户信息；若无效会返回 null
+      const user = await initAuth();
+      if (!user) {
+        // 明确提示，且阻止本次请求发送到后端
+       // ElMessage.warning('未检测到登录令牌 ct');
+        return Promise.reject({ httpStatus: 401, code: 'NO_CT', message: '未检测到登录令牌 ct' });
+      }
+      // 若验证通过，则注入 ct 与 X-User-Id 等头信息
+      return attachCt(cfg);
+    } catch (e) {
+      // 出现异常也统一以未登录/无令牌处理并拒绝请求
+     // ElMessage.warning('未检测到登录令牌 ct');
+      return Promise.reject({ httpStatus: 401, code: 'NO_CT', message: '未检测到登录令牌 ct', original: e });
+    }
+  }, err => Promise.reject(err));
   ins.interceptors.response.use(
     res => res.data,
     err => {
@@ -91,7 +114,9 @@ let _authInited = false;
 export async function fetchUserInfo() {
   try {
   // apps 前缀接口使用 appsApi，避免重复 /apps/apps；直接请求 /user
-  const res = await appsApi.get('/user');
+  // 为避免拦截器在此内部请求时再次触发 initAuth（造成递归），
+  // 在该请求上设置 _skipAuth 标识或 header，拦截器会识别并跳过验证。
+  const res = await appsApi.get('/user', { _skipAuth: true });
     if (res && res.status === 'ok') {
       setUserInfo(res.data || {});
       return res.data;
@@ -119,14 +144,14 @@ export async function initAuth(force = false) {
   _authInited = true;
   const ct = getCT();
   if (!ct) {
-    ElMessage.warning('未检测到登录令牌 ct');
+   // ElMessage.warning('未检测到登录令牌 ct');
     return null;
   }
   const user = await fetchUserInfo();
   if (!user) {
     // 已在 fetch 内部提示
   } else {
-    ElMessage.success({ message: '用户已登录：' + (user.name || user.username || ''), duration: 1800 });
+   // ElMessage.success({ message: '用户已登录：' + (user.name || user.username || ''), duration: 1800 });
   }
   return user;
 }

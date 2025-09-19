@@ -373,7 +373,7 @@ async function load() {
   // 不强制 arraybuffer，后端对文本可能直接返回字符串
   resp = await previewService.getFileView({ fc, fi: fid });
   }
-    console.log('resp:', resp);
+
     // 优先处理后端直接返回原始文本/数字/布尔（无包装结构），不依赖扩展名
     if (['string','number','boolean'].includes(typeof resp)) {
       const raw = String(resp);
