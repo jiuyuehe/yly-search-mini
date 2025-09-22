@@ -23,11 +23,13 @@
               @remove="handleRemoveFilter"
             />
             <div class="extra-actions">
-                      <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
-                        <el-button size="small" circle @click.stop="toggleCloud">
-                          <el-icon><component :is="showTagCloud ? List : Cloudy" /></el-icon>
-                        </el-button>
-                      </el-tooltip>
+                      <template v-if="!searchStore.isImageSearch">
+                        <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
+                          <el-button size="small" circle @click.stop="toggleCloud">
+                            <el-icon><component :is="showTagCloud ? List : Cloudy" /></el-icon>
+                          </el-button>
+                        </el-tooltip>
+                      </template>
                       <!-- Image mode controls: grid/list toggle and column count -->
                       <template v-if="searchStore.isImageSearch">
                         <el-tooltip content="切换展示: 网格/列表" placement="bottom">

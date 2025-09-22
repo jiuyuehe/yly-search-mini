@@ -184,16 +184,16 @@
           </el-icon>
         </div>
         <div v-show="expandedSections.formats" class="section-content">
-          <el-checkbox-group v-model="filters.formats" class="checkbox-group">
-            <el-checkbox 
-              v-for="format in filterOptions.formats" 
-              :key="format.value" 
+          <el-radio-group v-model="filters.formats" class="file-category-group">
+            <el-radio
+              v-for="format in filterOptions.formats"
+              :key="format.value"
               :label="format.value"
-              class="filter-checkbox"
+              class="filter-radio"
             >
               {{ format.label }}
-            </el-checkbox>
-          </el-checkbox-group>
+            </el-radio>
+          </el-radio-group>
         </div>
       </div>
     </div>
@@ -228,7 +228,7 @@ const filters = reactive({
   hasHistory: false,
   folder: false,
   tag: '',
-  formats: []
+  formats: ''
 });
 
 const filterOptions = reactive({
@@ -378,7 +378,7 @@ function resetFilters() {
     hasHistory: false,
     folder: false,
   tag: '',
-    formats: []
+    formats: ''
   });
 }
 function clearTagSelection() {
@@ -428,7 +428,7 @@ watch(filters, (newFilters) => {
     tags: newFilters.tag ? [newFilters.tag] : [],
     // fileAiTag: 传递选中标签的 labelName，后端期望字段
     fileAiTag: selectedTagName,
-    formats: [...newFilters.formats]
+  formats: newFilters.formats ? [newFilters.formats] : [],
   };
   searchStore.updateFilters(payload);
 }, { deep: true });
