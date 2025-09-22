@@ -48,6 +48,11 @@
                           </template>
                         </el-popover>
                       </template>
+              <!-- selected count badge -->
+              <div v-if="hasSelectedItems" class="selected-badge" style="margin-left:12px; display:flex;align-items:center;gap:8px;">
+                <div class="badge-count">已选 {{ selectedCount }}</div>
+                <el-button size="mini" type="text" @click.stop="clearSelection">清除</el-button>
+              </div>
             </div>
           </div>
 
@@ -62,10 +67,11 @@
       <div class="results-wrapper" style="position:relative; display:flex; flex-direction:column; flex:1; min-height:0;">
         <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }" :style="gridStyle">
           <search-result-item
-            v-for="item in searchResults"
-            :key="item.id"
+            v-for="(item, idx) in searchResults"
+            :key="stableKeyFor(item, idx)"
             :item="item"
-            v-model:selected="selectedItems[item.id]"
+            :selected="isSelected(stableKeyFor(item, idx))"
+            @update:selected="toggleSelected(stableKeyFor(item, idx), item, $event)"
             :search-query="searchStore.query"
             :display-mode="searchStore.isImageSearch ? imageDisplayMode : 'list'"
             :is-image-search="searchStore.isImageSearch"
@@ -112,9 +118,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { List, Cloudy, Iphone, Loading } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import { useSearchStore } from '../stores/search';
 import AppHeader from '../components/common/AppHeader.vue';
 import FilterSidebar from '../components/search/FilterSidebar.vue';
@@ -142,7 +149,6 @@ const chatPanelRef = ref(null);
 // local pagination mirrors store.pagination so state survives route changes
 const currentPage = ref(searchStore.pagination.currentPage || 1);
 const pageSize = ref(searchStore.pagination.pageSize || 10);
-const selectedItems = ref({});
 
 // 新增：侧栏 ref
 const filterSidebarRef = ref(null);
@@ -179,7 +185,10 @@ const gridStyle = computed(() => {
 });
 const total = computed(() => searchStore.getTotalCount);
 const tabCounts = computed(() => searchStore.getTabCounts);
-const hasSelectedItems = computed(() => Object.values(selectedItems.value).some(item => item));
+// use store's selectedMap as source of truth for counts
+const selectedStoredCount = computed(() => searchStore.getSelectedCount);
+const hasSelectedItems = computed(() => Number(selectedStoredCount.value) > 0);
+const selectedCount = computed(() => selectedStoredCount.value);
 
 // Methods
 function handleSearch(query, searchType, imageFile, options) {
@@ -193,8 +202,8 @@ function handleSearch(query, searchType, imageFile, options) {
   }
   // If image search is requested, clear previous UI artifacts before issuing request
   if (searchType === 'image' || imageFile) {
-    // clear selected items and hide tag cloud to avoid showing prior list remnants
-    selectedItems.value = {};
+  // clear selected items and hide tag cloud to avoid showing prior list remnants
+  searchStore.clearSelected();
     showTagCloud.value = false;
     // reset pagination so visual list doesn't show stale totals
     currentPage.value = 1;
@@ -259,18 +268,45 @@ function handleCurrentChange(page) {
 }
 
 function downloadSelected() {
-  const ids = getSelectedIds();
-  searchStore.downloadFiles(ids);
+  // Use store.selectedMap as authoritative source to include selections across pages
+  const map = searchStore.selectedMap || {};
+  let rows = Object.keys(map).map(k => map[k]).filter(Boolean);
+  // fallback: if no persisted selections, try to collect selected keys from current page via stableKey matching
+  if (!rows || rows.length === 0) {
+    const src = Array.isArray(searchResults.value) ? searchResults.value : [];
+    rows = src.map((it, i) => {
+      const k = stableKeyFor(it, i);
+      if (searchStore.selectedMap && searchStore.selectedMap[k]) return searchStore.selectedMap[k];
+      return null;
+    }).filter(Boolean);
+  }
+  if (!rows || !rows.length) { ElMessage.warning('请先选择文件'); return; }
+  searchStore.downloadFiles(rows);
+}
+
+function clearSelection() {
+  searchStore.clearSelected();
 }
 
 function exportSelected() {
-  const ids = getSelectedIds();
-  exportIds.value = ids;
-  showExportDialog.value = true;
+  // Resolve objects to export similarly to downloadSelected
+  const map = searchStore.selectedMap || {};
+  let rows = Object.keys(map).map(k => map[k]).filter(Boolean);
+  if (!rows || rows.length === 0) {
+    const src = Array.isArray(searchResults.value) ? searchResults.value : [];
+    rows = src.map((it, i) => {
+      const k = stableKeyFor(it, i);
+      if (searchStore.selectedMap && searchStore.selectedMap[k]) return searchStore.selectedMap[k];
+      return null;
+    }).filter(Boolean);
+  }
+  if (!rows || !rows.length) { ElMessage.warning('请先选择文件'); return; }
+  searchStore.exportResults(rows);
 }
 
 function getSelectedIds() {
-  return Object.keys(selectedItems.value).filter(id => selectedItems.value[id]);
+  // Return array of stable keys for selected items (from store.selectedMap)
+  try { return Object.keys(searchStore.selectedMap || {}); } catch { return []; }
 }
 
 function handleTabChange(tab) {
@@ -285,7 +321,45 @@ function handleTagClick(tag){
   searchStore.searchFilesByTags([tag]);
 }
 
+function stableKeyFor(item, idx) {
+  if (!item) return String(idx || 0);
+  // prefer nas identification fields
+  if (item.fileCategory === 'nas' || item.nasId || item.nasFilePath || item.nasCode || item.subPath) {
+    const nasId = item.nasId || item.nasCode || '';
+    const path = item.nasFilePath || item.subPath || '';
+    return `nas::${nasId}::${path}`;
+  }
+  // fallback to composite of category + id
+  const id = item.id != null ? item.id : (item.fileId != null ? item.fileId : String(idx || ''));
+  const cat = item.fileCategory || item.fc || 'unk';
+  return `${cat}::${id}`;
+}
+
 function toggleCloud(){ showTagCloud.value = !showTagCloud.value; }
+
+// Check if a stable key is currently selected (based on store.selectedMap)
+function isSelected(key) {
+  try { return !!(searchStore.selectedMap && searchStore.selectedMap[key]); } catch { return false; }
+}
+
+// Toggle selection for an item (key). When selecting, persist full object to store.selectedMap.
+function toggleSelected(key, item, val) {
+  try {
+    const on = !!val;
+    if (on) {
+      // prefer provided item, fallback to current page or itemsById
+      let obj = item || (Array.isArray(searchResults.value) ? searchResults.value.find((it, i) => stableKeyFor(it, i) === key) : null);
+      if (!obj) {
+        try { const idPart = key.split('::').pop(); obj = searchStore.itemsById[idPart]; } catch(e){}
+      }
+      if (obj) searchStore.addSelected(key, obj);
+    } else {
+      searchStore.removeSelected(key);
+    }
+    // keep local selectedItems UI in sync for current page
+    // local UI state is derived from store; no need to update separate local map
+  } catch (e) { /* ignore */ }
+}
 
 function onModeChange(mode){ uiMode.value = mode === 'qa' ? 'qa' : 'search'; }
 
@@ -356,6 +430,35 @@ onMounted(async () => {
 
   // after initial load and tag cloud fetch attempt to apply URL params
   applyUrlParamsIfAny();
+});
+
+// selection UI is driven directly from store.selectedMap; no local selectedItems required
+
+// Keep local pagination refs in sync with store and ensure UI page is valid
+watch(() => searchStore.pagination.currentPage, (p) => {
+  if (typeof p === 'number' && p !== currentPage.value) currentPage.value = p;
+});
+watch(() => searchStore.pagination.pageSize, (s) => {
+  if (typeof s === 'number' && s !== pageSize.value) pageSize.value = s;
+});
+
+// Sync selectedItems -> selectedMap: when an item is selected store its full object, when deselected remove it
+// toggleSelected() explicitly updates store; no deep watch needed
+// When total changes, ensure currentPage is within valid range; if not, move to last page
+watch(() => searchStore.pagination.total, (total) => {
+  const sz = pageSize.value || searchStore.pagination.pageSize || 10;
+  const tot = Number(total) || 0;
+  const maxPage = Math.max(1, Math.ceil(tot / sz));
+  if (currentPage.value > maxPage) {
+    currentPage.value = maxPage;
+    // propagate to store which will trigger a new search for the corrected page
+    try {
+      searchStore.updateCurrentPage(maxPage);
+    } catch (e) {
+      // fallback: directly set store value
+      searchStore.pagination.currentPage = maxPage;
+    }
+  }
 });
 </script>
 

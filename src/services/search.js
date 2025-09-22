@@ -134,24 +134,21 @@ class SearchService {
     return { count: 0 };
   }
   
-  async downloadFiles(fileIds) {
+  async downloadFiles(filesOrIds) {
     // 批量下载：提交压缩任务 -> 轮询进度 -> 获取下载地址
     try {
-      if (!Array.isArray(fileIds) || !fileIds.length) { ElMessage.warning('请先选择文件'); return; }
-      // 需要原始文件对象，调用方应在 window.__SEARCH_RESULTS__ 暂存；否则仅用 id 构建 payload
-      const source = Array.isArray(window.__SEARCH_RESULTS__) ? window.__SEARCH_RESULTS__ : [];
-      const idSet = new Set(fileIds);
-      const picked = source.filter(r => idSet.has(r.id));
-      const filesPayload = picked.map(f => {
-        if (f.fileCategory === 'nas') {
-          return { fileCategory: 'nas', nasCode: f.nasId || '', nasFilePath: f.subPath || '' };
+      if (!Array.isArray(filesOrIds) || !filesOrIds.length) { ElMessage.warning('请先选择文件'); return; }
+      // 支持传入两种形式：
+      // 1) id 数组（原有行为），2) 文件对象数组（包含 fileCategory/nasId/fileId 等）
+      // Expect an array of file objects with necessary fields
+      const arr = filesOrIds;
+      const filesPayload = arr.map(f => {
+        const isNas = (f.fileCategory === 'nas') || f.nasId || f.nasCode || f.nasFilePath || f.subPath;
+        if (isNas) {
+          return { fileCategory: 'nas', nasCode: f.nasId || f.nasCode || '', nasFilePath: f.nasFilePath || f.subPath || '' };
         }
         return { fileCategory: f.fileCategory || 'public', fileId: f.fileId || f.id };
       });
-      if (!filesPayload.length) {
-        // fallback 仅 id
-        filesPayload.push(...fileIds.map(id => ({ fileCategory: 'public', fileId: id })));
-      }
   const root = await appsApi.post('/files/zip-down/task', { files: filesPayload });
   const taskId = root?.data?.taskId || root?.taskId; // apps 返回 {status, data:{taskId}}
   if (!taskId || root?.status !== 'ok') { ElMessage.error('创建压缩任务失败'); return; }

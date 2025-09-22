@@ -390,6 +390,11 @@ defineExpose({ resetFilters, clearTagSelection /*, getCurrentFilters: () => ({..
 
 // Watch filters and apply to store
 watch(filters, (newFilters) => {
+  // 如果用户刚切换到自定义时间范围，但尚未选择开始/结束日期，则不要立即触发搜索/更新
+  if (newFilters.timeRange === 'custom' && (!Array.isArray(newFilters.customTimeRange) || newFilters.customTimeRange.length !== 2)) {
+    return;
+  }
+
   const selectedTagName = newFilters.tag ? findTagLabel(newFilters.tag) : '';
 
   // helper to format Date to 'YYYY-MM-DD HH:mm:ss'

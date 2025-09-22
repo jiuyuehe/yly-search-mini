@@ -8,6 +8,8 @@ export const useSearchStore = defineStore('search', {
   state: () => ({
     query: '',
     searchType: 'fullText',
+  // cache search results per type so switching away/back restores UI without extra network
+  resultsCache: {},
     precision: 0.9, // 固定默认精准度（UI 已移除滑块）
   precisionMode: 3, // 1:全文 2:精准 3:混合 (默认改为 3，并由 SearchBox 同步)
     filters: {
@@ -25,7 +27,9 @@ export const useSearchStore = defineStore('search', {
       fileSysTag: '',
       extname: ''
     },
-    results: [], loading: false, error: null,
+  results: [], loading: false, error: null,
+  // persistent map of stableKey -> full file object for selections across pages
+  selectedMap: {},
     pagination: { currentPage: 1, pageSize: 10, total: 0 },
     tabCounts: { all: 0, document: 0, image: 0, multimedia: 0, archive: 0, other: 0 },
     filterOptions: { fileSpaces: [], creators: [], tags: [], formats: [] },
@@ -40,6 +44,8 @@ export const useSearchStore = defineStore('search', {
   }),
   getters: {
     getFilteredResults: (state) => (tab) => { if (tab === 'all') return state.results; return state.results.filter(i => i.type === tab); },
+  getSelectedObjects: (s) => Object.keys(s.selectedMap || {}).map(k => s.selectedMap[k]),
+  getSelectedCount: (s) => Object.keys(s.selectedMap || {}).length,
     getTotalCount: (s) => s.pagination.total,
     getTabCounts: (s) => s.tabCounts,
     getFilterOptions: (s) => s.filterOptions,
@@ -109,7 +115,7 @@ export const useSearchStore = defineStore('search', {
       }
       return base;
     },
-    async search(query, searchType = 'fullText', imageFile = null, options = null) {
+  async search(query, searchType = 'fullText', imageFile = null, options = null) {
       const seq = ++this._reqSeq; // 本次请求序
       // 不要直接修改传入的 searchType（这是 UI 的选择），使用局部变量作为请求时的类型
       let reqType = searchType;
@@ -122,8 +128,16 @@ export const useSearchStore = defineStore('search', {
       this.loading = true;
       this.query = query;
       // 保持 store.searchType 为 UI 的选择值，不因混合模式而变更
+      // 如果本次请求的 searchType 与 store 中当前类型不一致，重置分页
+      if (this.searchType !== searchType) {
+        this.pagination.currentPage = 1;
+      }
       this.searchType = searchType;
       this.tagSearchActive = false; // 离开标签搜索模式
+      // 如果本次请求为图片搜索或提供了 imageFile，清理分页以避免使用旧页码
+      if (reqType === 'image' || imageFile) {
+        this.pagination.currentPage = 1;
+      }
       // If switching to image search for the request, clear previous list results to avoid UI remnants
       if (reqType === 'image') {
         this.results = [];
@@ -158,7 +172,7 @@ export const useSearchStore = defineStore('search', {
             aggCounts = {};
           }
         }
-        if (seq !== this._reqSeq) return; // 只应用最新
+  if (seq !== this._reqSeq) return; // 只应用最新
         const { results, pagination, tabCounts } = searchResp;
         // robustly parse AI tags from fileAiTag and populate fileSysTag/tags
         function parseAiKeywords(aiTag) {
@@ -226,8 +240,34 @@ export const useSearchStore = defineStore('search', {
             }
           });
         }
-        this.results = results;
+  this.results = results;
+  // expose latest results for other modules (e.g., download mapping)
+  try { window.__SEARCH_RESULTS__ = Array.isArray(results) ? [...results] : []; } catch (e) { /* ignore */ }
+        // cache results for this request type so switching away/back can restore
+        try {
+          this.resultsCache[reqType] = {
+            results: Array.isArray(results) ? [...results] : [],
+            pagination: { ...this.pagination },
+            tabCounts: { ...this.tabCounts },
+            searchTime: this.searchTime
+          };
+        } catch (e) { /* ignore */ }
         this.pagination.total = pagination.total;
+        // After updating total, ensure currentPage is within valid range.
+        // If options contains internal flag _skipPageFix, do not attempt correction to avoid loop.
+        try {
+          const sz = this.pagination.pageSize || 10;
+          const tot = Number(this.pagination.total) || 0;
+          const maxPage = Math.max(1, Math.ceil(tot / sz));
+          if (!options || !options._skipPageFix) {
+            if (this.pagination.currentPage > maxPage) {
+              // set to maxPage and re-run search once (with skip flag)
+              this.pagination.currentPage = maxPage;
+              // re-run search but mark to skip further correction
+              this.search(this.query, this.searchType, null, { ...options, _skipPageFix: true }).catch(()=>{});
+            }
+          }
+        } catch (e) { /* ignore */ }
   // 如果后端返回 searchTime，则保存到 store，单位毫秒
   if (searchResp.searchTime != null) this.searchTime = Number(searchResp.searchTime) || 0;
         // only replace tabCounts when we actually fetched aggregation stats
@@ -269,13 +309,38 @@ export const useSearchStore = defineStore('search', {
   setActiveTab(tab) { this.activeTab = tab; this.pagination.currentPage = 1; if(this.tagSearchActive){ this.searchFilesByTags(this.tagSearchTags); } else { this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); } },
     // setSearchType: switch mode and clear previous results to avoid stale UI
     setSearchType(type) {
-      this.searchType = type || 'fullText';
-      // clear old results and reset pagination
-      this.results = [];
-      this.pagination.currentPage = 1;
-      this.pagination.total = 0;
-      this.searchTime = 0;
-      this.tagSearchActive = false;
+      const newType = type || 'fullText';
+      const oldType = this.searchType;
+      // persist current results into cache keyed by previous type
+      try {
+        this.resultsCache[oldType] = {
+          results: Array.isArray(this.results) ? [...this.results] : [],
+          pagination: { ...this.pagination },
+          tabCounts: { ...this.tabCounts },
+          searchTime: this.searchTime,
+          tagSearchActive: this.tagSearchActive
+        };
+      } catch (e) { /* ignore */ }
+
+      this.searchType = newType;
+
+      // If we have cached results for the new type, restore them to avoid empty UI
+      const cached = this.resultsCache[newType];
+      if (cached && Array.isArray(cached.results) && cached.results.length) {
+        this.results = [...cached.results];
+        // restore pagination fields carefully
+        this.pagination = { ...this.pagination, ...cached.pagination };
+        this.tabCounts = { ...this.tabCounts, ...cached.tabCounts };
+        this.searchTime = cached.searchTime || 0;
+        this.tagSearchActive = !!cached.tagSearchActive;
+      } else {
+        // no cache — clear and reset pagination
+        this.results = [];
+        this.pagination.currentPage = 1;
+        this.pagination.total = 0;
+        this.searchTime = 0;
+        this.tagSearchActive = false;
+      }
     },
   updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1;  this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
   updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
@@ -283,7 +348,29 @@ export const useSearchStore = defineStore('search', {
     async downloadFiles(ids) { try { await searchService.downloadFiles(ids); } catch (e) { this.error = e.message; } },
     async exportResults(ids) {
       try {
-        const rows = Array.isArray(ids) && ids.length ? ids.map(id => this.results.find(r => r.id === id)).filter(Boolean) : this.results;
+        // ids may be object rows (preferred), stable keys (e.g., 'nas::nasId::path'), or plain ids
+        let rows = [];
+        if (Array.isArray(ids) && ids.length) {
+          // if array of objects, accept directly
+          if (typeof ids[0] === 'object') {
+            rows = ids.filter(Boolean);
+          } else {
+            rows = ids.map(k => {
+              if (typeof k === 'string' && k.includes('::')) {
+                const parts = k.split('::');
+                const last = parts[parts.length - 1];
+                const found = this.results.find(r => {
+                  try { return String(r.id) === String(last) || String(r.fileId) === String(last); } catch { return false; }
+                });
+                if (found) return found;
+                return this.itemsById[last];
+              }
+              return this.results.find(r => r.id === k) || this.itemsById[k];
+            }).filter(Boolean);
+          }
+        } else {
+          rows = this.results;
+        }
         if (!rows.length) { ElMessage.warning('没有可导出的数据'); return; }
         // 构建 CSV
         const headers = ['文件名称','文件大小','文件路径','创建人','上传时间','更新人','更新时间','空间','中文摘要','译文摘要','AI标签','系统标签','文件实体','文本翻译','属性','文件内容'];
@@ -328,5 +415,16 @@ export const useSearchStore = defineStore('search', {
       }
     },
   resetFilters() { this.filters = { fileCategory: [], fileSpace: [], creators: [], tags: [], formats: [], timeRange: 'all', customTimeRange: null, fileSize: [], hasHistory: false, folder: false, fileAiTag: '', fileSysTag: '', extname: '' }; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); }
+  ,
+  // selection persistence
+  addSelected(key, obj) {
+    try { this.selectedMap = { ...this.selectedMap, [key]: { ...obj } }; } catch (e) {}
+  },
+  removeSelected(key) {
+    try { const m = { ...this.selectedMap }; delete m[key]; this.selectedMap = m; } catch (e) {}
+  },
+  clearSelected() {
+    this.selectedMap = {};
+  }
   }
 });
