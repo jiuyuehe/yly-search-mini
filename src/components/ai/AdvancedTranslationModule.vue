@@ -263,13 +263,20 @@
             </template>
           </el-input>
           <el-button size="small" @click="onGlossaryFilterChange">查询</el-button>
-          <el-button 
-            size="small" 
-            @click="exportTerminology"
-          >
-            <el-icon><Download /></el-icon>
-            导出
-          </el-button>
+          <el-dropdown trigger="click" @command="onExportCommand">
+            <el-button size="small">
+              <el-icon><Download /></el-icon>
+              导出
+              <i class="el-icon-arrow-down el-icon--right"></i>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="json">导出 JSON</el-dropdown-item>
+                <el-dropdown-item command="csv">导出 CSV</el-dropdown-item>
+                <el-dropdown-item divided command="exportAll">导出全部（CSV）</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button 
             size="small" 
             @click="importTerminology"
@@ -331,6 +338,26 @@
       </template>
     </el-dialog>
 
+    <!-- Import Dialog -->
+    <el-dialog v-model="showImportDialog" title="导入术语库" width="560px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+          <div><el-button size="small" @click="downloadImportTemplate">下载导入模板</el-button></div>
+        <div>请选择要导入的文件（支持  .csv / .xlsx）：</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input ref="importFileInput" type="file" accept=".json,.csv,.xlsx" style="display:none" @change="onImportFileChange" />
+          <el-input v-model="importFileName" placeholder="未选择文件" readonly style="flex:1" />
+          <el-button size="small" type="primary" @click="triggerFileSelect">选择文件</el-button>
+        </div>
+        <div style="color:#909399;font-size:12px">导入将调用后台接口并更新/新增条目，建议先下载模板并按模板填写。</div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showImportDialog = false">取消</el-button>
+          <el-button type="primary" :loading="importUploading" @click="uploadImportConfirm">上传并导入</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- Add/Edit Terminology Dialog -->
     <el-dialog v-model="showAddTermDialog" :title="editingTerm ? '编辑术语' : '添加术语'" width="500px">
       <el-form :model="terminologyForm" label-width="100px">
@@ -357,7 +384,7 @@
             placeholder="输入译文内容" 
           />
         </el-form-item>
-        <el-form-item label="语种">
+        <el-form-item label="译文语种">
           <el-select v-model="terminologyForm.language" placeholder="选择语种">
             <el-option label="中文" value="zh" />
             <el-option label="English" value="en" />
@@ -400,6 +427,7 @@ import {
 } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { aiService } from '../../services/aiService';
+import api from '../../services/api';
 import CloudSave from '../preview/CloudSave.vue';
 import { uploadStream } from '../../services/uploadStream';
 
@@ -588,6 +616,11 @@ const showTerminologyManager = ref(false);
 const showAddTermDialog = ref(false);
 const editingTerm = ref(null);
 const terminologyList = ref([]);
+const showImportDialog = ref(false);
+const importFileName = ref('');
+const importUploading = ref(false);
+const importFileInput = ref(null);
+const selectedImportFile = ref(null);
 const glossaryPagination = reactive({ pageNo:1, pageSize:20, total:0, loading:false, typeFilter:'', keyword:'' });
 const terminologyForm = reactive({
   type: 'terminology',
@@ -1312,43 +1345,167 @@ function onGlossarySizeChange(size){
   glossaryPagination.pageSize = size; glossaryPagination.pageNo = 1; loadGlossary();
 }
 
-function exportTerminology() {
-  const data = JSON.stringify(terminologyList.value, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `terminology_${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  ElMessage.success('术语库导出成功');
+// handler for export dropdown commands
+function onExportCommand(format) {
+  if (format === 'exportAll') return exportAll();
+  return exportTerminology(format);
+}
+
+// export terminology as JSON or CSV
+function exportTerminology(format = 'json') {
+  try {
+    if (format === 'csv') {
+      const header = ['type', 'originalText', 'translatedText', 'language'];
+      const rows = terminologyList.value.map(r => header.map(h => {
+        const v = r[h];
+        return v == null ? '' : String(v).replace(/"/g, '""');
+      }));
+      const csv = [header.join(',')].concat(rows.map(cols => cols.map(c => `"${c}"`).join(','))).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `terminology_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      ElMessage.success('术语库已导出为 CSV');
+      return;
+    }
+    // default json
+    const data = JSON.stringify(terminologyList.value, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `terminology_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success('术语库已导出为 JSON');
+  } catch (e) {
+    console.error('exportTerminology failed', e);
+    ElMessage.error('导出失败');
+  }
+}
+
+async function exportAll() {
+  try {
+    const path = '/admin-api/rag/ai/translate/glossary/export-all?format=csv';
+    // use axios instance to fetch blob with attached headers
+    const resp = await api.get(path, { responseType: 'blob', timeout: 120000 });
+    // resp is a blob when successful
+    const blob = resp instanceof Blob ? resp : (resp.data || resp);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `terminology_all_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    ElMessage.success('已开始导出全部数据');
+  } catch (e) {
+    console.error('exportAll failed', e);
+    ElMessage.error('导出全部失败');
+  }
+}
+
+// very small CSV parser -> array of objects using header
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  if (!lines.length) return [];
+  const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    const row = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let j = 0; j < line.length; j++) {
+      const ch = line[j];
+      if (ch === '"') {
+        if (inQuotes && line[j+1] === '"') { cur += '"'; j++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        row.push(cur);
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    row.push(cur);
+    const obj = {};
+    for (let k = 0; k < header.length; k++) {
+      obj[header[k]] = (row[k] || '').trim();
+    }
+    out.push(obj);
+  }
+  return out;
 }
 
 function importTerminology() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  input.onchange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = JSON.parse(e.target.result);
-          if (Array.isArray(data)) {
-            terminologyList.value = data;
-            ElMessage.success('术语库导入成功');
-          } else {
-            ElMessage.error('文件格式不正确');
-          }
-        } catch {
-          ElMessage.error('文件解析失败');
-        }
-      };
-      reader.readAsText(file);
+  // open import dialog
+  importFileName.value = '';
+  showImportDialog.value = true;
+}
+
+function downloadImportTemplate() {
+  // call backend template download endpoint
+  // aiService doesn't wrap this specific simple GET, use api directly
+  // default to csv format
+  const path = '/admin-api/rag/ai/translate/glossary/import-template?format=csv';
+  // open in new tab to trigger download (server should return attachment)
+  const resolved = aiService._resolveApiPath(path);
+  window.open(resolved, '_blank');
+}
+
+function triggerFileSelect() {
+  // ensure input is cleared so selecting same file triggers change
+  nextTick(() => {
+    const el = importFileInput.value;
+    if (!el) return;
+    try { el.value = ''; } catch(e) {}
+    selectedImportFile.value = null;
+    el.click();
+  });
+}
+
+function onImportFileChange(e) {
+  const file = (e.target.files && e.target.files[0]) || null;
+  if (!file) {
+    importFileName.value = '';
+    selectedImportFile.value = null;
+    return;
+  }
+  importFileName.value = file.name;
+  selectedImportFile.value = file;
+}
+
+async function uploadImportConfirm() {
+  const file = selectedImportFile.value;
+  if (!file) { ElMessage.error('请先选择要导入的文件'); return; }
+  importUploading.value = true;
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    // optional: format param based on extension
+    const fmt = file.name.split('.').pop();
+    if (fmt) form.append('format', fmt);
+    const path = '/admin-api/rag/ai/translate/glossary/import-file';
+    const res = await api.post(path, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
+    // api wrapper returns standard error object on reject, successful responses are raw
+    if (res && (res.code === 0 || res.status === 'ok' || res === 'ok' || res.data === 'ok' || !res.code)) {
+      ElMessage.success('文件上传并导入成功');
+      showImportDialog.value = false;
+      await loadGlossary();
+    } else {
+      ElMessage.error(res?.msg || '导入接口返回失败');
     }
-  };
-  input.click();
+  } catch (err) {
+    console.error('uploadImportConfirm failed', err);
+    ElMessage.error(err?.message || '上传失败');
+  } finally {
+    importUploading.value = false;
+  }
 }
 
 // 组件卸载清理
