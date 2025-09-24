@@ -54,7 +54,4 @@ function onUpdateFileContents(payload){
   background: #fff; 
   overflow: hidden; 
 }
-.tw-left, .tw-right { height:100%; display:flex; flex-direction:column; }
-.tw-left { flex:1 1 50%; min-width:0; }
-.tw-right { flex:1 1 50%; min-width:0; }
 </style>

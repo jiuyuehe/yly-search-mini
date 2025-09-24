@@ -1,96 +1,53 @@
 <template>
   <div class="advanced-translation-module" :class="{ 'theme-dark': settings.theme === 'dark' }">
-    <!-- Top Toolbar (50px height) -->
     <div class="translation-toolbar">
       <div class="language-selectors">
         <div class="language-selector">
           <label>源语言</label>
-          <el-select 
-            v-model="sourceLanguage" 
-            size="small" 
-            @change="onSourceLanguageChange"
-          >
-            <el-option label="自动检测" value="auto" />
-            <el-option label="English" value="en" />
-            <el-option label="中文" value="zh" />
-            <el-option label="Français" value="fr" />
-            <el-option label="Español" value="es" />
-            <el-option label="Deutsch" value="de" />
-            <el-option label="日本語" value="ja" />
-            <el-option label="Русский" value="ru" />
-            <el-option label="Italiano" value="it" />
-            <el-option label="한국어" value="ko" />
-            <el-option label="Português" value="pt" />
+          <el-select v-model="sourceLanguage" size="small" @change="onSourceLanguageChange">
+            <el-option label="自动检测" value="auto"/>
+            <el-option label="English" value="en"/>
+            <el-option label="中文" value="zh"/>
+            <el-option label="Français" value="fr"/>
+            <el-option label="Español" value="es"/>
+            <el-option label="Deutsch" value="de"/>
+            <el-option label="日本語" value="ja"/>
+            <el-option label="Русский" value="ru"/>
+            <el-option label="Italiano" value="it"/>
+            <el-option label="한국어" value="ko"/>
+            <el-option label="Português" value="pt"/>
           </el-select>
         </div>
         <div class="swap-languages">
-          <el-button 
-            size="small" 
-            circle 
-            disabled
-            title="当前仅支持翻译为中文"
-          >
+          <el-button size="small" circle disabled title="当前仅支持翻译为中文">
             <el-icon>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8 7H4l3-3-3 3 3 3-3-3" stroke="currentColor" fill="none" />
-                <path d="M16 17h4l-3 3 3-3-3-3 3 3" stroke="currentColor" fill="none" />
-                <path d="M5 12h14" stroke-width="1.5" opacity="0.5" />
+                <path d="M8 7H4l3-3-3 3 3 3-3-3" stroke="currentColor" fill="none"/>
+                <path d="M16 17h4l-3 3 3-3-3-3 3 3" stroke="currentColor" fill="none"/>
+                <path d="M5 12h14" stroke-width="1.5" opacity="0.5"/>
               </svg>
             </el-icon>
           </el-button>
         </div>
         <div class="language-selector">
           <label>目标语言</label>
-          <el-select 
-            v-model="targetLanguage" 
-            size="small" 
-            disabled
-            placeholder="中文"
-          >
-            <el-option label="中文" value="zh" />
+          <el-select v-model="targetLanguage" size="small" disabled placeholder="中文">
+            <el-option label="中文" value="zh"/>
           </el-select>
         </div>
       </div>
       <div class="lang-display">{{ languageSummary }}</div>
       <div v-if="translating" class="top-progress">
-        <el-progress :percentage="translationProgress" :stroke-width="6" style="width:160px" />
+        <el-progress :percentage="translationProgress" :stroke-width="6" style="width:160px"/>
       </div>
       <div class="toolbar-actions">
-        <el-button 
-          type="primary" 
-          size="small" 
-          @click="translateText"
-          :loading="translating"
-          :disabled="!sourceText.trim()"
-        >
-          翻译
-        </el-button>
-        <el-button
-          v-if="translating"
-          type="danger"
-          size="small"
-          @click="cancelTranslation"
-        >
-          取消
-        </el-button>
-        <el-button 
-          size="small" 
-          @click="showTerminologyManager = true"
-        >
-          <el-icon><Collection /></el-icon>
-          术语库
-        </el-button>
-        <el-button 
-          size="small" 
-          circle 
-          @click="showSettings = true"
-        >
-          <el-icon><Setting /></el-icon>
-        </el-button>
+        <el-button type="primary" size="small" @click="translateText" :loading="translating" :disabled="!sourceText.trim()">翻译</el-button>
+        <el-button v-if="translating" type="danger" size="small" @click="cancelTranslation">取消</el-button>
+        <el-button size="small" @click="openGlossaryManager"><el-icon><Collection/></el-icon>术语库</el-button>
+        <el-button size="small" circle @click="showSettings = true"><el-icon><Setting/></el-icon></el-button>
       </div>
     </div>
 
-    <!-- Translation Text Boxes -->
     <div class="translation-content">
       <div class="text-panel source-panel">
         <div class="panel-header">
@@ -100,95 +57,49 @@
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span class="char-count">{{ sourceText.length }}</span>
-            <cloud-save v-if="!sourceEditable" :file="file" type="create" :defaultFileName="(file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : ''" ref="sourceCloudSaveRef" @confirm="onSourceCloudSaveConfirm" />
+            <cloud-save v-if="!sourceEditable" :file="file" type="create" :defaultFileName="(file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : ''" ref="sourceCloudSaveRef" @confirm="onSourceCloudSaveConfirm"/>
             <el-button size="mini" type="primary" v-if="sourceEditable" @click="finishSourceEdit">完成</el-button>
-            <!-- <el-button size="mini" type="text" v-else @click="saveSource" title="保存">下载</el-button> -->
           </div>
         </div>
-        <div 
-          ref="sourceTextRef"
-          class="text-editor" 
-          :contenteditable="sourceEditable"
-          @input="onSourceTextInput"
-          @scroll="onSourceScroll"
-          @mouseup="onTextSelection"
-          @keyup="onTextSelection"
-          @mousemove="onEditorHover($event, 'source')"
-          @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')"
-          :placeholder="'请输入要翻译的文本...'"
-        ></div>
+        <div ref="sourceTextRef" class="text-editor markdown-body" :contenteditable="sourceEditable" @input="onSourceTextInput" @scroll="onSourceScroll" @mouseup="onSourceMouseUp" @keyup="onSourceMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')" :placeholder="'请输入要翻译的文本...'"></div>
       </div>
       <div class="text-panel target-panel">
         <div class="panel-header">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="panel-title">译文</span>
-            <el-button size="mini" type="text" v-if="!targetEditable" @click="enterEdit">
-              编辑
-            </el-button>
-         
+            <el-button size="mini" type="text" v-if="!targetEditable" @click="enterEdit">编辑</el-button>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            
             <span class="char-count">{{ translatedText.length }}</span>
-            <cloud-save v-if="!targetEditable" :file="file" type="create" ref="cloudSaveRef" @confirm="onCloudSaveConfirm" />
-             <el-button size="mini" type="primary" v-else @click="finishEdit">
-              保存
-            </el-button>
+            <cloud-save v-if="!targetEditable" :file="file" type="create" ref="cloudSaveRef" @confirm="onCloudSaveConfirm"/>
+            <el-button size="mini" type="primary" v-else @click="finishEdit">保存</el-button>
           </div>
         </div>
-        <div 
-          ref="targetTextRef"
-          class="text-editor target" 
-          :class="{loading: translating}"
-          :contenteditable="targetEditable"
-          @input="onTargetInput"
-          @mousemove="onEditorHover($event, 'target')"
-          @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"
-        >{{ translatedText }}</div>
+        <div ref="targetTextRef" class="text-editor target markdown-body" :class="{loading: translating}" :contenteditable="targetEditable" @input="onTargetInput" @scroll="onTargetScroll" @mouseup="onTargetMouseUp" @keyup="onTargetMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"></div>
       </div>
     </div>
 
-    <!-- Context Menu for Text Selection (temporarily disabled) -->
-    <div v-if="false" ref="contextMenuRef" class="context-menu" :style="contextMenuStyle">
-      <!-- menu intentionally disabled during debugging -->
-    </div>
-
-    <!-- Settings Modal -->
     <el-dialog v-model="showSettings" title="翻译设置" width="600px">
       <el-form :model="settings" label-width="120px">
         <el-form-item label="翻译接口">
           <el-select v-model="settings.provider" placeholder="选择翻译接口">
-            <el-option label="系统内置API" value="builtin" />
-            <el-option label="讯飞翻译API" value="xunfei" />
+            <el-option label="系统内置API" value="builtin"/>
+            <el-option label="讯飞翻译API" value="xunfei"/>
           </el-select>
         </el-form-item>
         <el-form-item label="主题">
           <el-select v-model="settings.theme" placeholder="选择主题">
-            <el-option label="亮色" value="light" />
-            <el-option label="暗色" value="dark" />
+            <el-option label="亮色" value="light"/>
+            <el-option label="暗色" value="dark"/>
           </el-select>
         </el-form-item>
-        <el-form-item label="字体大小">
-          <el-slider 
-            v-model="settings.fontSize" 
-            :min="12" 
-            :max="20" 
-            :step="1"
-            show-input
-          />
-        </el-form-item>
+        <el-form-item label="字体大小"><el-slider v-model="settings.fontSize" :min="12" :max="20" :step="1" show-input /></el-form-item>
         <el-form-item label="自动翻译">
-          <el-switch v-model="settings.autoTranslate" />
+          <el-switch v-model="settings.autoTranslate"/>
           <span class="setting-desc">输入后自动触发翻译</span>
         </el-form-item>
         <el-form-item label="翻译延迟">
-          <el-input-number 
-            v-model="settings.translateDelay" 
-            :min="0" 
-            :max="5000" 
-            :step="100"
-            placeholder="毫秒"
-          />
+          <el-input-number v-model="settings.translateDelay" :min="0" :max="5000" :step="100" placeholder="毫秒" />
           <span class="setting-desc">自动翻译的延迟时间（毫秒）</span>
         </el-form-item>
       </el-form>
@@ -200,15 +111,10 @@
       </template>
     </el-dialog>
 
-    <!-- Custom Tag Dialog -->
     <el-dialog v-model="showCustomTagDialog" title="添加自定义标签" width="400px">
       <el-form>
-        <el-form-item label="标签名称">
-          <el-input v-model="customTagName" placeholder="输入标签名称" />
-        </el-form-item>
-        <el-form-item label="标签颜色">
-          <el-color-picker v-model="customTagColor" />
-        </el-form-item>
+        <el-form-item label="标签名称"><el-input v-model="customTagName" placeholder="输入标签名称"/></el-form-item>
+        <el-form-item label="标签颜色"><el-color-picker v-model="customTagColor"/></el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -218,233 +124,35 @@
       </template>
     </el-dialog>
 
-    <!-- Terminology Manager Dialog -->
-    <el-dialog v-model="showTerminologyManager" title="术语库管理" width="800px">
-      <div class="terminology-manager">
-        <div class="terminology-toolbar">
-          <el-button 
-            type="primary" 
-            size="small" 
-            @click="showAddTermDialog = true"
-          >
-            <el-icon><Plus /></el-icon>
-            添加术语
-          </el-button>
-          <el-button 
-            size="small" 
-            @click="refreshGlossary"
-            :loading="glossaryPagination.loading"
-          >
-            <el-icon><Refresh /></el-icon>
-            刷新
-          </el-button>
-          <el-select
-            v-model="glossaryPagination.typeFilter"
-            size="small"
-            placeholder="类型"
-            style="width:110px"
-            @change="onGlossaryFilterChange"
-            clearable
-          >
-            <el-option label="术语" value="terminology" />
-            <el-option label="记忆" value="memory" />
-            <el-option label="语料" value="corpus" />
-          </el-select>
-          <el-input
-            v-model="glossaryPagination.keyword"
-            size="small"
-            placeholder="关键词 (原文)"
-            style="width:180px"
-            clearable
-            @keyup.enter="onGlossaryFilterChange"
-          >
-            <template #suffix>
-              <el-icon style="cursor:pointer" @click="onGlossaryFilterChange"><Search /></el-icon>
-            </template>
-          </el-input>
-          <el-button size="small" @click="onGlossaryFilterChange">查询</el-button>
-          <el-dropdown trigger="click" @command="onExportCommand">
-            <el-button size="small">
-              <el-icon><Download /></el-icon>
-              导出
-              <i class="el-icon-arrow-down el-icon--right"></i>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="json">导出 JSON</el-dropdown-item>
-                <el-dropdown-item command="csv">导出 CSV</el-dropdown-item>
-                <el-dropdown-item divided command="exportAll">导出全部（CSV）</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-button 
-            size="small" 
-            @click="importTerminology"
-          >
-            <el-icon><Upload /></el-icon>
-            导入
-          </el-button>
-        </div>
-        
-        <el-table 
-          :data="terminologyList"
-          v-loading="glossaryPagination.loading"
-          height="400" 
-          style="width: 100%"
-        >
-          <el-table-column prop="type" label="类型" width="80">
-            <template #default="scope">
-              <el-tag 
-                :type="getTermTypeTagType(scope.row.type)"
-                size="small"
-              >
-                {{ getTermTypeLabel(scope.row.type) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="originalText" label="原文内容" width="200" />
-          <el-table-column prop="translatedText" label="译文内容" width="200" />
-          <el-table-column prop="language" label="语种" width="100">
-            <template #default="scope">
-              {{ getLanguageLabel(scope.row.language) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120" fixed="right" align="center" class-name="operation-col">
-            <template #default="scope">
-              <div class="op-btns">
-                <el-button size="small" link type="primary" @click="editTerminology(scope.row)">编辑</el-button>
-                <el-button size="small" link type="danger" @click="deleteTerminology(scope.row.id)">删除</el-button>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="glossary-pagination">
-          <el-pagination
-            background
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="glossaryPagination.total"
-            :page-size="glossaryPagination.pageSize"
-            :current-page="glossaryPagination.pageNo"
-            :page-sizes="[10,20,30,50]"
-            @size-change="onGlossarySizeChange"
-            @current-change="onGlossaryPageChange"
-          />
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showTerminologyManager = false">关闭</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- Import Dialog -->
-    <el-dialog v-model="showImportDialog" title="导入术语库" width="560px">
-      <div style="display:flex;flex-direction:column;gap:12px">
-          <div><el-button size="small" @click="downloadImportTemplate">下载导入模板</el-button></div>
-        <div>请选择要导入的文件（支持  .csv / .xlsx）：</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input ref="importFileInput" type="file" accept=".json,.csv,.xlsx" style="display:none" @change="onImportFileChange" />
-          <el-input v-model="importFileName" placeholder="未选择文件" readonly style="flex:1" />
-          <el-button size="small" type="primary" @click="triggerFileSelect">选择文件</el-button>
-        </div>
-        <div style="color:#909399;font-size:12px">导入将调用后台接口并更新/新增条目，建议先下载模板并按模板填写。</div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showImportDialog = false">取消</el-button>
-          <el-button type="primary" :loading="importUploading" @click="uploadImportConfirm">上传并导入</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- Add/Edit Terminology Dialog -->
-    <el-dialog v-model="showAddTermDialog" :title="editingTerm ? '编辑术语' : '添加术语'" width="500px">
-      <el-form :model="terminologyForm" label-width="100px">
-        <el-form-item label="类型">
-          <el-select v-model="terminologyForm.type" placeholder="选择类型">
-            <el-option label="术语" value="terminology" />
-            <el-option label="记忆" value="memory" />
-            <el-option label="语料" value="corpus" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="原文内容">
-          <el-input 
-            v-model="terminologyForm.originalText" 
-            type="textarea" 
-            :rows="3"
-            placeholder="输入原文内容" 
-          />
-        </el-form-item>
-        <el-form-item label="译文内容">
-          <el-input 
-            v-model="terminologyForm.translatedText" 
-            type="textarea" 
-            :rows="3"
-            placeholder="输入译文内容" 
-          />
-        </el-form-item>
-        <el-form-item label="译文语种">
-          <el-select v-model="terminologyForm.language" placeholder="选择语种">
-            <el-option label="中文" value="zh" />
-            <el-option label="English" value="en" />
-            <el-option label="Français" value="fr" />
-            <el-option label="Español" value="es" />
-            <el-option label="Deutsch" value="de" />
-            <el-option label="日本語" value="ja" />
-            <el-option label="Русский" value="ru" />
-            <el-option label="Italiano" value="it" />
-            <el-option label="한국어" value="ko" />
-            <el-option label="Português" value="pt" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showAddTermDialog = false">取消</el-button>
-          <el-button type="primary" @click="saveTerminology">保存</el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <glossary-manager ref="glossaryManagerRef" @changed="onGlossaryChanged" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch, onUnmounted, nextTick } from 'vue';
-import { useAiToolsStore } from '../../stores/aiTools';
-import { ElMessage } from 'element-plus';
-import { 
-  Setting, 
-  Search, 
-  Warning, 
-  Document as Tag,
-  Star as BookmarkIcon,
-  Collection,
-  Plus,
-  Download,
-  Upload,
-  Refresh
-} from '@element-plus/icons-vue';
-import { ElMessageBox } from 'element-plus';
-import { aiService } from '../../services/aiService';
-import api from '../../services/api';
+import {ref, reactive, onMounted, watch, onUnmounted, nextTick} from 'vue';
+import MarkdownIt from 'markdown-it';
+import {useAiToolsStore} from '../../stores/aiTools';
+import {ElMessage} from 'element-plus';
+import { Setting, Collection } from '@element-plus/icons-vue';
+import {aiService} from '../../services/aiService';
 import CloudSave from '../preview/CloudSave.vue';
-import { uploadStream } from '../../services/uploadStream';
+import {uploadStream} from '../../services/uploadStream';
+import GlossaryManager from './GlossaryManager.vue';
 
 const props = defineProps({
-  file: { type: Object, default: null },
-  fileId: { type: String, required: true },
-  esId: { type: String, default: '' },
-  active: { type: Boolean, default: false },
-  initialSourceText: { type: String, default: '' },
-  initialTranslation: { type: String, default: '' }
+  file: {type: Object, default: null},
+  fileId: {type: String, required: true},
+  esId: {type: String, default: ''},
+  active: {type: Boolean, default: false},
+  initialSourceText: {type: String, default: ''},
+  initialTranslation: {type: String, default: ''}
 });
 
 const emit = defineEmits(['text-extracted']);
-  // Expose methods for parent components (e.g., re-translate trigger)
-  defineExpose({
-    translateText
-  });
+// Expose methods for parent components (e.g., re-translate trigger)
+defineExpose({
+  translateText
+});
 
 // Store
 const aiStore = useAiToolsStore();
@@ -458,54 +166,98 @@ const sourceCloudSaveRef = ref(null);
 
 // source editable state
 const sourceEditable = ref(false);
-function enterSourceEdit(){ sourceEditable.value = true; nextTick(()=>{ if (sourceTextRef.value) { sourceTextRef.value.focus(); placeCaretAtEnd(sourceTextRef.value); } }); }
-async function finishSourceEdit(){
-  sourceEditable.value = false; // preserve model
-  // push model back to DOM
-  nextTick(()=>{ updateSourceTextContent(); });
-  // emit extracted text so parent can update fileData.fileContents
-  try {
-    // notify parent/view to update file contents (source)
-    emit('text-extracted', sourceText.value);
-    // also emit a generic update event for file contents
-    emit('update-file-contents', { fileId: props.fileId, content: sourceText.value });
-    ElMessage.success('源文本已保存并同步');
-  } catch (e) { console.warn('finishSourceEdit emit failed', e); }
+const targetEditable = ref(false);
+
+// markdown 渲染实例 & 行定位
+const md = new MarkdownIt({ html:false, linkify:true, breaks:true });
+function renderMarkdown(text){
+  if(!text) return '';
+  try { return md.render(text); } catch { return text.replace(/</g,'&lt;'); }
 }
 
-// save source text locally as file download
-function saveSource(){
-  try {
-    const data = sourceText.value || '';
-    const filename = (file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : `source_${new Date().toISOString().slice(0,10)}.txt`;
-    const blob = new Blob([data], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    ElMessage.success('已下载源文本');
-  } catch(e){ console.error('saveSource error', e); ElMessage.error('保存失败'); }
+// 高亮行的 class
+const LINE_HIGHLIGHT_CLASS = 'line-highlight-active';
+
+function splitLines(text){
+  return (text||'').replace(/\r\n/g,'\n').split(/\n/);
 }
+
+function rebuildEditorHtml(editor, text){
+  // 根据编辑状态决定使用纯文本还是 markdown 渲染
+  if(!editor) return;
+  if(editor.getAttribute('contenteditable') === 'true'){
+    editor.innerText = text;
+    return;
+  }
+  editor.innerHTML = renderMarkdown(text);
+}
+
+function enterSourceEdit() {
+  sourceEditable.value = true;
+  nextTick(() => {
+    if (sourceTextRef.value) {
+      sourceTextRef.value.focus();
+      placeCaretAtEnd(sourceTextRef.value);
+    }
+  });
+}
+
+async function finishSourceEdit() {
+  // 结束源文本编辑并保存到后端（固定 esId = 19public226）
+  sourceEditable.value = false;
+  nextTick(updateSourceTextContent);
+  try {
+    const res = await aiService.saveSourceContent('19public226', sourceText.value);
+    if(res?.success){
+      ElMessage.success('源文本已保存');
+    } else {
+      ElMessage.warning(res?.message || '源文本保存失败');
+    }
+  } catch(e){
+    console.warn('save source failed', e);
+    ElMessage.error('保存源文本异常');
+  }
+  try {
+    emit('text-extracted', sourceText.value);
+    emit('update-file-contents', {fileId: props.fileId, content: sourceText.value});
+  } catch(e){
+    console.warn('finishSourceEdit emit failed', e);
+  }
+}
+
+
 
 // handler for source cloud save confirm
-async function onSourceCloudSaveConfirm(targetNode){
-  if(!targetNode) { ElMessage.error('未选择目标目录'); return; }
+async function onSourceCloudSaveConfirm(targetNode) {
+  if (!targetNode) {
+    ElMessage.error('未选择目标目录');
+    return;
+  }
   try {
     const data = sourceText.value || '';
-    const filename = (targetNode && targetNode.fileName) ? targetNode.fileName : ((file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : `source_${new Date().toISOString().slice(0,10)}.txt`);
-    const fileObj = new File([data], filename, { type: 'text/plain', lastModified: Date.now() });
-    const param = { fileCategory: targetNode.fileCategory || 'personal', fileSize: fileObj.size, fileName: fileObj.name, uoType: 2 };
+    const filename = (targetNode && targetNode.fileName) ? targetNode.fileName : ((file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : `source_${new Date().toISOString().slice(0, 10)}.txt`);
+    const fileObj = new File([data], filename, {type: 'text/plain', lastModified: Date.now()});
+    const param = {
+      fileCategory: targetNode.fileCategory || 'personal',
+      fileSize: fileObj.size,
+      fileName: fileObj.name,
+      uoType: 2
+    };
     ElMessage.info('开始上传源文本到云盘...');
-    const resp = await uploadStream({ file: fileObj, param });
+    const resp = await uploadStream({file: fileObj, param});
     if (resp && (resp.status && String(resp.status).startsWith('err_'))) {
       ElMessage.error('上传失败: ' + (resp.msg || resp.message || resp.status));
     } else {
       ElMessage.success('已保存到云盘');
     }
-  } catch(e){ console.error('uploadStream error', e); ElMessage.error('上传失败'); }
+  } catch (e) {
+    console.error('uploadStream error', e);
+    ElMessage.error('上传失败');
+  }
 }
 
 // target editable state
-const targetEditable = ref(false);
+// const targetEditable 重复定义移除（已在上方与 sourceEditable 一起声明）
 
 function placeCaretAtEnd(el) {
   if (!el) return;
@@ -517,14 +269,26 @@ function placeCaretAtEnd(el) {
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
-  } catch (e) { /* ignore */ }
+  } catch (e) { /* ignore */
+  }
 }
 
-function enterEdit(){ targetEditable.value = true; nextTick(()=>{ if (targetTextRef.value) { targetTextRef.value.focus(); placeCaretAtEnd(targetTextRef.value); } }); }
-async function finishEdit(){
+function enterEdit() {
+  targetEditable.value = true;
+  nextTick(() => {
+    if (targetTextRef.value) {
+      targetTextRef.value.focus();
+      placeCaretAtEnd(targetTextRef.value);
+    }
+  });
+}
+
+async function finishEdit() {
   targetEditable.value = false; // preserve model
   // push model back to DOM
-  nextTick(()=>{ updateTargetTextContent(); });
+  nextTick(() => {
+    updateTargetTextContent();
+  });
   // 保存译文到后端缓存并通知父组件更新 fileContents
   try {
     const esId = props.esId || props.fileId;
@@ -541,33 +305,46 @@ async function finishEdit(){
     }
     // emit translated to update parent UI and fileData
     emit('translated', translatedText.value);
-    emit('update-file-contents', { fileId: props.fileId, content: translatedText.value });
+    emit('update-file-contents', {fileId: props.fileId, content: translatedText.value});
   } catch (e) {
     console.warn('finishEdit save failed', e);
     ElMessage.error('保存译文失败');
   }
 }
 
-function onTargetInput(e){ translatedText.value = e.target.innerText || ''; }
+function onTargetInput(e) {
+  translatedText.value = e.target.innerText || '';
+}
 
 // handler invoked when CloudSave confirm triggers save (we'll call upload here)
-async function onCloudSaveConfirm(targetNode){
+async function onCloudSaveConfirm(targetNode) {
   // targetNode is selected folder data from CloudSave
-  if(!targetNode) { ElMessage.error('未选择目标目录'); return; }
+  if (!targetNode) {
+    ElMessage.error('未选择目标目录');
+    return;
+  }
   try {
     const data = translatedText.value || '';
-    const filename = (targetNode && targetNode.fileName) ? targetNode.fileName : `translation_${new Date().toISOString().slice(0,10)}.txt`;
-    const file = new File([data], filename, { type: 'text/plain', lastModified: Date.now() });
-    const param = { fileCategory: targetNode.fileCategory || 'personal', fileSize: file.size, fileName: file.name, uoType: 2 };
+    const filename = (targetNode && targetNode.fileName) ? targetNode.fileName : `translation_${new Date().toISOString().slice(0, 10)}.txt`;
+    const file = new File([data], filename, {type: 'text/plain', lastModified: Date.now()});
+    const param = {
+      fileCategory: targetNode.fileCategory || 'personal',
+      fileSize: file.size,
+      fileName: file.name,
+      uoType: 2
+    };
     ElMessage.info('开始上传到云盘...');
-    const resp = await uploadStream({ file, param });
+    const resp = await uploadStream({file, param});
     // check response for error pattern
     if (resp && (resp.status && String(resp.status).startsWith('err_'))) {
       ElMessage.error('上传失败: ' + (resp.msg || resp.message || resp.status));
     } else {
       ElMessage.success('已保存到云盘');
     }
-  } catch(e){ console.error('uploadStream error', e); ElMessage.error('上传失败'); }
+  } catch (e) {
+    console.error('uploadStream error', e);
+    ElMessage.error('上传失败');
+  }
 }
 
 // Language settings
@@ -602,32 +379,34 @@ const settings = reactive({
 });
 
 // 语言名称映射与摘要显示
-import { computed } from 'vue';
-const languageNameMap = { auto:'自动检测', zh:'中文', en:'English', fr:'Français', es:'Español', de:'Deutsch', ja:'日本語', ru:'Русский', it:'Italiano', ko:'한국어', pt:'Português' };
-const languageSummary = computed(()=>`${languageNameMap[sourceLanguage.value]||sourceLanguage.value} → ${languageNameMap[targetLanguage.value]||targetLanguage.value}`);
+import {computed} from 'vue';
+
+const languageNameMap = {
+  auto: '自动检测',
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  es: 'Español',
+  de: 'Deutsch',
+  ja: '日本語',
+  ru: 'Русский',
+  it: 'Italiano',
+  ko: '한국어',
+  pt: 'Português'
+};
+const languageSummary = computed(() => `${languageNameMap[sourceLanguage.value] || sourceLanguage.value} → ${languageNameMap[targetLanguage.value] || targetLanguage.value}`);
 
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
 const customTagName = ref('');
 const customTagColor = ref('#409EFF');
 
-// Terminology management
-const showTerminologyManager = ref(false);
-const showAddTermDialog = ref(false);
-const editingTerm = ref(null);
-const terminologyList = ref([]);
-const showImportDialog = ref(false);
-const importFileName = ref('');
-const importUploading = ref(false);
-const importFileInput = ref(null);
-const selectedImportFile = ref(null);
-const glossaryPagination = reactive({ pageNo:1, pageSize:20, total:0, loading:false, typeFilter:'', keyword:'' });
-const terminologyForm = reactive({
-  type: 'terminology',
-  originalText: '',
-  translatedText: '',
-  language: 'zh'
-});
+// Glossary manager (external component)
+const glossaryManagerRef = ref(null);
+function openGlossaryManager(){ glossaryManagerRef.value && glossaryManagerRef.value.open && glossaryManagerRef.value.open(); }
+function onGlossaryChanged(){ /* 可在此触发重新标注 */ }
+// Custom tags storage (simple local list)
+const customTags = ref([]);
 
 // Auto translate timer
 let autoTranslateTimer = null;
@@ -653,21 +432,27 @@ onMounted(async () => {
   // use a wrapped document click handler so we can ignore the immediate click that
   // sometimes follows contextmenu on some platforms/browsers
   document.addEventListener('click', onDocumentClick);
-  if (props.active) { await initLoad(); }
+  if (props.active) {
+    await initLoad();
+  }
 });
-watch(()=>props.fileId, ()=>{ initTried=false; if (props.active) initLoad(); });
-watch(()=>props.active, (v)=>{
+watch(() => props.fileId, () => {
+  initTried = false;
+  if (props.active) initLoad();
+});
+watch(() => props.active, (v) => {
   if (v) {
     // 每次激活时优先从 localStorage 读取配置并应用
     loadSettings();
     applyFontSize();
-  applyTheme();
+    applyTheme();
     initLoad();
   }
 });
 
-async function initLoad(){
-  if (initTried) return; initTried = true;
+async function initLoad() {
+  if (initTried) return;
+  initTried = true;
   // 初始化源文本
   if (props.initialSourceText) {
     sourceText.value = props.initialSourceText;
@@ -682,30 +467,29 @@ async function initLoad(){
   }
   detectSourceLang();
   await loadCachedOrTranslate();
-  // 加载术语库
-  loadGlossary();
+  // 术语逻辑已抽离至 GlossaryManager
 }
 
-function detectSourceLang(){
+function detectSourceLang() {
   if (sourceLanguage.value !== 'auto') return; // 只有 auto 才自动检测
   const txt = sourceText.value || '';
   if (!txt.trim()) return;
-  const chineseChars = (txt.match(/[\u4e00-\u9fa5]/g)||[]).length;
+  const chineseChars = (txt.match(/[\u4e00-\u9fa5]/g) || []).length;
   const ratio = chineseChars / Math.max(1, txt.length);
   if (ratio > 0.25) {
-    sourceLanguage.value='zh';
+    sourceLanguage.value = 'zh';
   } else {
-    sourceLanguage.value='en';
+    sourceLanguage.value = 'en';
   }
 }
 
-async function loadCachedOrTranslate(){
+async function loadCachedOrTranslate() {
   if (!props.active) return; // 仅在激活时执行
   if (!sourceText.value.trim()) return;
   try {
     const esId = props.esId || props.fileId; // 正确传递 esId
     if (esId) {
-      const { aiService } = await import('../../services/aiService');
+      const {aiService} = await import('../../services/aiService');
       const cached = await aiService.fetchCachedTranslation(esId);
       if (cached && cached.translation) {
         translatedText.value = cached.translation;
@@ -726,7 +510,9 @@ async function loadCachedOrTranslate(){
     if (settings.autoTranslate) {
       await translateText();
     }
-  } catch (e) { console.warn('loadCachedOrTranslate failed', e); }
+  } catch (e) {
+    console.warn('loadCachedOrTranslate failed', e);
+  }
 }
 
 // Watch for auto translate
@@ -754,20 +540,14 @@ async function extractTextFromFile() {
 
 // Update source text content in DOM
 function updateSourceTextContent() {
-  // don't overwrite DOM while user is actively editing to preserve caret/selection
-  if (sourceEditable && sourceEditable.value) return;
-  if (sourceTextRef.value) {
-    sourceTextRef.value.innerHTML = sourceText.value;
-  }
+  if (!sourceTextRef.value) return;
+  rebuildEditorHtml(sourceTextRef.value, sourceText.value);
 }
 
 // Update translated text content in DOM
 function updateTargetTextContent() {
-  // don't overwrite DOM while user is editing target (preserve caret)
-  if (targetEditable && targetEditable.value) return;
-  if (targetTextRef.value) {
-    targetTextRef.value.innerHTML = translatedText.value;
-  }
+  if (!targetTextRef.value) return;
+  rebuildEditorHtml(targetTextRef.value, translatedText.value);
 }
 
 // Source text input handler
@@ -796,22 +576,24 @@ async function translateText() {
     return;
   }
   if (sourceLanguage.value === targetLanguage.value) {
-    translatedText.value = sourceText.value; updateTargetTextContent(); return;
+    translatedText.value = sourceText.value;
+    updateTargetTextContent();
+    return;
   }
-  
+
   translating.value = true;
   translationProgress.value = 0;
   translatedText.value = '';
   cancelRequested.value = false;
   sentenceTranslations.value = [];
-  
+
   try {
     // 按段落拆分（空行分隔）
     const paragraphs = splitIntoParagraphs(sourceText.value);
     let translatedParagraphs = [];
-    
+
     if (settings.provider === 'builtin') {
-      const { aiService } = await import('../../services/aiService');
+      const {aiService} = await import('../../services/aiService');
       for (let i = 0; i < paragraphs.length; i++) {
         if (cancelRequested.value) break;
         const paragraph = paragraphs[i];
@@ -830,12 +612,12 @@ async function translateText() {
     } else if (settings.provider === 'xunfei') {
       // 调用讯飞批量接口一次性翻译整段
       try {
-        const { aiService } = await import('../../services/aiService');
+        const {aiService} = await import('../../services/aiService');
         const xfResPromise = aiService.translateWithXunfei(sourceText.value, sourceLanguage.value === 'auto' ? '' : sourceLanguage.value, targetLanguage.value);
         const xfRes = await xfResPromise;
         if (cancelRequested.value) throw new Error('cancelled');
         if (xfRes?.sentences && Array.isArray(xfRes.sentences)) {
-          translatedParagraphs = xfRes.sentences.map(s=>s.target || s.tgt || s.translation || '');
+          translatedParagraphs = xfRes.sentences.map(s => s.target || s.tgt || s.translation || '');
           sentenceTranslations.value = [...translatedParagraphs];
           translatedText.value = translatedParagraphs.join('\n\n');
           emit('translated', translatedText.value);
@@ -851,7 +633,7 @@ async function translateText() {
         }
       } catch (e) {
         console.warn('Xunfei translate failed fallback to builtin', e);
-        const { aiService: aiSvcFallback } = await import('../../services/aiService');
+        const {aiService: aiSvcFallback} = await import('../../services/aiService');
         for (let i = 0; i < paragraphs.length; i++) {
           if (cancelRequested.value) break;
           const paragraph = paragraphs[i];
@@ -869,20 +651,22 @@ async function translateText() {
         }
       }
     }
-    
+
     // Build text alignment map for synchronized highlighting (按段落)
     buildTextAlignmentMap(paragraphs, translatedParagraphs);
-    
+
     if (cancelRequested.value) {
       ElMessage.info('翻译已取消');
     } else {
       try {
         const esId = props.esId || props.fileId;
         if (esId) {
-          const { aiService } = await import('../../services/aiService');
+          const {aiService} = await import('../../services/aiService');
           await aiService.saveTranslation(esId, translatedText.value, targetLanguage.value);
         }
-      } catch (e) { console.warn('save translation cache failed', e); }
+      } catch (e) {
+        console.warn('save translation cache failed', e);
+      }
       ElMessage.success('翻译完成');
     }
   } catch (error) {
@@ -894,41 +678,57 @@ async function translateText() {
   }
 }
 
-function cancelTranslation(){
+function cancelTranslation() {
   if (!translating.value) return;
   cancelRequested.value = true;
   ElMessage.info('正在取消翻译...');
 }
 
-// Split text into paragraphs (空行或连续换行分隔)
+// 按段落拆分：优先使用两个及以上连续换行作为段落分隔，否则退化为单行列表
 function splitIntoParagraphs(text) {
   if (!text) return [];
-  // 先归一化换行
-  const norm = text.replace(/\r\n/g,'\n');
-  const parts = norm.split(/\n{2,}/).map(p=>p.trim()).filter(Boolean);
-  if (parts.length <= 1) {
-    // 如果没有空行，用单换行尝试聚合；保持与原行一致
-    return norm.split(/\n/).map(l=>l.trim()).filter(Boolean);
-  }
-  return parts;
+  const norm = text.replace(/\r\n/g, '\n');
+  const parts = norm.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  return parts.length <= 1 ? norm.split(/\n/).map(l => l.trim()).filter(Boolean) : parts;
 }
 
-// Build text alignment map for synchronized highlighting
+// 构建段落对齐映射（简化：索引对应）
 function buildTextAlignmentMap(sourceSentences, translatedSentences) {
   textAlignmentMap.value = {};
-  sourceSentences.forEach((sentence, index) => {
-    if (translatedSentences[index]) {
-      textAlignmentMap.value[sentence.trim()] = translatedSentences[index].trim();
-    }
-  });
+  sourceSentences.forEach((s, i) => { if (translatedSentences[i]) textAlignmentMap.value[s.trim()] = translatedSentences[i].trim(); });
 }
 
-// Synchronized scrolling
+// 滚动同步（源 -> 译）
 function onSourceScroll(event) {
-  if (targetTextRef.value) {
-    const scrollPercentage = event.target.scrollTop / (event.target.scrollHeight - event.target.clientHeight);
-    targetTextRef.value.scrollTop = scrollPercentage * (targetTextRef.value.scrollHeight - targetTextRef.value.clientHeight);
-  }
+  if (!targetTextRef.value) return;
+  const p = event.target.scrollTop / Math.max(1,(event.target.scrollHeight - event.target.clientHeight));
+  targetTextRef.value.scrollTop = p * (targetTextRef.value.scrollHeight - targetTextRef.value.clientHeight);
+}
+// 滚动同步（译 -> 源）
+function onTargetScroll(event){
+  if (!sourceTextRef.value) return;
+  const p = event.target.scrollTop / Math.max(1,(event.target.scrollHeight - event.target.clientHeight));
+  sourceTextRef.value.scrollTop = p * (sourceTextRef.value.scrollHeight - sourceTextRef.value.clientHeight);
+}
+
+function onTargetMouseUp(){
+  // 点击译文的某一行 => 尝试高亮原文对应行（简单行号映射）
+  const selection = window.getSelection();
+  if(!selection) return;
+  const text = selection.anchorNode ? selection.anchorNode.textContent || '' : '';
+  highlightLineByApprox(text);
+}
+function onSourceMouseUp(){ /* 预留：暂不做 */ }
+
+function highlightLineByApprox(fragment){
+  if(!fragment || !sourceTextRef.value) return;
+  const src = sourceTextRef.value.innerText || sourceTextRef.value.textContent || '';
+  if(!src) return;
+  const idx = src.indexOf(fragment.trim().slice(0,20));
+  if(idx < 0) return;
+  // 简化：暂不逐行包装，通过 selection-highlight class 包裹匹配片段
+  clearSelectionHighlights();
+  wrapRangeByText(sourceTextRef.value, fragment.trim().slice(0,20), SELECTION_CLASS);
 }
 
 // onTargetScroll 移除（译文外部展示）
@@ -940,14 +740,19 @@ function onTextSelection(event) {
     const txt = selection.toString().trim();
     selectedText.value = txt;
     // attempt to get a range that overlaps editor and wrap it directly
-    try { selectedRange.value = selection.getRangeAt(0).cloneRange(); } catch { selectedRange.value = null; }
+    try {
+      selectedRange.value = selection.getRangeAt(0).cloneRange();
+    } catch {
+      selectedRange.value = null;
+    }
     // Prefer Range-based wrapping in the editor that contains the range.
     const editorsToTry = [];
     if (selectedRange.value) {
       try {
         if (sourceTextRef.value && sourceTextRef.value.contains(selectedRange.value.commonAncestorContainer)) editorsToTry.push(sourceTextRef.value);
         if (targetTextRef.value && targetTextRef.value.contains(selectedRange.value.commonAncestorContainer)) editorsToTry.push(targetTextRef.value);
-      } catch (e) { /* ignore */ }
+      } catch (e) { /* ignore */
+      }
     }
     // also add the event target's editor first if available
     const evtEditor = event && event.target ? (event.target.closest && event.target.closest('.text-editor')) : null;
@@ -958,7 +763,12 @@ function onTextSelection(event) {
       const rr = extractSelectionRange(ed) || selectedRange.value;
       if (rr) {
         clearSelectionHighlights();
-        try { wrapped = wrapSelectionRange(ed, rr, SELECTION_CLASS) || wrapped; } catch (e) { wrapped = wrapped; }
+        try {
+          wrapped = wrapSelectionRange(ed, rr, SELECTION_CLASS) || wrapped;
+        } catch (e) {
+          // eslint-disable-next-line no-self-assign
+          wrapped = wrapped;
+        }
         if (wrapped) break;
       }
     }
@@ -996,21 +806,31 @@ function unwrapSpans(editor, className) {
     span.replaceWith(text);
   });
 }
-function clearCrossHighlights() { unwrapSpans(sourceTextRef.value, CROSS_CLASS); unwrapSpans(targetTextRef.value, CROSS_CLASS); }
-function clearSelectionHighlights() { unwrapSpans(sourceTextRef.value, SELECTION_CLASS); unwrapSpans(targetTextRef.value, SELECTION_CLASS); }
+
+function clearCrossHighlights() {
+  unwrapSpans(sourceTextRef.value, CROSS_CLASS);
+  unwrapSpans(targetTextRef.value, CROSS_CLASS);
+}
+
+function clearSelectionHighlights() {
+  unwrapSpans(sourceTextRef.value, SELECTION_CLASS);
+  unwrapSpans(targetTextRef.value, SELECTION_CLASS);
+}
 
 function getTextNodeByOffset(root, offset) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
-  let curOffset = 0; let node;
+  let curOffset = 0;
+  let node;
   while ((node = walker.nextNode())) {
     const len = node.nodeValue.length;
     if (curOffset + len >= offset) {
-      return { node, offset: offset - curOffset };
+      return {node, offset: offset - curOffset};
     }
     curOffset += len;
   }
   return null;
 }
+
 function wrapRangeByText(editor, text, className) {
   if (!editor || !text) return;
   const content = editor.textContent;
@@ -1024,7 +844,10 @@ function wrapRangeByText(editor, text, className) {
   range.setEnd(endPos.node, endPos.offset);
   const span = document.createElement('span');
   span.className = className;
-  try { range.surroundContents(span); } catch { /* ignore */ }
+  try {
+    range.surroundContents(span);
+  } catch { /* ignore */
+  }
 }
 
 function highlightSentenceBoth(sentence) {
@@ -1050,23 +873,27 @@ function getSentenceAtPoint(editor, clientX, clientY) {
   const full = editor.textContent || '';
   const punct = /[.!?。！？]/;
   let start = full.lastIndexOf('\n', offset - 1);
-  for (let i = offset - 1; i >= 0 && start < 0; i--) { if (punct.test(full[i])) { start = i; break; } }
+  for (let i = offset - 1; i >= 0 && start < 0; i--) {
+    if (punct.test(full[i])) {
+      start = i;
+      break;
+    }
+  }
   let end = full.indexOf('\n', offset);
-  for (let i = offset; i < full.length && end < 0; i++) { if (punct.test(full[i])) { end = i + 1; break; } }
+  for (let i = offset; i < full.length && end < 0; i++) {
+    if (punct.test(full[i])) {
+      end = i + 1;
+      break;
+    }
+  }
   if (start < 0) start = 0; else start += 1;
   if (end < 0) end = full.length;
   return full.substring(start, end).trim();
 }
 
-function onEditorHover(e, which) {
-  if (hoverRaf) return;
-  hoverRaf = requestAnimationFrame(() => {
-    hoverRaf = null;
-    const editor = which === 'source' ? sourceTextRef.value : targetTextRef.value;
-    const sentence = getSentenceAtPoint(editor, e.clientX, e.clientY);
-    if (sentence) highlightSentenceBoth(sentence);
-  });
-}
+// 移除悬停句子高亮，减少闪动
+function onEditorHover(){ /* disabled */ }
+
 function extractSelectionRange(editor) {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return null;
@@ -1081,7 +908,9 @@ function extractSelectionRange(editor) {
       if (!editor.contains(range.commonAncestorContainer)) return null;
     }
     return range;
-  } catch (e) { return null; }
+  } catch (e) {
+    return null;
+  }
 }
 
 function wrapSelectionRange(editor, range, className) {
@@ -1129,13 +958,17 @@ function onEditorContextMenu(e, which) {
   const sentence = getSentenceAtPoint(editor, e.clientX, e.clientY);
   if (sentence) highlightSentenceBoth(sentence);
 }
+
 // ==== 新高亮实现 END ====
 
 // Load settings from localStorage
 function loadSettings() {
   const saved = localStorage.getItem('translation_settings');
   if (saved) {
-    try { Object.assign(settings, JSON.parse(saved)); } catch { /* ignore */ }
+    try {
+      Object.assign(settings, JSON.parse(saved));
+    } catch { /* ignore */
+    }
   }
 }
 
@@ -1158,14 +991,17 @@ function saveSettings() {
       translateDelay: settings.translateDelay
     };
     localStorage.setItem('translation_settings', JSON.stringify(toSave));
-  applyFontSize();
-  applyTheme();
+    applyFontSize();
+    applyTheme();
     showSettings.value = false;
     ElMessage.success('设置已保存');
     // 如果开启了自动翻译且有源文本，则触发一次翻译
     if (settings.autoTranslate && sourceText.value.trim()) {
       // 延迟一小会儿以确保对话框关闭并 DOM 更新
-      setTimeout(() => { translateText().catch(()=>{}); }, 50);
+      setTimeout(() => {
+        translateText().catch(() => {
+        });
+      }, 50);
     }
   } catch (e) {
     console.warn('saveSettings failed', e);
@@ -1179,18 +1015,6 @@ function applyFontSize() {
   if (targetTextRef.value) targetTextRef.value.style.fontSize = settings.fontSize + 'px';
 }
 
-// Show context menu at specified event
-function showContextMenuAt(event) {
-  // prevent the immediate document click from closing the menu/highlight
-  _ignoreNextDocumentClick = true;
-  _suppressSelectionClear = true;
-  showContextMenu.value = true;
-  nextTick(() => {
-    contextMenuStyle.value = { position:'fixed', left: event.clientX + 'px', top: event.clientY + 'px', zIndex: 9999 };
-    // small timeout to allow any native click to finish; then allow clears again when appropriate
-    setTimeout(() => { _suppressSelectionClear = false; }, 200);
-  });
-}
 
 // Hide context menu
 function hideContextMenu() {
@@ -1205,378 +1029,320 @@ function hideContextMenu() {
   }, 120);
 }
 
-// Terminology Management Functions
-function getTermTypeLabel(type) {
-  const labels = {
-    terminology: '术语',
-    memory: '记忆',
-    corpus: '语料'
-  };
-  return labels[type] || type;
-}
+// 术语 CRUD 相关逻辑已迁移至 GlossaryManager 组件
 
-function getTermTypeTagType(type) {
-  const types = {
-    terminology: 'primary',
-    memory: 'success',
-    corpus: 'warning'
-  };
-  return types[type] || 'info';
-}
-
-function getLanguageLabel(lang) {
-  const labels = {
-    zh: '中文',
-    en: 'English',
-    fr: 'Français',
-    es: 'Español',
-    de: 'Deutsch',
-    ja: '日本語',
-    ru: 'Русский',
-    it: 'Italiano',
-    ko: '한국어',
-    pt: 'Português'
-  };
-  return labels[lang] || lang;
-}
-
-async function loadGlossary(){
-  try {
-    glossaryPagination.loading = true;
-    const { aiService } = await import('../../services/aiService');
-    const { list, total } = await aiService.getGlossaryPage({
-      pageNo: glossaryPagination.pageNo,
-      pageSize: glossaryPagination.pageSize,
-      type: glossaryPagination.typeFilter,
-      originalText: glossaryPagination.keyword,
-      language: 'zh'
-    });
-    terminologyList.value = list.map(it=>({
-      id: it.id,
-      type: it.type || 'terminology',
-      originalText: it.originalText || it.source || '',
-      translatedText: it.translatedText || it.target || '',
-      language: it.language || 'zh',
-      status: it.status
-    }));
-    glossaryPagination.total = total;
-  } catch(e){ console.warn('loadGlossary failed', e); }
-  finally { glossaryPagination.loading = false; }
-}
-
-function editTerminology(term) {
-  editingTerm.value = term;
-  Object.assign(terminologyForm, { ...term });
-  showAddTermDialog.value = true;
-}
-
-async function deleteTerminology(id) {
-  try {
-    await ElMessageBox.confirm('确认删除该术语？','提示',{ type:'warning', confirmButtonText:'删除', cancelButtonText:'取消' });
-    const { aiService } = await import('../../services/aiService');
-    const res = await aiService.deleteGlossaryEntry(id);
-    if (res && res.success) {
-      ElMessage.success('删除成功');
-      await loadGlossary();
-    } else {
-      ElMessage.error(res?.message || '删除失败');
-    }
-  } catch(e){ if (e !== 'cancel') ElMessage.error('删除失败'); }
-}
-
-async function saveTerminology() {
-  if (!terminologyForm.originalText || !terminologyForm.translatedText) {
-    ElMessage.error('请填写完整信息');
+function saveCustomTag(){
+  if(!customTagName.value.trim()){
+    ElMessage.error('请输入标签名称');
     return;
   }
-  try {
-    const { aiService } = await import('../../services/aiService');
-    if (editingTerm.value) {
-      const res = await aiService.updateGlossaryEntry({
-        id: editingTerm.value.id,
-        type: terminologyForm.type,
-        originalText: terminologyForm.originalText,
-        translatedText: terminologyForm.translatedText,
-        language: terminologyForm.language,
-        status: 1
-      });
-      if (res && res.success) {
-        ElMessage.success('更新成功');
-        await loadGlossary();
-      } else {
-        ElMessage.error('更新失败');
-      }
-    } else {
-      const res = await aiService.createGlossaryEntry({
-        type: terminologyForm.type,
-        originalText: terminologyForm.originalText,
-        translatedText: terminologyForm.translatedText,
-        language: terminologyForm.language,
-        status: 1
-      });
-      if (res && res.success) {
-        ElMessage.success('创建成功');
-        await loadGlossary();
-      } else {
-        ElMessage.error('创建失败');
-      }
-    }
-  } catch{ ElMessage.error('保存失败'); }
-  finally {
-    terminologyForm.type = 'terminology';
-    terminologyForm.originalText = '';
-    terminologyForm.translatedText = '';
-    terminologyForm.language = 'zh';
-    editingTerm.value = null;
-    showAddTermDialog.value = false;
-  }
-}
-
-function refreshGlossary(){ loadGlossary(); }
-
-function onGlossaryFilterChange(){
-  glossaryPagination.pageNo = 1;
-  loadGlossary();
-}
-function onGlossaryPageChange(page){
-  glossaryPagination.pageNo = page; loadGlossary();
-}
-function onGlossarySizeChange(size){
-  glossaryPagination.pageSize = size; glossaryPagination.pageNo = 1; loadGlossary();
-}
-
-// handler for export dropdown commands
-function onExportCommand(format) {
-  if (format === 'exportAll') return exportAll();
-  return exportTerminology(format);
-}
-
-// export terminology as JSON or CSV
-function exportTerminology(format = 'json') {
-  try {
-    if (format === 'csv') {
-      const header = ['type', 'originalText', 'translatedText', 'language'];
-      const rows = terminologyList.value.map(r => header.map(h => {
-        const v = r[h];
-        return v == null ? '' : String(v).replace(/"/g, '""');
-      }));
-      const csv = [header.join(',')].concat(rows.map(cols => cols.map(c => `"${c}"`).join(','))).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `terminology_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      ElMessage.success('术语库已导出为 CSV');
-      return;
-    }
-    // default json
-    const data = JSON.stringify(terminologyList.value, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `terminology_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    ElMessage.success('术语库已导出为 JSON');
-  } catch (e) {
-    console.error('exportTerminology failed', e);
-    ElMessage.error('导出失败');
-  }
-}
-
-async function exportAll() {
-  try {
-    const path = '/admin-api/rag/ai/translate/glossary/export-all?format=csv';
-    // use axios instance to fetch blob with attached headers
-    const resp = await api.get(path, { responseType: 'blob', timeout: 120000 });
-    // resp is a blob when successful
-    const blob = resp instanceof Blob ? resp : (resp.data || resp);
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `terminology_all_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-    ElMessage.success('已开始导出全部数据');
-  } catch (e) {
-    console.error('exportAll failed', e);
-    ElMessage.error('导出全部失败');
-  }
-}
-
-// very small CSV parser -> array of objects using header
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-  if (!lines.length) return [];
-  const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  const out = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    const row = [];
-    let cur = '';
-    let inQuotes = false;
-    for (let j = 0; j < line.length; j++) {
-      const ch = line[j];
-      if (ch === '"') {
-        if (inQuotes && line[j+1] === '"') { cur += '"'; j++; }
-        else inQuotes = !inQuotes;
-      } else if (ch === ',' && !inQuotes) {
-        row.push(cur);
-        cur = '';
-      } else {
-        cur += ch;
-      }
-    }
-    row.push(cur);
-    const obj = {};
-    for (let k = 0; k < header.length; k++) {
-      obj[header[k]] = (row[k] || '').trim();
-    }
-    out.push(obj);
-  }
-  return out;
-}
-
-function importTerminology() {
-  // open import dialog
-  importFileName.value = '';
-  showImportDialog.value = true;
-}
-
-function downloadImportTemplate() {
-  // call backend template download endpoint
-  // aiService doesn't wrap this specific simple GET, use api directly
-  // default to csv format
-  const path = '/admin-api/rag/ai/translate/glossary/import-template?format=csv';
-  // open in new tab to trigger download (server should return attachment)
-  const resolved = aiService._resolveApiPath(path);
-  window.open(resolved, '_blank');
-}
-
-function triggerFileSelect() {
-  // ensure input is cleared so selecting same file triggers change
-  nextTick(() => {
-    const el = importFileInput.value;
-    if (!el) return;
-    try { el.value = ''; } catch(e) {}
-    selectedImportFile.value = null;
-    el.click();
-  });
-}
-
-function onImportFileChange(e) {
-  const file = (e.target.files && e.target.files[0]) || null;
-  if (!file) {
-    importFileName.value = '';
-    selectedImportFile.value = null;
-    return;
-  }
-  importFileName.value = file.name;
-  selectedImportFile.value = file;
-}
-
-async function uploadImportConfirm() {
-  const file = selectedImportFile.value;
-  if (!file) { ElMessage.error('请先选择要导入的文件'); return; }
-  importUploading.value = true;
-  try {
-    const form = new FormData();
-    form.append('file', file);
-    // optional: format param based on extension
-    const fmt = file.name.split('.').pop();
-    if (fmt) form.append('format', fmt);
-    const path = '/admin-api/rag/ai/translate/glossary/import-file';
-    const res = await api.post(path, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
-    // api wrapper returns standard error object on reject, successful responses are raw
-    if (res && (res.code === 0 || res.status === 'ok' || res === 'ok' || res.data === 'ok' || !res.code)) {
-      ElMessage.success('文件上传并导入成功');
-      showImportDialog.value = false;
-      await loadGlossary();
-    } else {
-      ElMessage.error(res?.msg || '导入接口返回失败');
-    }
-  } catch (err) {
-    console.error('uploadImportConfirm failed', err);
-    ElMessage.error(err?.message || '上传失败');
-  } finally {
-    importUploading.value = false;
-  }
+  customTags.value.push({ name: customTagName.value.trim(), color: customTagColor.value });
+  ElMessage.success('标签已添加');
+  customTagName.value='';
+  customTagColor.value='#409EFF';
+  showCustomTagDialog.value=false;
 }
 
 // 组件卸载清理
-onUnmounted(() => { document.removeEventListener('click', onDocumentClick); });
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick);
+});
 </script>
 
 <style scoped>
+.markdown-body h1{font-size:1.4em;border-bottom:1px solid #e5e7eb;padding-bottom:.3em;margin-top:1em;}
+.markdown-body h2{font-size:1.25em;border-bottom:1px solid #e5e7eb;padding-bottom:.25em;margin-top:1em;}
+.markdown-body h3{font-size:1.1em;margin-top:1em;}
+.markdown-body pre{background:#f6f8fa;padding:8px 12px;border-radius:6px;overflow:auto;font-size:13px;}
+.markdown-body code{background:#f6f8fa;padding:2px 4px;border-radius:4px;font-family:ui-monospace,monospace;font-size:13px;}
+.markdown-body ul{padding-left:1.2em;margin:6px 0;}
+.markdown-body p{margin:6px 0;line-height:1.55;}
+.markdown-body hr{border:none;border-top:1px solid #e5e7eb;margin:12px 0;}
+.selection-highlight{background:rgba(64,158,255,0.35);border-radius:2px;}
+.line-highlight-active{background:rgba(255,215,0,0.35);}
 /* 原样式恢复 + 补充 cross-highlight */
-.advanced-translation-module { display:flex; flex-direction:column; height:100%; background:#fff; }
-.translation-toolbar { height:50px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #e5e7eb; background:#f8f9fa; }
-.language-selectors { display:flex; align-items:center; gap:12px; }
-.language-selector { display:flex; align-items:center; gap:8px; }
-.language-selector label { font-size:14px; color:#606266; white-space:nowrap; }
-.swap-languages { display:flex; align-items:center; }
-.toolbar-actions { display:flex; align-items:center; gap:8px; }
-.lang-display { font-size:13px; color:#606266; margin-left:12px; padding:4px 8px; background:#ffffffcc; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,.04); white-space:nowrap; }
-.translation-content { display:flex; flex:1; overflow:hidden; width:100%; min-width:0; }
-.text-panel { flex:1 1 50%; display:flex; flex-direction:column; border-right:1px solid #e5e7eb; min-width:0; }
-.text-panel:last-child { border-right:none; }
-.panel-header { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #e5e7eb; background:#fafafa; }
-.panel-title { font-weight:600; font-size:14px; color:#303133; }
-.char-count { font-size:12px; color:#909399; }
-.text-editor { flex:1; padding:16px; border:none; outline:none; resize:none; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; font-size:14px; line-height:1.6; overflow:auto; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; min-width:0; box-sizing:border-box; }
-.text-editor:focus { outline:none; }
-.text-editor:empty:before { content:attr(placeholder); color:#c0c4cc; pointer-events:none; }
-.text-editor::-webkit-scrollbar { width:8px; }
-.top-progress { margin-left:16px; }
-.translation-progress { padding:4px 16px; }
-.context-menu { background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.15); padding:4px 0; min-width:120px; }
-.menu-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; font-size:14px; color:#303133; transition:background-color .2s; }
-.menu-item:hover { background:#f5f7fa; }
-.terminology-marker { text-decoration:underline; text-decoration-color:#409EFF; text-decoration-thickness:2px; }
-.warning-marker { color:#E6A23C; }
-.custom-tag-marker { background:#409EFF; color:#fff; padding:2px 4px; border-radius:3px; font-size:12px; }
-.setting-desc { margin-left:8px; font-size:12px; color:#909399; }
-.cross-highlight { background:#ffe98a; border-radius:2px; padding:1px 0; }
-.selection-highlight { background:#b3d8ff; border-radius:2px; padding:1px 0; }
-.text-editor span { font:inherit; white-space:inherit; }
-
-/* Terminology Manager Styles */
-.terminology-manager { width: 100%; }
-.terminology-toolbar { 
-  display: flex; 
-  gap: 8px; 
-  margin-bottom: 16px; 
-  padding-bottom: 12px; 
-  border-bottom: 1px solid #e5e7eb; 
+.advanced-translation-module {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
 }
-.op-btns { display:flex; align-items:center; justify-content:center; gap:4px; }
-.op-btns .el-button { padding:0 4px; margin:0 !important; line-height:1; }
-.op-btns .el-button + .el-button { margin-left:0 !important; }
-.operation-col .cell { padding:0 4px !important; }
 
-@media (max-width:768px){
-  .translation-content { flex-direction:column; }
-  .text-panel { border-right:none; border-bottom:1px solid #e5e7eb; }
-  .text-panel:last-child { border-bottom:none; }
-  .language-selectors { flex-wrap:wrap; gap:8px; }
+.translation-toolbar {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8f9fa;
+}
+
+.language-selectors {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.language-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.language-selector label {
+  font-size: 14px;
+  color: #606266;
+  white-space: nowrap;
+}
+
+.swap-languages {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lang-display {
+  font-size: 13px;
+  color: #606266;
+  margin-left: 12px;
+  padding: 4px 8px;
+  background: #ffffffcc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  white-space: nowrap;
+}
+
+.translation-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+
+.text-panel {
+  flex: 1 1 50%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e5e7eb;
+  min-width: 0;
+}
+
+.text-panel:last-child {
+  border-right: none;
+}
+
+.panel-header {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.panel-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+
+.char-count {
+  font-size: 12px;
+  color: #909399;
+}
+
+.text-editor {
+  flex: 1;
+  padding: 16px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.text-editor:focus {
+  outline: none;
+}
+
+.text-editor:empty:before {
+  content: attr(placeholder);
+  color: #c0c4cc;
+  pointer-events: none;
+}
+
+.text-editor::-webkit-scrollbar {
+  width: 8px;
+}
+
+.top-progress {
+  margin-left: 16px;
+}
+
+.translation-progress {
+  padding: 4px 16px;
+}
+
+.context-menu {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+  padding: 4px 0;
+  min-width: 120px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #303133;
+  transition: background-color .2s;
+}
+
+.menu-item:hover {
+  background: #f5f7fa;
+}
+
+.terminology-marker {
+  text-decoration: underline;
+  text-decoration-color: #409EFF;
+  text-decoration-thickness: 2px;
+}
+
+.warning-marker {
+  color: #E6A23C;
+}
+
+.custom-tag-marker {
+  background: #409EFF;
+  color: #fff;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.setting-desc {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.cross-highlight {
+  background: #ffe98a;
+  border-radius: 2px;
+  padding: 1px 0;
+}
+
+.selection-highlight {
+  background: #b3d8ff;
+  border-radius: 2px;
+  padding: 1px 0;
+}
+
+.text-editor span {
+  font: inherit;
+  white-space: inherit;
+}
+
+/* 术语管理相关样式已抽离 */
+
+@media (max-width: 768px) {
+  .translation-content {
+    flex-direction: column;
+  }
+
+  .text-panel {
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .text-panel:last-child {
+    border-bottom: none;
+  }
+
+  .language-selectors {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
 
 /* Dark theme overrides */
-.advanced-translation-module.theme-dark { background: #1f2937; color: #e5e7eb; }
-.advanced-translation-module.theme-dark .translation-toolbar { background: #111827; border-bottom-color: #2d3748; color: #e6eef8; }
-.advanced-translation-module.theme-dark .translation-toolbar label { color: #cbd5e1; }
-.advanced-translation-module.theme-dark .panel-header { background: #111827; border-bottom-color: #2d3748; color: #e6eef8; }
-.advanced-translation-module.theme-dark .panel-header .panel-title { color: #f3f4f6; }
-.advanced-translation-module.theme-dark .panel-header .char-count { color: #cbd5e1; }
-.advanced-translation-module.theme-dark .text-editor { background: #0b1220; color:#e6eef8; }
-.advanced-translation-module.theme-dark .lang-display { background: rgba(255,255,255,0.03); border-color: #374151; color: #cbd5e1; }
-.advanced-translation-module.theme-dark .toolbar-actions .el-button { color: #e6eef8; }
-.advanced-translation-module.theme-dark .context-menu { background: #0b1220; color: #e6eef8; border-color: #2d3748; }
-.advanced-translation-module.theme-dark .menu-item { color: #e6eef8; }
-.app-theme-dark { background: #0b1220; color: #e6eef8; }
+.advanced-translation-module.theme-dark {
+  background: #1f2937;
+  color: #e5e7eb;
+}
+
+.advanced-translation-module.theme-dark .translation-toolbar {
+  background: #111827;
+  border-bottom-color: #2d3748;
+  color: #e6eef8;
+}
+
+.advanced-translation-module.theme-dark .translation-toolbar label {
+  color: #cbd5e1;
+}
+
+.advanced-translation-module.theme-dark .panel-header {
+  background: #111827;
+  border-bottom-color: #2d3748;
+  color: #e6eef8;
+}
+
+.advanced-translation-module.theme-dark .panel-header .panel-title {
+  color: #f3f4f6;
+}
+
+.advanced-translation-module.theme-dark .panel-header .char-count {
+  color: #cbd5e1;
+}
+
+.advanced-translation-module.theme-dark .text-editor {
+  background: #0b1220;
+  color: #e6eef8;
+}
+
+.advanced-translation-module.theme-dark .lang-display {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: #374151;
+  color: #cbd5e1;
+}
+
+.advanced-translation-module.theme-dark .toolbar-actions .el-button {
+  color: #e6eef8;
+}
+
+.advanced-translation-module.theme-dark .context-menu {
+  background: #0b1220;
+  color: #e6eef8;
+  border-color: #2d3748;
+}
+
+.advanced-translation-module.theme-dark .menu-item {
+  color: #e6eef8;
+}
+
+.app-theme-dark {
+  background: #0b1220;
+  color: #e6eef8;
+}
 </style>

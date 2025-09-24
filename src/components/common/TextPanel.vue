@@ -182,15 +182,33 @@
         <el-button size="small" type="primary" :loading="tagSaving" @click="saveTag" :disabled="!tagValue">保存</el-button>
       </template>
     </el-dialog>
+
+      <!-- Wiki Dialog -->
+      <el-dialog v-model="showWikiDialog" title="百科查询" width="900px">
+        <div style="margin-bottom:8px;">查询词：<span class="wiki-header-term">{{ wikiQuery }}</span></div>
+        <div v-if="wikiError" class="wiki-error">{{ wikiError }}</div>
+        <div v-else class="wiki-output" v-html="wikiResultHtml || (wikiLoading ? '<span class=\'wiki-loading\'><svg class=\'loading-icon\'></svg> 正在思考中...</span>' : '')"></div>
+        <template #footer>
+          <div style="display:flex;justify-content:space-between;width:100%;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <el-button size="small" type="primary" @click="startWikiStream" :disabled="wikiLoading">重新查询</el-button>
+              <el-button size="small" @click="cancelWiki" v-if="wikiLoading">取消</el-button>
+              <el-button size="small" @click="copyWikiResult" :disabled="!wikiResult">复制结果</el-button>
+            </div>
+            <el-button size="small" @click="showWikiDialog=false">关闭</el-button>
+          </div>
+        </template>
+      </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Download, Iphone, Search, CopyDocument, Collection, CollectionTag, Connection } from '@element-plus/icons-vue';
+import { Download, Iphone, Search, CopyDocument, Collection, CollectionTag, Connection, Loading } from '@element-plus/icons-vue';
 
 import { aiService } from '../../services/aiService';
+import { wikiStream } from '../../services/wiki';
 import { resolveEsId } from '../../utils/esid';
 
 const props = defineProps({
@@ -252,6 +270,15 @@ const nerTypeOptions = [
   { value:'date', label:'日期' },
   { value:'other', label:'其它' }
 ];
+
+// Wiki dialog state
+const showWikiDialog = ref(false);
+const wikiQuery = ref('');
+const wikiResult = ref(''); // 原始 markdown
+const wikiResultHtml = ref(''); // 渲染后的 HTML
+const wikiLoading = ref(false);
+const wikiError = ref('');
+let wikiAbortController = null;
 
 
 // Custom tag legacy dialog (deprecated by new tag saving) retained temporarily
@@ -381,36 +408,121 @@ function openNERDialog(){
 
 // Encyclopedia lookup
 function lookupEncyclopedia() {
-  if (selectedText.value) {
-    let rawSel = selectedText.value.trim();
-    const full = textContent.value || '';
-    // 尝试扩展为段落（当选择较短时）
-    let paragraph = rawSel;
-    if(rawSel.length < 40 && full.includes(rawSel)){
-      const idx = full.indexOf(rawSel);
-      if(idx>-1){
-        let start = idx;
-        let end = idx + rawSel.length;
-        while(start>0 && full[start-1] !== '\n' && (idx - start) < 600) start--;
-        while(end < full.length && full[end] !== '\n' && (end - idx) < 600) end++;
-        paragraph = full.slice(start,end).trim();
-      }
-    }
-    // 过长截断
-    const MAX_LEN = 600;
-    let clippedPara = paragraph.length > MAX_LEN ? (paragraph.slice(0,MAX_LEN) + '...') : paragraph;
-    let clippedSel = rawSel.length > 200 ? (rawSel.slice(0,200)+'...') : rawSel;
-  const esId = resolveEsId(props.file, props.fileId);
-  const question = `[百科] 请基于文档内容回答与以下内容相关的背景、定义、关键要点：\n“${clippedSel}”\n\n原文片段：\n${clippedPara}`;
-    ElMessage.info('已发送百科查询');
-    hideContextMenu();
-    // 打开 chat 面板，让 FileChatPanel 挂载并注册事件处理器
-    window.dispatchEvent(new Event('activate-qa'));
-    // 延迟发送百科查询事件，确保 FileChatPanel 能接收到（首次打开时可能尚未完成 mounted）
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('encyclopedia-qa', { detail: { text: question, selection: rawSel, paragraph, esId } }));
-    }, 150);
+  if (!selectedText.value) return;
+  // 截取 100 字
+  let term = selectedText.value.trim();
+  if (term.length > 100) {
+    term = term.slice(0, 100);
+    ElMessage.info('选择内容超过100字，已自动截断');
   }
+  wikiQuery.value = term;
+  wikiResult.value = '';
+  wikiError.value = '';
+  showWikiDialog.value = true;
+  hideContextMenu();
+  startWikiStream();
+}
+
+async function startWikiStream(){
+  if(!wikiQuery.value) return;
+  // 取消前一次
+  if (wikiAbortController) {
+    try { wikiAbortController.abort(); } catch { /* ignore */ }
+  }
+  wikiAbortController = new AbortController();
+  wikiLoading.value = true;
+  wikiError.value = '';
+  wikiResult.value = '';
+  wikiResultHtml.value = '';
+  try {
+    await wikiStream({
+      text: wikiQuery.value,
+      signal: wikiAbortController.signal,
+      onChunk: chunk => {
+        if (chunk === '\n') {
+          wikiResult.value += '\n';
+        } else if (chunk) {
+          // 行内容（不自带换行）直接追加
+          wikiResult.value += (wikiResult.value && !wikiResult.value.endsWith('\n') ? '' : '') + chunk;
+        }
+        wikiResultHtml.value = renderSimpleMarkdown(wikiResult.value);
+      },
+      onError: err => {
+        wikiLoading.value = false;
+        wikiError.value = (err && String(err)) || '百科查询失败';
+      },
+      onComplete: () => {
+        wikiLoading.value = false;
+        wikiResultHtml.value = renderSimpleMarkdown(wikiResult.value);
+      }
+    });
+  } catch(e){
+    wikiLoading.value = false;
+    wikiError.value = e?.message || '百科查询失败';
+  }
+}
+
+function cancelWiki(){
+  if (wikiAbortController) {
+    try { wikiAbortController.abort(); } catch { /* ignore */ }
+  }
+  wikiLoading.value = false;
+}
+
+function copyWikiResult(){
+  if(!wikiResult.value) return;
+  const txt = wikiResult.value;
+  if (navigator?.clipboard?.writeText) {
+    navigator.clipboard.writeText(txt).then(()=> ElMessage.success('已复制')).catch(()=> fallbackCopy(txt));
+  } else fallbackCopy(txt);
+}
+function fallbackCopy(text){
+  try {
+    const ta = document.createElement('textarea');
+    ta.style.position='fixed';
+    ta.style.opacity='0';
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    ElMessage.success('已复制');
+  } catch { ElMessage.error('复制失败'); }
+}
+
+function renderSimpleMarkdown(md){
+  if(!md) return '';
+  let out = md;
+  // 代码块
+  out = out.replace(/```([\s\S]*?)```/g,(m,p)=>`<pre class=\"mk-code\"><code>${escapeHtml(p.trim())}</code></pre>`);
+  // 标题
+  out = out.replace(/^######\s+(.*)$/gm,'<h6>$1</h6>')
+           .replace(/^#####\s+(.*)$/gm,'<h5>$1</h5>')
+           .replace(/^####\s+(.*)$/gm,'<h4>$1</h4>')
+           .replace(/^###\s+(.*)$/gm,'<h3>$1</h3>')
+           .replace(/^##\s+(.*)$/gm,'<h2>$1</h2>')
+           .replace(/^#\s+(.*)$/gm,'<h1>$1</h1>');
+  // 列表
+  out = out.replace(/^(?:[-*+]\s.*(?:\n|$))+?/gm, block => {
+    const items = block.trim().split(/\n/).map(l=> l.replace(/^[-*+]\s+/,'').trim()).filter(Boolean);
+    return '<ul>' + items.map(i=>`<li>${i}</li>`).join('') + '</ul>';
+  });
+  // 粗体 & 斜体
+  out = out.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+           .replace(/\*(.+?)\*/g,'<em>$1</em>');
+  // 行内代码
+  out = out.replace(/`([^`]+?)`/g,'<code>$1</code>');
+  // 分隔线
+  out = out.replace(/^---$/gm,'<hr />');
+  // 段落
+  out = out.split(/\n{2,}/).map(seg=>{
+    if(/^(<h\d|<ul>|<pre|<hr)/.test(seg.trim())) return seg;
+    return `<p>${seg.replace(/\n/g,'<br>')}</p>`;
+  }).join('\n');
+  return out;
+}
+function escapeHtml(str){
+  return str.replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;' }[c]||c));
 }
 
 // Mark as terminology
@@ -693,6 +805,38 @@ document.addEventListener('click', (e) => {
 </script>
 
 <style scoped>
+.wiki-output {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 12px;
+  background: #fafafa;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+.wiki-error {
+  color: #f56c6c;
+  padding: 8px 12px;
+  background: #fff2f2;
+  border: 1px solid #fbc4c4;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+.wiki-header-term {
+  font-weight: 600;
+  color: #303133;
+}
+.wiki-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #606266;
+}
 .text-panel {
   display: flex;
   flex-direction: column;
