@@ -41,6 +41,7 @@ import RelatedPanel from '../ai/RelatedPanel.vue'
 import { ChatLineSquare, Box, ChatRound, List, Link, Document } from '@element-plus/icons-vue'
 import MetadataPanel from '../ai/MetadataPanel.vue'
 import { ElMessage } from 'element-plus'
+import { vectorService } from '../../services/vectorService'
 
 const props = defineProps({ fileId: { type: [String, Number], required: true }, hasPerm: { type: Boolean, default: true }, file: { type: Object, default: null } })
 const emit = defineEmits(['switch-translate'])
@@ -72,6 +73,42 @@ const currentComp = computed(() => {
   }
 })
 
+// 前置检查：
+// 1) 如果 file.fileContents 为空，提示无法向量化，阻止进入
+// 2) 调用 check-vector-status；若未向量化，则提示用户并触发向量化，阻止进入
+async function precheckForQA() {
+  try {
+    const f = props.file || {};
+    const fileContents = f.fileContents || f.contents || f.content || f.text || '';
+    if (!fileContents || String(fileContents).trim().length === 0) {
+      ElMessage.error('该文档无法向量化（内容为空）');
+      return false;
+    }
+    const esId = f.esId || f.esid || f._raw?.esId || f._raw?.esid || props.fileId || '';
+    if (!esId) {
+      ElMessage.error('缺少 esId，无法检查向量化状态');
+      return false;
+    }
+    const { success, data } = await vectorService.checkVectorStatus(esId);
+    if (!success) {
+      // 接口异常时，谨慎起见先阻止进入
+      ElMessage.error('检查向量化状态失败，请稍后重试');
+      return false;
+    }
+    if (data && data.isVectorized === true) {
+      return true; // 允许进入
+    }
+    // 未向量化：提示并触发向量化
+    ElMessage.warning('系统正在将内容向量化，请 5 秒后再进入');
+    try { await vectorService.vectorizeDoc({ esId, forceReprocess: false }); } catch { /* ignore */ }
+    return false;
+  } catch (e) {
+    console.warn('[AIToolsPanel] precheckForQA failed', e);
+    ElMessage.error('向量化预检查失败');
+    return false;
+  }
+}
+
 function handleSelect(key) {
 
   if (!props.hasPerm) {
@@ -81,6 +118,13 @@ function handleSelect(key) {
   if (key === 'translation') {
     active.value = 'translation'
     emit('switch-translate')
+    return
+  }
+  // 在进入文档问答前进行向量化前置检查
+  if (key === 'qa') {
+    precheckForQA().then((ok)=>{
+      if (ok) active.value = key
+    })
     return
   }
   active.value = key
@@ -95,7 +139,10 @@ function handleActivateTags(){
 }
 
 function handleActivateQA(){
-  active.value = 'qa'
+  // 通过事件激活 QA 时也做前置检查
+  precheckForQA().then((ok)=>{
+    if (ok) active.value = 'qa'
+  })
 }
 
 onMounted(()=>{ 
@@ -110,6 +157,14 @@ onBeforeUnmount(()=>{
   window.removeEventListener('activate-tags', handleActivateTags)
   window.removeEventListener('activate-qa', handleActivateQA)
 })
+</script>
+
+<script>
+// 组合式外补充：异步前置检查函数
+export default {
+  methods: {
+  }
+}
 </script>
 
 <style scoped>

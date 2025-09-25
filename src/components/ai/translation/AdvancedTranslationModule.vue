@@ -1,5 +1,6 @@
 <template>
   <div class="advanced-translation-module" :class="{ 'theme-dark': settings.theme === 'dark' }">
+
     <div class="translation-toolbar">
       <div class="language-selectors">
         <div class="language-selector">
@@ -21,7 +22,8 @@
         <div class="swap-languages">
           <el-button size="small" circle disabled title="当前仅支持翻译为中文">
             <el-icon>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
                 <path d="M8 7H4l3-3-3 3 3 3-3-3" stroke="currentColor" fill="none"/>
                 <path d="M16 17h4l-3 3 3-3-3-3 3 3" stroke="currentColor" fill="none"/>
                 <path d="M5 12h14" stroke-width="1.5" opacity="0.5"/>
@@ -41,42 +43,69 @@
         <el-progress :percentage="translationProgress" :stroke-width="6" style="width:160px"/>
       </div>
       <div class="toolbar-actions">
-        <el-button type="primary" size="small" @click="translateText" :loading="translating" :disabled="!sourceText.trim()">翻译</el-button>
+        <el-button type="primary" size="small" @click="translateText" :loading="translating"
+                   :disabled="!sourceText.trim()">翻译
+        </el-button>
         <el-button v-if="translating" type="danger" size="small" @click="cancelTranslation">取消</el-button>
-        <el-button size="small" @click="openGlossaryManager"><el-icon><Collection/></el-icon>术语库</el-button>
-        <el-button size="small" circle @click="showSettings = true"><el-icon><Setting/></el-icon></el-button>
+        <el-button size="small" @click="openGlossaryManager">
+          <el-icon>
+            <Collection/>
+          </el-icon>
+          术语库
+        </el-button>
+        <el-button size="small" circle @click="showSettings = true">
+          <el-icon>
+            <Setting/>
+          </el-icon>
+        </el-button>
       </div>
     </div>
 
     <div class="translation-content">
+
+
       <div class="text-panel source-panel">
         <div class="panel-header">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="panel-title">源文本</span>
-            <el-button size="mini" type="text" v-if="!sourceEditable" @click="enterSourceEdit">编辑</el-button>
+            <span class="char-count">{{ sourceText.length }}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <span class="char-count">{{ sourceText.length }}</span>
-            <cloud-save v-if="!sourceEditable" :file="file" type="create" :defaultFileName="(file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : ''" ref="sourceCloudSaveRef" @confirm="onSourceCloudSaveConfirm"/>
+            <el-button v-if="showFormatBtn" size="mini" type="primary" :loading="formatLoading" @click="fetchFormattedSource">获取格式文本</el-button>
+            <el-button size="mini" type="primary" v-if="!sourceEditable" @click="enterSourceEdit">编辑</el-button>
+            <cloud-save v-if="!sourceEditable" :file="file" type="create"
+                        :defaultFileName="(file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : ''"
+                        ref="sourceCloudSaveRef" @confirm="onSourceCloudSaveConfirm"/>
             <el-button size="mini" type="primary" v-if="sourceEditable" @click="finishSourceEdit">完成</el-button>
           </div>
         </div>
-  <div ref="sourceTextRef" class="text-editor markdown-body markdown-body-root" :contenteditable="sourceEditable" @input="onSourceTextInput" @scroll="onSourceScroll" @mouseup="onSourceMouseUp" @keyup="onSourceMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')" :placeholder="'请输入要翻译的文本...'"></div>
+        <div ref="sourceTextRef" class="text-editor markdown-body markdown-body-root" :contenteditable="sourceEditable"
+             @input="onSourceTextInput" @scroll="onSourceScroll" @mouseup="onSourceMouseUp" @keyup="onSourceMouseUp"
+             @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')"
+             :placeholder="'请输入要翻译的文本...'"></div>
       </div>
+
+
       <div class="text-panel target-panel">
         <div class="panel-header">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="panel-title">译文</span>
-            <el-button size="mini" type="text" v-if="!targetEditable" @click="enterEdit">编辑</el-button>
+            <span class="char-count">{{ translatedText.length }}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <span class="char-count">{{ translatedText.length }}</span>
-            <cloud-save v-if="!targetEditable" :file="file" type="create" ref="cloudSaveRef" @confirm="onCloudSaveConfirm"/>
+            <cloud-save v-if="!targetEditable" :file="file" type="create" ref="cloudSaveRef"
+                        @confirm="onCloudSaveConfirm"/>
+            <el-button size="mini" type="primary" v-if="!targetEditable" @click="enterEdit">编辑</el-button>
             <el-button size="mini" type="primary" v-else @click="finishEdit">保存</el-button>
           </div>
         </div>
-  <div ref="targetTextRef" class="text-editor target markdown-body markdown-body-root" :class="{loading: translating}" :contenteditable="targetEditable" @input="onTargetInput" @scroll="onTargetScroll" @mouseup="onTargetMouseUp" @keyup="onTargetMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"></div>
+        <div ref="targetTextRef" class="text-editor target markdown-body markdown-body-root"
+             :class="{loading: translating}" :contenteditable="targetEditable" @input="onTargetInput"
+             @scroll="onTargetScroll" @mouseup="onTargetMouseUp" @keyup="onTargetMouseUp"
+             @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"></div>
       </div>
+
+
     </div>
 
     <el-dialog v-model="showSettings" title="翻译设置" width="600px">
@@ -93,13 +122,15 @@
             <el-option label="暗色" value="dark"/>
           </el-select>
         </el-form-item>
-        <el-form-item label="字体大小"><el-slider v-model="settings.fontSize" :min="12" :max="20" :step="1" show-input /></el-form-item>
+        <el-form-item label="字体大小">
+          <el-slider v-model="settings.fontSize" :min="12" :max="20" :step="1" show-input/>
+        </el-form-item>
         <el-form-item label="自动翻译">
           <el-switch v-model="settings.autoTranslate"/>
           <span class="setting-desc">输入后自动触发翻译</span>
         </el-form-item>
         <el-form-item label="翻译延迟">
-          <el-input-number v-model="settings.translateDelay" :min="0" :max="5000" :step="100" placeholder="毫秒" />
+          <el-input-number v-model="settings.translateDelay" :min="0" :max="5000" :step="100" placeholder="毫秒"/>
           <span class="setting-desc">自动翻译的延迟时间（毫秒）</span>
         </el-form-item>
       </el-form>
@@ -113,8 +144,12 @@
 
     <el-dialog v-model="showCustomTagDialog" title="添加自定义标签" width="400px">
       <el-form>
-        <el-form-item label="标签名称"><el-input v-model="customTagName" placeholder="输入标签名称"/></el-form-item>
-        <el-form-item label="标签颜色"><el-color-picker v-model="customTagColor"/></el-form-item>
+        <el-form-item label="标签名称">
+          <el-input v-model="customTagName" placeholder="输入标签名称"/>
+        </el-form-item>
+        <el-form-item label="标签颜色">
+          <el-color-picker v-model="customTagColor"/>
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -124,7 +159,7 @@
       </template>
     </el-dialog>
 
-    <glossary-manager ref="glossaryManagerRef" @changed="onGlossaryChanged" />
+    <glossary-manager ref="glossaryManagerRef" @changed="onGlossaryChanged"/>
   </div>
 </template>
 
@@ -134,12 +169,14 @@ import {ref, reactive, onMounted, watch, onUnmounted, nextTick} from 'vue';
 import MarkdownIt from 'markdown-it';
 import {useAiToolsStore} from '../../../stores/aiTools';
 import {ElMessage} from 'element-plus';
-import { Setting, Collection } from '@element-plus/icons-vue';
+import {Setting, Collection} from '@element-plus/icons-vue';
 import {aiService} from '../../../services/aiService';
+import api from '../../../services/api';
 import CloudSave from '../../preview/CloudSave.vue';
 import {uploadStream} from '../../../services/uploadStream';
 import GlossaryManager from './GlossaryManager.vue';
 import 'github-markdown-css/github-markdown.css';
+import { getFileExtenName } from '../../../constants/fileTypes';
 
 const props = defineProps({
   file: {type: Object, default: null},
@@ -150,7 +187,7 @@ const props = defineProps({
   initialTranslation: {type: String, default: ''}
 });
 
-const emit = defineEmits(['text-extracted']);
+const emit = defineEmits(['text-extracted','translated','update-file-contents']);
 // Expose methods for parent components (e.g., re-translate trigger)
 defineExpose({
   translateText
@@ -171,23 +208,63 @@ const sourceEditable = ref(false);
 const targetEditable = ref(false);
 
 // markdown 渲染实例 & 行定位
-const md = new MarkdownIt({ html:false, linkify:true, breaks:true });
-function renderMarkdown(text){
-  if(!text) return '';
-  try { return md.render(text); } catch { return text.replace(/</g,'&lt;'); }
+const md = new MarkdownIt({html: false, linkify: true, breaks: true});
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  try {
+    return md.render(text);
+  } catch {
+    return text.replace(/</g, '&lt;');
+  }
+}
+
+// 获取格式化文本：仅 doc/docx/md 显示按钮
+import {computed} from 'vue';
+const formatLoading = ref(false);
+const showFormatBtn = computed(() => {
+  const name = props.file?.fileName || props.file?.filename || '';
+  const ext = getFileExtenName(name);
+  return ['doc','docx','md'].includes((ext||'').toLowerCase());
+});
+
+async function fetchFormattedSource(){
+  try{
+    const esId = props.esId || props.fileId;
+    if(!esId){ ElMessage.error('缺少 esId'); return; }
+    formatLoading.value = true;
+    const res = await api.get(`/admin-api/rag/ai/file/markdown/${encodeURIComponent(esId)}`);
+    const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || res);
+    const mdText = root?.data?.fileContents || root?.fileContents || '';
+    if(mdText){
+      sourceText.value = mdText;
+      updateSourceTextContent();
+      detectSourceLang();
+      try{ emit('text-extracted', mdText); }catch{ /* ignore */ }
+      try{ emit('update-file-contents', { fileId: props.fileId, content: mdText }); }catch{ /* ignore */ }
+      ElMessage.success('已获取带格式文本');
+    }else{
+      ElMessage.info('未返回可用的格式化文本');
+    }
+  }catch(e){
+    console.warn('fetchFormattedSource failed', e);
+    ElMessage.error('获取格式文本失败');
+  }finally{
+    formatLoading.value = false;
+  }
 }
 
 // 高亮行的 class
 const LINE_HIGHLIGHT_CLASS = 'line-highlight-active';
 
-function splitLines(text){
-  return (text||'').replace(/\r\n/g,'\n').split(/\n/);
+function splitLines(text) {
+  return (text || '').replace(/\r\n/g, '\n').split(/\n/);
 }
 
-function rebuildEditorHtml(editor, text){
+function rebuildEditorHtml(editor, text) {
   // 根据编辑状态决定使用纯文本还是 markdown 渲染
-  if(!editor) return;
-  if(editor.getAttribute('contenteditable') === 'true'){
+  if (!editor) return;
+  if (editor.getAttribute('contenteditable') === 'true') {
     editor.innerText = text;
     return;
   }
@@ -215,23 +292,22 @@ async function finishSourceEdit() {
   nextTick(() => updateSourceTextContent());
   try {
     const res = await aiService.saveSourceContent(esId, sourceText.value);
-    if(res?.success){
+    if (res?.success) {
       ElMessage.success('源文本已保存');
     } else {
       ElMessage.warning(res?.message || '源文本保存失败');
     }
-  } catch(e){
+  } catch (e) {
     console.warn('save source failed', e);
     ElMessage.error('保存源文本异常');
   }
   try {
     emit('text-extracted', sourceText.value);
     emit('update-file-contents', {fileId: props.fileId, content: sourceText.value});
-  } catch(e){
+  } catch (e) {
     console.warn('finishSourceEdit emit failed', e);
   }
 }
-
 
 
 // handler for source cloud save confirm
@@ -389,7 +465,7 @@ const settings = reactive({
 });
 
 // 语言名称映射与摘要显示
-import {computed} from 'vue';
+import {computed as vComputed} from 'vue';
 
 const languageNameMap = {
   auto: '自动检测',
@@ -404,7 +480,7 @@ const languageNameMap = {
   ko: '한국어',
   pt: 'Português'
 };
-const languageSummary = computed(() => `${languageNameMap[sourceLanguage.value] || sourceLanguage.value} → ${languageNameMap[targetLanguage.value] || targetLanguage.value}`);
+const languageSummary = vComputed(() => `${languageNameMap[sourceLanguage.value] || sourceLanguage.value} → ${languageNameMap[targetLanguage.value] || targetLanguage.value}`);
 
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
@@ -413,8 +489,13 @@ const customTagColor = ref('#409EFF');
 
 // Glossary manager (external component)
 const glossaryManagerRef = ref(null);
-function openGlossaryManager(){ glossaryManagerRef.value && glossaryManagerRef.value.open && glossaryManagerRef.value.open(); }
-function onGlossaryChanged(){ /* 可在此触发重新标注 */ }
+
+function openGlossaryManager() {
+  glossaryManagerRef.value && glossaryManagerRef.value.open && glossaryManagerRef.value.open();
+}
+
+function onGlossaryChanged() { /* 可在此触发重新标注 */ }
+
 // Custom tags storage (simple local list)
 const customTags = ref([]);
 
@@ -705,40 +786,44 @@ function splitIntoParagraphs(text) {
 // 构建段落对齐映射（简化：索引对应）
 function buildTextAlignmentMap(sourceSentences, translatedSentences) {
   textAlignmentMap.value = {};
-  sourceSentences.forEach((s, i) => { if (translatedSentences[i]) textAlignmentMap.value[s.trim()] = translatedSentences[i].trim(); });
+  sourceSentences.forEach((s, i) => {
+    if (translatedSentences[i]) textAlignmentMap.value[s.trim()] = translatedSentences[i].trim();
+  });
 }
 
 // 滚动同步（源 -> 译）
 function onSourceScroll(event) {
   if (!targetTextRef.value) return;
-  const p = event.target.scrollTop / Math.max(1,(event.target.scrollHeight - event.target.clientHeight));
+  const p = event.target.scrollTop / Math.max(1, (event.target.scrollHeight - event.target.clientHeight));
   targetTextRef.value.scrollTop = p * (targetTextRef.value.scrollHeight - targetTextRef.value.clientHeight);
 }
+
 // 滚动同步（译 -> 源）
-function onTargetScroll(event){
+function onTargetScroll(event) {
   if (!sourceTextRef.value) return;
-  const p = event.target.scrollTop / Math.max(1,(event.target.scrollHeight - event.target.clientHeight));
+  const p = event.target.scrollTop / Math.max(1, (event.target.scrollHeight - event.target.clientHeight));
   sourceTextRef.value.scrollTop = p * (sourceTextRef.value.scrollHeight - sourceTextRef.value.clientHeight);
 }
 
-function onTargetMouseUp(){
+function onTargetMouseUp() {
   // 点击译文的某一行 => 尝试高亮原文对应行（简单行号映射）
   const selection = window.getSelection();
-  if(!selection) return;
+  if (!selection) return;
   const text = selection.anchorNode ? selection.anchorNode.textContent || '' : '';
   highlightLineByApprox(text);
 }
-function onSourceMouseUp(){ /* 预留：暂不做 */ }
 
-function highlightLineByApprox(fragment){
-  if(!fragment || !sourceTextRef.value) return;
+function onSourceMouseUp() { /* 预留：暂不做 */ }
+
+function highlightLineByApprox(fragment) {
+  if (!fragment || !sourceTextRef.value) return;
   const src = sourceTextRef.value.innerText || sourceTextRef.value.textContent || '';
-  if(!src) return;
-  const idx = src.indexOf(fragment.trim().slice(0,20));
-  if(idx < 0) return;
+  if (!src) return;
+  const idx = src.indexOf(fragment.trim().slice(0, 20));
+  if (idx < 0) return;
   // 简化：暂不逐行包装，通过 selection-highlight class 包裹匹配片段
   clearSelectionHighlights();
-  wrapRangeByText(sourceTextRef.value, fragment.trim().slice(0,20), SELECTION_CLASS);
+  wrapRangeByText(sourceTextRef.value, fragment.trim().slice(0, 20), SELECTION_CLASS);
 }
 
 // onTargetScroll 移除（译文外部展示）
@@ -902,7 +987,7 @@ function getSentenceAtPoint(editor, clientX, clientY) {
 }
 
 // 移除悬停句子高亮，减少闪动
-function onEditorHover(){ /* disabled */ }
+function onEditorHover() { /* disabled */ }
 
 function extractSelectionRange(editor) {
   const sel = window.getSelection();
@@ -1041,16 +1126,16 @@ function hideContextMenu() {
 
 // 术语 CRUD 相关逻辑已迁移至 GlossaryManager 组件
 
-function saveCustomTag(){
-  if(!customTagName.value.trim()){
+function saveCustomTag() {
+  if (!customTagName.value.trim()) {
     ElMessage.error('请输入标签名称');
     return;
   }
-  customTags.value.push({ name: customTagName.value.trim(), color: customTagColor.value });
+  customTags.value.push({name: customTagName.value.trim(), color: customTagColor.value});
   ElMessage.success('标签已添加');
-  customTagName.value='';
-  customTagColor.value='#409EFF';
-  showCustomTagDialog.value=false;
+  customTagName.value = '';
+  customTagColor.value = '#409EFF';
+  showCustomTagDialog.value = false;
 }
 
 // 组件卸载清理
@@ -1060,21 +1145,91 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.markdown-body h1{font-size:1.4em;border-bottom:1px solid #e5e7eb;padding-bottom:.3em;margin-top:1em;}
-.markdown-body h2{font-size:1.25em;border-bottom:1px solid #e5e7eb;padding-bottom:.25em;margin-top:1em;}
-.markdown-body h3{font-size:1.1em;margin-top:1em;}
-.markdown-body pre{background:#f6f8fa;padding:8px 12px;border-radius:6px;overflow:auto;font-size:13px;}
-.markdown-body code{background:#f6f8fa;padding:2px 4px;border-radius:4px;font-family:ui-monospace,monospace;font-size:13px;}
-.markdown-body ul{padding-left:1.2em;margin:6px 0;}
-.markdown-body p{margin:6px 0;line-height:1.55;}
-.markdown-body hr{border:none;border-top:1px solid #e5e7eb;margin:12px 0;}
-.markdown-body table{border-collapse:collapse;margin:12px 0;width:100%;}
-.markdown-body table th,.markdown-body table td{border:1px solid #d0d7de;padding:6px 10px;text-align:left;}
-.markdown-body table th{background:#f6f8fa;font-weight:600;}
-.theme-dark .markdown-body table th,.theme-dark .markdown-body table td{border-color:#30363d;}
-.theme-dark .markdown-body table th{background:#161b22;}
-.selection-highlight{background:rgba(64,158,255,0.35);border-radius:2px;}
-.line-highlight-active{background:rgba(255,215,0,0.35);}
+.markdown-body h1 {
+  font-size: 1.4em;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: .3em;
+  margin-top: 1em;
+}
+
+.markdown-body h2 {
+  font-size: 1.25em;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: .25em;
+  margin-top: 1em;
+}
+
+.markdown-body h3 {
+  font-size: 1.1em;
+  margin-top: 1em;
+}
+
+.markdown-body pre {
+  background: #f6f8fa;
+  padding: 8px 12px;
+  border-radius: 6px;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.markdown-body code {
+  background: #f6f8fa;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.markdown-body ul {
+  padding-left: 1.2em;
+  margin: 6px 0;
+}
+
+.markdown-body p {
+  margin: 6px 0;
+  line-height: 1.55;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 12px 0;
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+}
+
+.markdown-body table th, .markdown-body table td {
+  border: 1px solid #d0d7de;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.markdown-body table th {
+  background: #f6f8fa;
+  font-weight: 600;
+}
+
+.theme-dark .markdown-body table th, .theme-dark .markdown-body table td {
+  border-color: #30363d;
+}
+
+.theme-dark .markdown-body table th {
+  background: #161b22;
+}
+
+.selection-highlight {
+  background: rgba(64, 158, 255, 0.35);
+  border-radius: 2px;
+}
+
+.line-highlight-active {
+  background: rgba(255, 215, 0, 0.35);
+}
+
 /* 原样式恢复 + 补充 cross-highlight */
 .advanced-translation-module {
   display: flex;

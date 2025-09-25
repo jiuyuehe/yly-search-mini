@@ -2,7 +2,7 @@
   <div class="fc-ml-root" ref="container" @scroll="handleScroll">
     <div v-if="!list.length && !streaming" class="empty">暂无消息</div>
     <div class="chat-list">
-  <div v-for="m in list" :key="m.id" class="message-item" :data-msgid="m.id" :class="m.role==='user' ? 'right-message' : 'left-message'">
+      <div v-for="m in list" :key="m.id" class="message-item" :data-msgid="m.id" :class="m.role==='user' ? 'right-message' : 'left-message'">
         <div class="avatar-wrapper">
           <div class="avatar-circle" :class="m.role">{{ m.role==='user' ? userAvatarText : aiAvatarText }}</div>
         </div>
@@ -31,8 +31,8 @@
           </div>
           <div v-if="getSelectedRefIndex(m) !== undefined" class="ref-content">
             <div class="ref-content-inner">
-              <div class="ref-title">引用 {{ getSelectedRefIndex(m) + 1 }} - {{ getSelectedRef(m)?.type === 'summary' ? '摘要' : (getSelectedRef(m)?.type === 'segment' ? '片段' : (getSelectedRef(m)?.type || '引用')) }}</div>
-              <pre class="ref-text">{{ getSelectedRef(m)?.preview || getSelectedRef(m)?.text || getSelectedRef(m)?.content || getSelectedRef(m)?.title || getSelectedRef(m)?.excerpt || '-' }}</pre>
+              <div class="ref-title">引用 {{ getSelectedRefIndex(m) + 1 }} - {{ typeLabel(getSelectedRef(m)?.type) }}</div>
+              <div class="ref-html" v-html="renderRefHtml(getSelectedRef(m))"></div>
               <div v-if="(getSelectedRef(m)?.startOffset !== null && getSelectedRef(m)?.startOffset !== undefined) || (getSelectedRef(m)?.endOffset !== null && getSelectedRef(m)?.endOffset !== undefined)" class="ref-position">
                 位置: {{ getSelectedRef(m)?.startOffset ?? '-' }} ~ {{ getSelectedRef(m)?.endOffset ?? '-' }}
               </div>
@@ -89,6 +89,25 @@ function toggleRef(m, idx){ if(!m || !m.id) return; const cur = selectedRefIndex
   // scroll newly shown content into view
   nextTick(()=>{ const el = container.value; if(!el) return; const msgEl = el.querySelector(`[data-msgid="${m.id}"]`); if(msgEl) msgEl.scrollIntoView({ block:'nearest' }); }); }
 
+function typeLabel(t){
+  const s = String(t||'');
+  if (!s) return '引用';
+  if (s === 'summary') return '摘要';
+  if (s === 'segment' || s === 'vector_segment' || s === 'vector-segment' || s === 'segment_ref') return '片段';
+  return s;
+}
+
+function renderRefHtml(ref){
+  if (!ref) return '-';
+  let html = ref.preview || ref.text || ref.content || ref.title || ref.excerpt || '-';
+  html = String(html);
+  // 防止脚本注入（保守移除 script 标签）；其余交由后端控制
+  html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  // 将命中关键词的 <em> 标签转换为 mark 高亮
+  html = html.replaceAll('<em>', '<mark class="hit">').replaceAll('</em>', '</mark>');
+  return html;
+}
+
 function formatTime(ts){ try { const d=new Date(ts); const pad=n=> String(n).padStart(2,'0'); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; } catch { return ''; } }
 function emitCopy(m){ emits('copy', m); }
 function emitRetry(m){ emits('retry', m); }
@@ -114,7 +133,7 @@ defineExpose(exposeApi());
 .message-item{display:flex;align-items:flex-start;gap:12px;}
 .message-item.right-message{flex-direction:row-reverse;}
 .avatar-wrapper{width:40px;display:flex;justify-content:center;}
-.avatar-circle{width:36px;height:36px;border-radius:50%;background:#409eff;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,.15);}
+.avatar-circle{width:36px;height:36px;border-radius:50%;background:#409eff;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,.15);} 
 .avatar-circle.user{background:#67c23a;}
 .message-body{flex:1;min-width:0;display:flex;flex-direction:column;}
 .message-body .meta{font-size:12px;color:#909399;display:flex;align-items:center;gap:8px;margin-bottom:4px;}
@@ -136,6 +155,8 @@ defineExpose(exposeApi());
 .ref-content{margin-top:8px;background:#fafbfc;border:1px solid #eef3fb;padding:10px;border-radius:6px}
 .ref-content-inner .ref-title{font-size:12px;color:#606266;margin-bottom:6px}
 .ref-text{white-space:pre-wrap;background:transparent;border:none;padding:0;margin:0;font-size:13px;color:#777}
+.ref-html{white-space:pre-wrap;background:transparent;border:none;padding:0;margin:0;font-size:13px;color:#555}
+.ref-html mark.hit{background:#fff3b0;color:#ad4e00;padding:0 2px;border-radius:2px}
 .ref-position{margin-top:8px;font-size:12px;color:#8b8f94}
 .ops-row{display:flex;gap:6px;margin-top:6px;font-size:12px;opacity:.85;}
 .ops-row.user{justify-content:flex-end;}
