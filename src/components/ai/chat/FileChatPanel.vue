@@ -5,7 +5,7 @@
       <div class="sessions-header">
         <div class="title">会话</div>
         <div class="actions">
-          <el-tooltip content="新建会话" placement="bottom"><el-button size="small" circle @click="createNewSession" :disabled="streaming"><el-icon><Plus /></el-icon></el-button></el-tooltip>
+          <el-tooltip content="新建会话" placement="bottom"><el-button size="small" circle @click="createNewSession('', '')" :disabled="streaming"><el-icon><Plus /></el-icon></el-button></el-tooltip>
           <el-tooltip content="清空全部" placement="bottom"><el-button size="small" circle @click="confirmClearAll" :disabled="streaming || !sessions.length"><el-icon><Delete /></el-icon></el-button></el-tooltip>
           <el-tooltip content="刷新" placement="bottom"><el-button size="small" circle @click="reloadSessions" :loading="loadingSessions"><el-icon><Refresh /></el-icon></el-button></el-tooltip>
         </div>
@@ -31,7 +31,6 @@
             <el-icon v-if="showSessions"><ArrowLeft /></el-icon>
             <el-icon v-else><Menu /></el-icon>
           </el-button>
-      <el-button size="small" text v-if=" $attrs['show-return']" @click="$emit('return-to-search')">返回搜索</el-button>
           <span v-if="!editingTitle" class="title-text" @dblclick="beginEditTitle" :title="currentSessionTitle">{{ currentSessionTitle || '新建会话' }}<span v-if="messages.length"> ({{ messages.length }})</span></span>
           <el-input
             v-else
@@ -63,10 +62,9 @@
             </el-button>
           </el-tooltip>
           <el-tooltip content="清空当前会话" placement="bottom">
-            <el-button size="small" circle type="danger" @click="confirmClearCurrent" :disabled="!messages.length || streaming">
-              <el-icon><Delete /></el-icon>
-            </el-button>
+            <el-button size="small" plain type="default" @click="confirmClearCurrent" :disabled="!messages.length || streaming" class="btn-clear-current">清空当前会话</el-button>
           </el-tooltip>
+          <el-button v-if="showReturn" size="small" type="primary" class="btn-return" @click="$emit('return-to-search')">返回搜索</el-button>
         </div>
       </header>
 
@@ -92,7 +90,7 @@
 
       <!-- Input area -->
       <footer class="input-area">
-        <div class="input-box">
+        <div class="input-box input-overlay">
           <el-input
             ref="inputRef"
             v-model="inputText"
@@ -102,14 +100,12 @@
             @keydown.enter.prevent="onEnterPress"
             :disabled="creatingSession"
           />
-          <div class="input-toolbar">
-            <div class="left">
-              <el-checkbox v-model="useContext" :disabled="streaming">上下文</el-checkbox>
-            </div>
-            <div class="right">
-              <el-button size="small" @click="stopStreaming" v-if="streaming" type="warning">停止</el-button>
-              <el-button size="small" type="primary" @click="sendMessage" :disabled="!canSend">发送</el-button>
-            </div>
+          <div class="inline-control left">
+            <el-checkbox v-model="useContext" :disabled="streaming">上下文</el-checkbox>
+          </div>
+          <div class="inline-control right">
+            <el-button size="small" @click="stopStreaming" v-if="streaming" type="warning">停止</el-button>
+            <el-button size="small" type="primary" @click="sendMessage" :disabled="!canSend">发送</el-button>
           </div>
         </div>
       </footer>
@@ -150,15 +146,36 @@
   </el-dialog>
 </template>
 <script setup>
-import { ref, onMounted, watch, nextTick, computed, reactive, onBeforeUnmount } from 'vue';
+import { ref, onMounted, watch, nextTick, computed, reactive, onBeforeUnmount, provide } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Delete, Refresh, Close, ArrowLeft, Menu, Setting, Download } from '@element-plus/icons-vue';
 import FileChatMessageList from './FileChatMessageList.vue';
-import { getUserInfo } from '../../services/api';
-import { resolveEsId } from '../../utils/esid';
+import { getUserInfo } from '../../../services/api';
+import { resolveEsId } from '../../../utils/esid';
 
-const props = defineProps({ file: { type:Object, required:false, default:null }, fileId: { type:String, required:false }, esId:{ type:String, default:'' }, userId:{ type:[String,Number], default:'' }, expandSessions: { type:Boolean, default:false } });
-const showSessions = ref(false);
+// 对外可配置参数：
+// - url: 调用的后端流式接口（默认 /admin-api/rag/ai/text/file-chat/stream）
+// - fileId / esId: 文档标识
+// - sessionchat: 会话侧栏是否默认展开
+// - showReturn: 是否显示“返回搜索”按钮
+// - defaultUseContext: “上下文”是否默认勾选
+// - chatType: 会话类型，qa | rag（全局参数）
+const props = defineProps({
+  file: { type: Object, required: false, default: null },
+  fileId: { type: String, required: false },
+  esId: { type: String, default: '' },
+  userId: { type: [String, Number], default: '' },
+  expandSessions: { type: Boolean, default: false }, // 向后兼容
+  url: { type: String, default: '/admin-api/rag/ai/text/file-chat/stream' },
+  sessionchat: { type: Boolean, default: true },
+  showReturn: { type: Boolean, default: false },
+  defaultUseContext: { type: Boolean, default: true },
+  chatType: { type: String, default: 'qa', validator: (v) => ['qa', 'rag'].includes(v) }
+});
+// 向子组件全局提供 chatType
+const chatTypeRef = computed(() => props.chatType || 'qa');
+provide('chatType', chatTypeRef);
+const showSessions = ref(true);
 const encyclopediaOnly = computed(() => { return !props.file && !props.fileId && !(props.esId && String(props.esId).trim()); });
 function toggleSessions(){
   showSessions.value = !showSessions.value;
@@ -203,7 +220,7 @@ const configDraft = reactive({
 });
 // Trace currentSessionId and sessions mutations to find unexpected resets
 // (no debug watches)
-async function loadModels(){ modelsLoading.value=true; try { const { aiService } = await import('../../services/aiService'); models.value = await aiService.getChatModels({ userId: effectiveUserId.value }); } finally { modelsLoading.value=false; } }
+async function loadModels(){ modelsLoading.value=true; try { const { aiService } = await import('../../../services/aiService'); models.value = await aiService.getChatModels({ userId: effectiveUserId.value }); } finally { modelsLoading.value=false; } }
 function fillConfigDraftFromSession(){
   const s = sessions.value.find(s=>s.id===currentSessionId.value);
   if(!s) return;
@@ -228,7 +245,7 @@ async function applyConfig(){
     // only persist after user confirms in dialog
     topK.value = configDraft.topK;
     maxContextChars.value = configDraft.maxContextChars;
-    const { aiService } = await import('../../services/aiService');
+    const { aiService } = await import('../../../services/aiService');
     if(currentSessionId.value){
       const { success } = await aiService.updateFileChatSession({
         sessionId: currentSessionId.value,
@@ -278,8 +295,15 @@ const effectiveEsId = computed(()=> resolveEsId(props.file, props.esId || props.
 const esKey = computed(()=> {
   return effectiveEsId.value || (`global:${effectiveUserId.value || 'anonymous'}`);
 });
-// encyclopedia/global mode: 不强制要求 esId
-const canSend = computed(()=> !streaming.value && inputText.value.trim().length>0 && currentSessionId.value);
+// 发送条件：RAG 模式需提供 esId；QA 模式允许百科(global)对话
+const canSend = computed(()=> {
+  if (streaming.value) return false;
+  if (!(inputText.value.trim().length>0 && currentSessionId.value)) return false;
+  if (chatTypeRef.value === 'rag') {
+    return !!effectiveEsId.value;
+  }
+  return true;
+});
 const currentSessionTitle = computed(()=>{ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return ''; if(s.title) return s.title; const firstUser = messages.value.find(m=>m.role==='user'); return firstUser ? firstUser.content.slice(0,20) : `会话 ${s.id}`; });
 
 // utility: derive a concise title from a text (used for new sessions)
@@ -299,10 +323,9 @@ const inputRef = ref(null);
 async function init(){
   resolveUserId();
   loadRecentQuestions();
-  // 如果没有任何文件标识，进入百科/全局模式，默认不使用上下文
-  if (encyclopediaOnly.value) {
-    useContext.value = false;
-  }
+  // 初始化：上下文勾选与会话展开来自外部参数
+  useContext.value = !!props.defaultUseContext;
+  showSessions.value = !!props.sessionchat;
   // 尝试加载会话列表与最近会话（支持 per-esId 或 global）
   try { await reloadSessions(); } catch (e) { /* ignore */ }
   try { await loadLatest(); } catch (e) { /* ignore */ }
@@ -363,7 +386,7 @@ async function loadLatest(){
   const esForApi = effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`;
   const stored = loadPersistedLastSession();
   try {
-    const { aiService } = await import('../../services/aiService');
+    const { aiService } = await import('../../../services/aiService');
     // esForApi used to represent either document esId or per-user global key
     const { success, session, messages:history } = await aiService.getLatestFileChatSession({ esId: esForApi, returnHistory:true, userId: effectiveUserId.value });
   // loadLatest fetched
@@ -388,11 +411,18 @@ async function loadLatest(){
 
 async function ensureSession(){ /* 延迟创建：不在初始化阶段自动创建 */ }
 async function createNewSession(userPromptForCreate='', titleForCreate='', esIdOverride=undefined){
+  // 兼容点击事件误传: 若第一个/第二个参数为事件对象，则置为空字符串
+  if (userPromptForCreate && typeof userPromptForCreate === 'object') {
+    userPromptForCreate = '';
+  }
+  if (titleForCreate && typeof titleForCreate === 'object') {
+    titleForCreate = '';
+  }
   if(creatingSession.value) return;
   const esId = (typeof esIdOverride !== 'undefined') ? esIdOverride : (effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`);
   creatingSession.value=true;
   try {
-    const { aiService } = await import('../../services/aiService');
+    const { aiService } = await import('../../../services/aiService');
     // when no explicit title provided, use the current inputText (first user input) as default title
     if(!titleForCreate){
       titleForCreate = makeTitle(inputText.value || userPromptForCreate || '');
@@ -405,7 +435,6 @@ async function createNewSession(userPromptForCreate='', titleForCreate='', esIdO
       currentSessionId.value = sessionId;
       sessions.value.unshift({ id: sessionId, esId: esId || '', title: titleForCreate || '', raw:{ ...(raw||{}), userPrompt: userPromptForCreate || configForm.userPrompt || '' } });
       messages.value = [];
-      showSessions.value = false;
       nextTick(()=> inputRef.value?.focus?.());
       persistLastSession();
       setTimeout(()=>{ if(esId) reloadSessions(); }, 300);
@@ -428,7 +457,7 @@ async function reloadSessions(){
   // if(!esForApi){ sessions.value=[]; return; }
   loadingSessions.value=true;
   try {
-    const { aiService } = await import('../../services/aiService');
+    const { aiService } = await import('../../../services/aiService');
     const { list } = await aiService.listFileChatSessions({ esId: esForApi, pageNo:1, pageSize:50, userId: effectiveUserId.value });
     if(list && list.length){
       const cur = currentSessionId.value;
@@ -465,10 +494,42 @@ async function reloadSessions(){
 }
 
 async function switchSession(id){ if(id===currentSessionId.value) return; if(streaming.value){ const cont = await ElMessageBox.confirm('切换会话将终止当前回答，继续？','提示',{ type:'warning' }).catch(()=>false); if(!cont) return; stopStreaming(); } currentSessionId.value = id; messages.value = []; await loadLatestForSwitch(id); persistLastSession(); }
-async function loadLatestForSwitch(_id){ }
+async function loadLatestForSwitch(id){
+  try {
+    const { aiService } = await import('../../../services/aiService');
+    const { success, session, messages: history } = await aiService.getFileChatSessionDetail({ sessionId: id, returnHistory: true, userId: effectiveUserId.value });
+    if (success && session && session.id === id) {
+      // 合并会话标题/原始信息
+      const idx = sessions.value.findIndex(s => s.id === id);
+      if (idx >= 0) {
+        sessions.value[idx] = { ...sessions.value[idx], title: session.title || sessions.value[idx].title, raw: { ...(sessions.value[idx].raw||{}), ...(session.raw||{}) } };
+      }
+      messages.value = history || [];
+      scrollSoon();
+      return;
+    }
+    // Fallback: 若后端未提供按 sessionId 查询，则尽量加载该 esId 的最近一次，会话消息可能不是该 session
+    const s = sessions.value.find(s => s.id === id);
+    const esForApi = s?.esId || effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`;
+    if (esForApi) {
+      const { success: ok, session: latest, messages: hist } = await aiService.getLatestFileChatSession({ esId: esForApi, returnHistory: true, userId: effectiveUserId.value });
+      if (ok) {
+        messages.value = (latest && latest.id === id) ? hist : [];
+        scrollSoon();
+      }
+    }
+  } catch (e) {
+    console.warn('loadLatestForSwitch failed', e);
+  }
+}
 function onEnterPress(e){ if(e.shiftKey){ return; } sendMessage(); }
 async function sendMessage(){ if(streaming.value) return; const text = inputText.value.trim(); if(!text) return; if(!currentSessionId.value){ await createNewSession(); }
   if(!currentSessionId.value){ ElMessage.error('会话创建失败'); return; }
+  // RAG 模式必须具备有效 esId
+  if (chatTypeRef.value === 'rag' && !effectiveEsId.value) {
+    ElMessage.error('RAG 模式缺少 esId，无法发送');
+    return;
+  }
   const userMsg = { id:`u_${Date.now()}`, sessionId: currentSessionId.value, role:'user', content:text, parts:[text], status:'done', createdAt:Date.now() };
   messages.value.push(userMsg);
   const aiMsg = { id:`a_${Date.now()}`, sessionId: currentSessionId.value, role:'assistant', content:'', parts:[], status:'streaming', createdAt:Date.now() };
@@ -480,25 +541,61 @@ async function sendMessage(){ if(streaming.value) return; const text = inputText
 }
 async function streamAnswer(aiMsg, question){
   streaming.value=true;
+  // line-based progressive renderer with fallback timer (shows progress even under buffering)
+  let pending = '';
+  let flushTimer = 0;
+  const FLUSH_INTERVAL = 80; // ms
+  const clearForceFlush = () => { if (flushTimer) { clearTimeout(flushTimer); flushTimer = 0; } };
+  const scheduleForceFlush = () => { if (!flushTimer) flushTimer = window.setTimeout(() => { flushLines(true); }, FLUSH_INTERVAL); };
+  const flushLines = (force=false) => {
+    let flushed = false;
+    // flush full lines first
+    while (true) {
+      const idx = pending.indexOf('\n');
+      if (idx < 0) break;
+      const seg = pending.slice(0, idx + 1); // include newline
+      pending = pending.slice(idx + 1);
+      aiMsg.content += seg;
+      flushed = true;
+      throttleScroll();
+    }
+    // fallback: if no newline yet and force requested, flush a small chunk
+    if (!flushed && force && pending.length > 0) {
+      const chunk = pending.slice(0, Math.min(64, pending.length));
+      aiMsg.content += chunk;
+      pending = pending.slice(chunk.length);
+      flushed = true;
+      throttleScroll();
+    }
+    if (pending.length === 0) clearForceFlush(); else scheduleForceFlush();
+  };
+  const stopRenderer = () => { clearForceFlush(); pending=''; };
+
   try {
-  const esForApi = effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`;
-    const { aiService } = await import('../../services/aiService');
+    // 根据 chatType 选择 esId 策略：rag 必须使用文档 esId；qa 允许使用 per-user 全局会话
+    const esForApi = chatTypeRef.value === 'rag' ? (effectiveEsId.value || '') : (effectiveEsId.value || `global:${effectiveUserId.value || 'anonymous'}`);
+    if (chatTypeRef.value === 'rag' && !esForApi) {
+      throw new Error('RAG 模式缺少 esId');
+    }
+    const { aiService } = await import('../../../services/aiService');
     const controller = new AbortController();
     abortRef.value=controller;
     await aiService.streamFileChatMessage({
       sessionId: currentSessionId.value,
-      esId: esForApi,
+  esId: esForApi,
       content: question,
       useContext: useContext.value,
       topK: topK.value,
       maxContextChars: maxContextChars.value,
       userId: effectiveUserId.value,
+      url: props.url,
       signal: controller.signal,
-      onDelta: (delta)=> { aiMsg.parts.push(delta); aiMsg.content = aiMsg.parts.join(''); throttleScroll(); },
-      onDone: ()=> { aiMsg.status='done'; streaming.value=false; abortRef.value=null; scrollSoon(); },
-      onError: (err)=> { if(err==='aborted'){ aiMsg.status='aborted'; } else { aiMsg.status='error'; aiMsg.errorMsg=err; } streaming.value=false; abortRef.value=null; }
+      onDelta: (delta)=> { if(!delta) return; aiMsg.parts.push(delta); pending += delta; flushLines(false); },
+      onDone: ()=> { flushLines(true); stopRenderer(); aiMsg.status='done'; streaming.value=false; abortRef.value=null; scrollSoon(); },
+      onError: (err)=> { stopRenderer(); if(err==='aborted'){ aiMsg.status='aborted'; } else { aiMsg.status='error'; aiMsg.errorMsg=err; } streaming.value=false; abortRef.value=null; }
     });
   } catch(e){
+    stopRenderer();
     aiMsg.status='error';
     aiMsg.errorMsg=e.message;
     streaming.value=false;
@@ -512,11 +609,11 @@ function resendMessage(userMsg){ if(streaming.value) return; if(userMsg.role!=='
 function editMessage(userMsg){ if(streaming.value) return; if(userMsg.role!=='user') return; inputText.value = userMsg.content; nextTick(()=> inputRef.value?.focus?.()); }
 function deleteMessage(m){ if(streaming.value && m.status==='streaming') return; const idx = messages.value.findIndex(x=>x.id===m.id); if(idx>-1){ messages.value.splice(idx,1); } }
 function copyMessage(m){ try { navigator.clipboard?.writeText(m.content); ElMessage.success('已复制'); } catch { const ta=document.createElement('textarea'); ta.value=m.content; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ElMessage.success('已复制'); } catch { ElMessage.error('复制失败'); } document.body.removeChild(ta); } }
-async function deleteSession(id){ const ok = await ElMessageBox.confirm('确认删除该会话？','提示',{ type:'warning' }).catch(()=>false); if(!ok) return; try { const { aiService } = await import('../../services/aiService'); const { success } = await aiService.deleteFileChatSession(id, effectiveUserId.value); if(success){ sessions.value = sessions.value.filter(s=>s.id!==id); if(id===currentSessionId.value){ currentSessionId.value = sessions.value[0]?.id || null; messages.value = []; } ElMessage.success('已删除'); } else ElMessage.error('删除失败'); } catch{ ElMessage.error('删除异常'); } }
-async function confirmClearAll(){ const ok = await ElMessageBox.confirm('确认清空该文件所有会话？','清空',{ type:'warning' }).catch(()=>false); if(!ok) return; const esId = effectiveEsId.value; if(!esId){ ElMessage.info('当前为百科模式，无文件会话可清空'); return; } try { const { aiService } = await import('../../services/aiService'); const { success } = await aiService.clearFileChatSessions(esId, effectiveUserId.value); if(success){ ElMessage.success('已清空'); resetAll(); await ensureSession(); await reloadSessions(); } else ElMessage.error('清空失败'); } catch{ ElMessage.error('清空异常'); } }
+async function deleteSession(id){ const ok = await ElMessageBox.confirm('确认删除该会话？','提示',{ type:'warning' }).catch(()=>false); if(!ok) return; try { const { aiService } = await import('../../../services/aiService'); const { success } = await aiService.deleteFileChatSession(id, effectiveUserId.value); if(success){ sessions.value = sessions.value.filter(s=>s.id!==id); if(id===currentSessionId.value){ currentSessionId.value = sessions.value[0]?.id || null; messages.value = []; } ElMessage.success('已删除'); } else ElMessage.error('删除失败'); } catch{ ElMessage.error('删除异常'); } }
+async function confirmClearAll(){ const ok = await ElMessageBox.confirm('确认清空该文件所有会话？','清空',{ type:'warning' }).catch(()=>false); if(!ok) return; const esId = effectiveEsId.value; if(!esId){ ElMessage.info('当前为百科模式，无文件会话可清空'); return; } try { const { aiService } = await import('../../../services/aiService'); const { success } = await aiService.clearFileChatSessions(esId, effectiveUserId.value); if(success){ ElMessage.success('已清空'); resetAll(); await ensureSession(); await reloadSessions(); } else ElMessage.error('清空失败'); } catch{ ElMessage.error('清空异常'); } }
 async function confirmClearCurrent(){ const ok = await ElMessageBox.confirm('确认清空当前会话消息？\n（将通过删除并立即新建同一会话实现）','清空当前',{ type:'warning', confirmButtonText:'确定', cancelButtonText:'取消' }).catch(()=>false); if(!ok) return; const oldTitle = currentSessionTitle.value; const oldModel = modelDisplayName.value; const curId = currentSessionId.value; if(!curId) return; const esId = effectiveEsId.value; if(!esId){ // 百科模式：仅清空本地消息
   messages.value = []; ElMessage.success('已清空'); return; }
-  try { const { aiService } = await import('../../services/aiService'); await aiService.deleteFileChatSession(curId, effectiveUserId.value); const { success, sessionId, raw } = await aiService.createFileChatSession({ esId, userPrompt: configForm.userPrompt || '', userId: effectiveUserId.value }); if(success){ currentSessionId.value = sessionId; sessions.value = sessions.value.filter(s=>s.id!==curId); sessions.value.unshift({ id: sessionId, esId, title: oldTitle, raw:{ modelName: oldModel, ...(raw||{}), userPrompt: configForm.userPrompt||'' }}); messages.value = []; persistLastSession(); ElMessage.success('已清空'); reloadSessions(); } else { ElMessage.error('清空失败'); } } catch{ ElMessage.error('清空异常'); } }
+  try { const { aiService } = await import('../../../services/aiService'); await aiService.deleteFileChatSession(curId, effectiveUserId.value); const { success, sessionId, raw } = await aiService.createFileChatSession({ esId, userPrompt: configForm.userPrompt || '', userId: effectiveUserId.value }); if(success){ currentSessionId.value = sessionId; sessions.value = sessions.value.filter(s=>s.id!==curId); sessions.value.unshift({ id: sessionId, esId, title: oldTitle, raw:{ modelName: oldModel, ...(raw||{}), userPrompt: configForm.userPrompt||'' }}); messages.value = []; persistLastSession(); ElMessage.success('已清空'); reloadSessions(); } else { ElMessage.error('清空失败'); } } catch{ ElMessage.error('清空异常'); } }
 function exportConversation(){ const data = { sessionId: currentSessionId.value, messages: messages.value.map(m=>({ role:m.role, content:m.content })) }; const blob = new Blob([JSON.stringify(data,null,2)], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`conversation_${currentSessionId.value||'new'}.json`; a.click(); URL.revokeObjectURL(url); }
 function scrollSoon(){ nextTick(()=> scrollToBottom()); }
 function scrollToBottom(){ messageListRef.value?.scrollToBottom?.(); }
@@ -527,6 +624,8 @@ function saveTitle(){ const cur = sessions.value.find(s=>s.id===currentSessionId
 
 // 百科问答事件处理：detail: { text, selection, paragraph }
 function handleEncyclopediaQA(e){
+  // 仅 QA 模式响应百科问答事件
+  if (chatTypeRef.value !== 'qa') return;
   const now = Date.now();
   if(now - lastEncyclopediaAt < 600) return; // 节流 600ms
   lastEncyclopediaAt = now;
@@ -569,7 +668,15 @@ let lastEncyclopediaAt = 0;
 .chat-title .toggle-sessions{margin-right:4px;}
 .chat-title .title-text{max-width:360px;display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sessions-pane{width:230px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fafafa;}
-.sessions-header{padding:8px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e7eb;}
+.sessions-header{    
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #e5e7eb;
+    height: 50px;
+    line-height: 50px;
+  }
 .sessions-header .title{font-weight:600;font-size:14px;}
 .sessions-header .actions{display:flex;gap:6px;}
 .sessions-list{flex:1;overflow:auto;padding:4px 0;}
@@ -582,16 +689,23 @@ session-item:hover{background:#f0f2f5;}
 .session-item:hover .ops{opacity:1;}
 .sessions-list .empty{padding:20px 12px;color:#909399;font-size:13px;}
 .chat-main{flex:1;display:flex;flex-direction:column;min-width:0;}
-.chat-header{height:46px;padding:0 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;background:#fafafa;}
+.chat-header{height:50px;padding:0 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;background:#fafafa;}
 .chat-title{display:flex;align-items:center;gap:8px;font-weight:600;}
 .chat-header-actions{display:flex;align-items:center;gap:12px;}
 .chat-header-actions .el-button{padding:4px;}
 .chat-header-actions .model-config-btn{display:flex;align-items:center;gap:6px;padding:4px 10px;}
 .chat-header-actions .model-config-btn .model-name{max-width:140px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chat-header-actions .btn-clear-current{color:#606266;border-color:#dcdfe6;background:#fff;}
+.chat-header-actions .btn-clear-current:hover{background:#f5f7fa;color:#303133;}
+.chat-header-actions .btn-return{background:#409eff;border-color:#409eff;color:#fff;padding:6px 12px;border-radius:16px;}
+.chat-header-actions .btn-return:hover{background:#337ecc;border-color:#337ecc;}
 .config-form :deep(.el-input), .config-form :deep(.el-select), .config-form :deep(.el-textarea){ width:100%; }
 .input-area{border-top:1px solid #e5e7eb;padding:8px 12px;display:flex;flex-direction:column;gap:6px;background:#fff;}
-.input-toolbar{display:flex;align-items:center;justify-content:space-between;}
-.input-toolbar .left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.input-overlay{position:relative;}
+.inline-control{position:absolute;display:flex;align-items:center;gap:8px;}
+.inline-control.left{left:12px;bottom:12px;}
+.inline-control.right{right:12px;bottom:12px;}
+.input-overlay :deep(textarea.el-textarea__inner){padding-bottom:40px;}
 .header-new-session{margin-left:8px;}
 .starter-container{padding:32px 40px 12px;color:#606266;}
 .starter-title{font-size:14px;font-weight:600;margin-bottom:12px;}

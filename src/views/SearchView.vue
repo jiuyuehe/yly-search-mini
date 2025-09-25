@@ -5,7 +5,7 @@
       <ExportDialog v-model="showExportDialog" :ids="exportIds" />
 
       <!-- Left sidebar with filters (default hidden) -->
-      <div v-if="uiMode === 'search'" class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
+      <div v-if="uiMode === 'search' && searchStore.searchType !== 'qa'" class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
         <filter-sidebar ref="filterSidebarRef" v-if="showFilters" @tag-click="handleTagClick" />
       </div>
 
@@ -16,13 +16,13 @@
           <search-box :initial-query="searchStore.query" @search="handleSearch" @mode-change="onModeChange" />
 
           <div class="summary-row">
-            <FilterToggleSummary
+            <FilterToggleSummary v-if="searchStore.searchType !== 'qa'"
               :show="showFilters"
               @toggle="handleToggleFilters"
               @clear="handleClearFilters"
               @remove="handleRemoveFilter"
             />
-            <div class="extra-actions">
+            <div class="extra-actions" v-if="searchStore.searchType !== 'qa'">
                       <template v-if="!searchStore.isImageSearch">
                         <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
                           <el-button size="small" circle @click.stop="toggleCloud">
@@ -56,7 +56,7 @@
             </div>
           </div>
 
-           <search-result-tabs v-if="!searchStore.isImageSearch"
+           <search-result-tabs v-if="!searchStore.isImageSearch && searchStore.searchType !== 'qa'"
               :activeTab="activeTab"
               :counts="tabCounts"
               @tab-change="handleTabChange"
@@ -66,7 +66,7 @@
           <div v-if="tagSearching" class="tag-searching-indicator">按标签搜索中...</div>
 
       <div class="results-wrapper" style="position:relative; display:flex; flex-direction:column; flex:1; min-height:0;">
-        <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }" :style="gridStyle">
+        <div v-if="!showTagCloud && searchStore.searchType !== 'qa'" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }" :style="gridStyle">
           <search-result-item
             v-for="(item, idx) in searchResults"
             :key="stableKeyFor(item, idx)"
@@ -90,7 +90,7 @@
         </div>
       </div>
 
-          <div class="search-footer" v-if="!showTagCloud">
+          <div class="search-footer" v-if="!showTagCloud && searchStore.searchType !== 'qa'">
             <div class="selection-actions" v-if="hasSelectedItems" style="width: 280px;">
               <el-button type="primary" @click="downloadSelected">导出文件</el-button>
               <el-button @click="exportSelected">导出结果集</el-button>
@@ -112,7 +112,14 @@
 
         <!-- QA/chat mode -->
         <div v-else class="chat-area" style="width:100%;height:100%;padding:0;">
-          <FileChatPanel ref="chatPanelRef" :expandSessions="true" show-return="true" @return-to-search="handleReturnToSearch" />
+          <FileChatPanel
+            ref="chatPanelRef"
+            :defaultUseContext="true"
+            :sessionchat="true"
+            :showReturn="true"
+              chatType="qa"
+              @return-to-search="handleReturnToSearch"
+          />
         </div>
       </div>
     </div>
@@ -134,7 +141,7 @@ import TagCloud from '../components/search/TagCloud.vue';
 import SearchResultItem from '../components/search/SearchResultItem.vue';
 import SearchPagination from '../components/search/SearchPagination.vue';
 import FilterToggleSummary from '../components/search/FilterToggleSummary.vue';
-import FileChatPanel from '../components/ai/FileChatPanel.vue';
+import FileChatPanel from '../components/ai/chat/FileChatPanel.vue';
 import { normalizeFile } from '../constants/fileModel';
 import { navigateToPreview as goPreview } from '../services/navigation';
 
@@ -499,13 +506,15 @@ watch(() => searchStore.pagination.total, (total) => {
 .filter-sidebar { background-color: #f5f7fa; transition: width 0.3s; position: relative; overflow-y: auto; border-right: 1px solid #dcdfe6; }
 .filter-sidebar.collapsed { width: 30px; }
 .sidebar-toggle { position: absolute; top: 20px; right: 10px; cursor: pointer; background-color: #ffffff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
-.search-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px 0 0 0; }
-.search-content-inner { width: 900px; max-width: 100%; margin: 0 auto; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 20px; }
+.search-content { flex: 1; display: flex; flex-direction: column; overflow: hidden;}
+.search-content-inner { width: 900px; max-width: 100%; margin: 10px auto; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 20px; }
 .search-results { flex: 1 1 auto; overflow-y: auto; padding: 10px 0; min-height: 0; }
   .search-results.grid-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; align-items: start; }
 .search-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; border-top: 1px solid #ebeef5; }
 .summary-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;flex-wrap:wrap;}
 .extra-actions{display:flex;align-items:center;gap:8px;}
+/* When in QA mode, both FilterToggleSummary and .extra-actions may be hidden; ensure row collapses */
+.summary-row:empty { display: none; }
 
 .image-loading-center{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 10px;width:100%;}
 .image-loading-center .loading-icon{font-size:48px;color:var(--primary-color);}

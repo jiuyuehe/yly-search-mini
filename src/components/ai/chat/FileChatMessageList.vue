@@ -2,7 +2,7 @@
   <div class="fc-ml-root" ref="container" @scroll="handleScroll">
     <div v-if="!list.length && !streaming" class="empty">暂无消息</div>
     <div class="chat-list">
-      <div v-for="m in list" :key="m.id" class="message-item" :class="m.role==='user' ? 'right-message' : 'left-message'">
+  <div v-for="m in list" :key="m.id" class="message-item" :data-msgid="m.id" :class="m.role==='user' ? 'right-message' : 'left-message'">
         <div class="avatar-wrapper">
           <div class="avatar-circle" :class="m.role">{{ m.role==='user' ? userAvatarText : aiAvatarText }}</div>
         </div>
@@ -14,8 +14,9 @@
             <el-tag v-else-if="m.status==='streaming'" size="small" type="info">生成中</el-tag>
           </div>
           <div class="bubble-text" :class="m.role">
-            <span v-if="m.status==='streaming'">{{ m.content }}<span class="cursor"/></span>
+            <div v-if="m.role==='assistant'" class="markdown-body" v-html="renderMarkdown(m.content)"></div>
             <span v-else>{{ m.content }}</span>
+            <span v-if="m.status==='streaming'" class="cursor"/>
           </div>
           <div v-if="m.references && m.references.length" class="refs">
             <div
@@ -54,6 +55,7 @@
 </template>
 <script setup>
 import { ref, watch, nextTick } from 'vue';
+import MarkdownIt from 'markdown-it';
 import { DocumentCopy, RefreshRight, Edit, Close } from '@element-plus/icons-vue';
 
 const props = defineProps({
@@ -66,6 +68,15 @@ const emits = defineEmits(['copy','retry','resend','edit','delete']);
 
 const container = ref(null);
 const showScrollBtn = ref(false);
+const md = new MarkdownIt({
+  html: false,
+  linkify: true,
+  breaks: true
+});
+
+function renderMarkdown(text){
+  try { return md.render(String(text||'')); } catch { return String(text||''); }
+}
 
 // track selected reference index per message id
 const selectedRefIndexMap = ref({});
@@ -110,6 +121,13 @@ defineExpose(exposeApi());
 .message-item.right-message .message-body .meta{justify-content:flex-end;text-align:right;}
 .bubble-text{display:inline-block;max-width:780px;white-space:pre-wrap;word-break:break-word;line-height:1.6;font-size:14px;padding:10px 14px;border-radius:12px;background:#f5f6f7;position:relative;align-self:flex-start;box-sizing:border-box;}
 .bubble-text.user{background:#409eff;color:#fff;align-self:flex-end;}
+/* markdown body styling, rely on github-markdown-css classes */
+.markdown-body{color:inherit;}
+.markdown-body :where(p,ul,ol,pre,code,h1,h2,h3,h4,h5,h6,blockquote,table){
+  margin: 0 0 8px 0;
+}
+.markdown-body pre{background:#1f2937; color:#e5e7eb; padding:8px 10px; border-radius:8px; overflow:auto;}
+.markdown-body code{background:rgba(0,0,0,.06); padding:0 4px; border-radius:4px;}
 .refs{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;}
 .refs .ref-item{background:#eef2f5;padding:6px 8px;border-radius:6px;font-size:12px;color:#606266;cursor:pointer;display:flex;align-items:center;gap:8px}
 .refs .ref-item.active{background:#dfe9f8;color:#1f4ea8}

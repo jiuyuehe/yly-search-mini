@@ -1439,6 +1439,51 @@ class AIService {
         }
     }
 
+    // 获取指定会话详情（含历史）。如果后端没有提供 sessionId 直查接口，将回退到按 esId 查询最新并比对。
+    async getFileChatSessionDetail({sessionId, esId, returnHistory = true, userId} = {}) {
+        if (!sessionId && !esId) return {success: false, session: null, messages: []};
+        try {
+            const headers = {};
+            const uid = this._getUserId(userId);
+            if (uid !== '') headers['X-User-Id'] = uid;
+            // 优先尝试可能存在的 detail 接口；若 404/非 200 则进入 fallback
+            let session = null, history = [];
+            let triedDirect = false;
+            try {
+                if (sessionId) {
+                    // 预留：若后端存在 /session/detail 接口
+                    const res = await api.get('/admin-api/rag/ai/text/file-chat/session/detail', { params: { sessionId, returnHistory }, headers, timeout: 30000 });
+                    const root = this._normalizeWrapper(res);
+                    if (root && root.code === 0) {
+                        const data = root.data || {};
+                        const sid = this._extractSessionId(data);
+                        session = sid ? { id: sid, esId: data.esId || esId, title: data.title || '', raw: data } : null;
+                        const msgs = Array.isArray(data.history) ? data.history : (data.messages || []);
+                        history = this._mapChatMessages(msgs, sid);
+                        triedDirect = true;
+                    }
+                }
+            } catch (e) {
+                // ignore and fallback
+            }
+            if (!session && (esId || sessionId)) {
+                // fallback: 使用 esId 的 latest；没有 esId 时无法保证该 session 的消息
+                const targetEs = esId || null;
+                if (targetEs) {
+                    const r = await this.getLatestFileChatSession({ esId: targetEs, returnHistory, userId });
+                    if (r.success && r.session) {
+                        session = r.session;
+                        history = r.messages || [];
+                    }
+                }
+            }
+            return { success: !!session, session, messages: history };
+        } catch (e) {
+            console.warn('[AIService] getFileChatSessionDetail failed', e);
+            return {success: false, session: null, messages: []};
+        }
+    }
+
     async deleteFileChatSession(sessionId, userId) {
         if (!sessionId) return {success: false};
         try {
@@ -1580,6 +1625,7 @@ class AIService {
                                     useContext = true,
                                     topK = 3,
                                     maxContextChars = 8000,
+                                    url,
                                     signal,
                                     onDelta,
                                     onDone,
@@ -1587,7 +1633,7 @@ class AIService {
                                     userId,
                                     disableReconnect = true
                                 }) {
-        const endpoint = this._resolveApiPath('/admin-api/rag/ai/text/file-chat/stream');
+    const endpoint = this._resolveApiPath(url || '/admin-api/rag/ai/text/file-chat/stream');
         const body = {sessionId, esId, content, useContext, topK, maxContextChars};
         const headers = {'Content-Type': 'application/json'};
         const uid = this._getUserId(userId);
