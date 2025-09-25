@@ -56,6 +56,10 @@
           <!-- 传入 highlight 字段给 FileMetaInfo 以使用前端高亮，保持 metaFile 不变 -->
           <!-- 使用 props.searchQuery 优先，回退到 store.query 以确保高亮在所有情况下生效 -->
           <FileMetaInfo :file="metaFile" :highlight="highlightTerm" :show-icon="!isImageSearch" @open-path="openPath" @open-preview="(f,e) => $emit('click', item, e)" />
+          <!-- 当前文件语种 -->
+          <div v-if="displayFileLang" class="lang-line">
+            <el-tag size="small" type="info">{{ getLangLabel(displayFileLang) }}</el-tag>
+          </div>
           <!-- 标签行：替换原先的得分行 -->
           <div v-if="item.tags && item.tags.length" class="tags-line">
             <el-tag
@@ -93,6 +97,7 @@ import { useSearchStore } from '../../stores/search';
 import { goCloudPath } from '../../services/navigation';
 import FileMetaInfo from '../preview/FileMetaInfo.vue';
 import { parseftsIcon } from '../../filters/filters';
+import { getLangLabel } from '../../utils/language';
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -101,14 +106,14 @@ const props = defineProps({
   displayMode: { type: String, default: 'list' }, // 'list' or 'grid'
   isImageSearch: { type: Boolean, default: false }
 });
-const _emit = defineEmits(['click', 'update:selected']);
+const _emit = defineEmits(['click', 'update:selected', 'tag-click']);
 
 const searchStore = useSearchStore();
 
 function onTagClick(tag) {
   try {
-  // 设置筛选并触发搜索：只设置 fileAiTag（后端期望标签名）
-  searchStore.updateFilters({ fileAiTag: tag, tags: [] });
+  // Emit event to parent so it can route to TagCloud handler (no global events)
+  _emit('tag-click', tag);
   } catch {}
 }
 
@@ -122,6 +127,34 @@ const metaFile = computed(() => ({
   fileType: props.item.fileType || props.item.type || '',
   fileCategory: props.item.fileCategory || props.item.fc || ''
 }));
+
+// normalized display language for this item (check multiple nested locations, including _raw)
+const displayFileLang = computed(() => {
+  try {
+    const v1 = props.item?.file?.fileLang;
+    const v2 = props.item?.fileLang;
+    const v3 = props.item?.lang;
+    const raw = props.item?._raw || props.item?._source || null;
+    const v4 = raw?.file?.fileLang || raw?.fileLang || raw?._source?.fileLang || null;
+    // treat empty string as missing
+    const pick = (x) => (x != null && String(x).trim() !== '' ? String(x).trim() : null);
+    return pick(v1) || pick(v2) || pick(v3) || pick(v4) || null;
+  } catch (e) { return null; }
+});
+
+// Debug: if displayFileLang is missing, print the item and raw payload for investigation
+watch(() => props.item, (it) => {
+  if (!displayFileLang.value) {
+    console.debug('[SearchResultItem] missing fileLang for item', {
+      id: it?.id || it?.documentId || it?.fileId,
+      file: it?.file,
+      fileLang: it?.file?.fileLang,
+      itemFileLang: it?.fileLang,
+      itemLang: it?.lang,
+      raw: it?._raw || it?._source || null
+    });
+  }
+}, { immediate: true });
 
 
 function openPath() { goCloudPath(props.item); }
@@ -250,6 +283,7 @@ function prettySize(size) {
 .item-preview :deep(font) { background:#FBD9A7; padding:0 2px; border-radius:3px; font-weight:600; }
 .item-tags { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .tags-line { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; }
+.lang-line { margin-top: 6px; display: flex; gap: 6px; align-items: center; }
 .item-preview :deep(.hl) { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
 
 /* clamp to two lines when not expanded */

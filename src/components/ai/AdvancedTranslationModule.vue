@@ -8,19 +8,10 @@
           <el-select 
             v-model="sourceLanguage" 
             size="small" 
+            style="width: 80px;"
             @change="onSourceLanguageChange"
           >
-            <el-option label="自动检测" value="auto" />
-            <el-option label="English" value="en" />
-            <el-option label="中文" value="zh" />
-            <el-option label="Français" value="fr" />
-            <el-option label="Español" value="es" />
-            <el-option label="Deutsch" value="de" />
-            <el-option label="日本語" value="ja" />
-            <el-option label="Русский" value="ru" />
-            <el-option label="Italiano" value="it" />
-            <el-option label="한국어" value="ko" />
-            <el-option label="Português" value="pt" />
+            <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
         <div class="swap-languages">
@@ -47,7 +38,7 @@
             disabled
             placeholder="中文"
           >
-            <el-option label="中文" value="zh" />
+            <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
       </div>
@@ -306,7 +297,7 @@
           <el-table-column prop="translatedText" label="译文内容" width="200" />
           <el-table-column prop="language" label="语种" width="100">
             <template #default="scope">
-              {{ getLanguageLabel(scope.row.language) }}
+              {{ getLangLabel(scope.row.language) }}
             </template>
           </el-table-column>
           <el-table-column label="操作" width="120" fixed="right" align="center" class-name="operation-col">
@@ -386,16 +377,7 @@
         </el-form-item>
         <el-form-item label="译文语种">
           <el-select v-model="terminologyForm.language" placeholder="选择语种">
-            <el-option label="中文" value="zh" />
-            <el-option label="English" value="en" />
-            <el-option label="Français" value="fr" />
-            <el-option label="Español" value="es" />
-            <el-option label="Deutsch" value="de" />
-            <el-option label="日本語" value="ja" />
-            <el-option label="Русский" value="ru" />
-            <el-option label="Italiano" value="it" />
-            <el-option label="한국어" value="ko" />
-            <el-option label="Português" value="pt" />
+            <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -428,6 +410,7 @@ import {
 import { ElMessageBox } from 'element-plus';
 import { aiService } from '../../services/aiService';
 import api from '../../services/api';
+import { getLangOptions, getLangLabel } from '../../utils/language';
 import CloudSave from '../preview/CloudSave.vue';
 import { uploadStream } from '../../services/uploadStream';
 
@@ -603,8 +586,8 @@ const settings = reactive({
 
 // 语言名称映射与摘要显示
 import { computed } from 'vue';
-const languageNameMap = { auto:'自动检测', zh:'中文', en:'English', fr:'Français', es:'Español', de:'Deutsch', ja:'日本語', ru:'Русский', it:'Italiano', ko:'한국어', pt:'Português' };
-const languageSummary = computed(()=>`${languageNameMap[sourceLanguage.value]||sourceLanguage.value} → ${languageNameMap[targetLanguage.value]||targetLanguage.value}`);
+const smallLangOptions = getLangOptions(['auto','zh','en','ru','fr','hi']);
+const languageSummary = computed(()=>`${getLangLabel(sourceLanguage.value)||sourceLanguage.value} → ${getLangLabel(targetLanguage.value)||targetLanguage.value}`);
 
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
@@ -1224,21 +1207,7 @@ function getTermTypeTagType(type) {
   return types[type] || 'info';
 }
 
-function getLanguageLabel(lang) {
-  const labels = {
-    zh: '中文',
-    en: 'English',
-    fr: 'Français',
-    es: 'Español',
-    de: 'Deutsch',
-    ja: '日本語',
-    ru: 'Русский',
-    it: 'Italiano',
-    ko: '한국어',
-    pt: 'Português'
-  };
-  return labels[lang] || lang;
-}
+// removed local getLanguageLabel; use getLangLabel directly from utils
 
 async function loadGlossary(){
   try {

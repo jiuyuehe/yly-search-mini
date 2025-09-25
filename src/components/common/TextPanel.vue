@@ -1,7 +1,19 @@
 <template>
   <div class="text-panel">
     <div class="panel-header">
-      <span class="panel-title">{{ title }}</span>
+      <span class="panel-title">{{ title }}
+
+        <el-select
+        v-model="fileLangDisplay"
+        size="small"
+        class="file-lang-select"
+        @change="onFileLangChange"
+        :disabled="!esId"
+      >
+        <el-option v-for="opt in langOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+      </el-select>
+      </span>
+      
       <div class="header-actions">
         <span class="char-count">{{ textContent.length }}{{ maxLength ? `/${maxLength}` : '' }}</span>
         <el-button
@@ -48,6 +60,10 @@
       <div class="menu-item" @click="lookupEncyclopedia">
         <el-icon><Search /></el-icon>
         百科查询
+      </div>
+      <div class="menu-item" @click.stop="openTranslateDialog">
+        <el-icon><ChatLineRound /></el-icon>
+        划词翻译
       </div>
       <div class="menu-item" @click="copySelectedText">
         <el-icon><CopyDocument /></el-icon>
@@ -116,16 +132,7 @@
         </el-form-item>
         <el-form-item label="语种">
           <el-select v-model="terminologyForm.language" placeholder="选择语种">
-            <el-option label="中文" value="zh" />
-            <el-option label="English" value="en" />
-            <el-option label="Français" value="fr" />
-            <el-option label="Español" value="es" />
-            <el-option label="Deutsch" value="de" />
-            <el-option label="日本語" value="ja" />
-            <el-option label="Русский" value="ru" />
-            <el-option label="Italiano" value="it" />
-            <el-option label="한국어" value="ko" />
-            <el-option label="Português" value="pt" />
+            <el-option v-for="opt in langOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
@@ -162,6 +169,36 @@
       </template>
     </el-dialog>
 
+    <!-- Quick Translate Dialog -->
+    <el-dialog v-model="showTranslateDialog" title="划词翻译" width="640px">
+      <div style="display:flex;flex-direction:column;gap:12px;min-height:120px;max-height:60vh;overflow:auto;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="min-width:80px;color:#606266">原语言</div>
+            <div style="width:160px;padding:6px 10px;background:#f5f7fa;border-radius:4px;color:#303133;box-sizing:border-box">{{ translateSourceLangDisplay }}</div>
+          <div style="min-width:80px;color:#606266">目标语言</div>
+          <el-select v-model="translateTargetLang" placeholder="选择目标语言" style="width:160px">
+            <el-option v-for="opt in langOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+        </div>
+
+        <div>
+          <div style="font-weight:600;margin-bottom:6px">原文</div>
+          <el-input type="textarea" :rows="4" v-model="translateSourceText" readonly />
+        </div>
+
+        <div>
+          <div style="font-weight:600;margin-bottom:6px">译文</div>
+          <el-input type="textarea" :rows="6" v-model="translateResult" readonly />
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showTranslateDialog=false">关闭</el-button>
+          <el-button type="primary" :loading="translating" @click="doTranslate">翻译</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- Tag Save Dialog -->
     <el-dialog v-model="showTagDialog" title="标签入库" width="440px">
       <el-form label-width="70px">
@@ -188,10 +225,12 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Download, Iphone, Search, CopyDocument, Collection, CollectionTag, Connection } from '@element-plus/icons-vue';
+import { Download, Iphone, Search, CopyDocument, Collection, CollectionTag, Connection, ChatLineRound } from '@element-plus/icons-vue';
 
 import { aiService } from '../../services/aiService';
 import { resolveEsId } from '../../utils/esid';
+import api from '../../services/api';
+import { getLangLabel, getLangOptions } from '../../utils/language';
 
 const props = defineProps({
   title: {
@@ -379,6 +418,103 @@ function openNERDialog(){
   hideContextMenu();
 }
 
+// Quick translate dialog state
+const showTranslateDialog = ref(false);
+const translateSourceLang = ref('auto');
+const translateTargetLang = ref('zh');
+const translateSourceText = ref('');
+const translateResult = ref('');
+const translating = ref(false);
+
+// language options from util (reduced set per product request)
+const langOptions = getLangOptions(['zh','en','ru','fr','hi']);
+
+// file language display & update
+const fileLangDisplay = ref('auto');
+const esId = computed(() => resolveEsId(props.file, props.fileId));
+
+// keep fileLangDisplay in sync with incoming props
+watch(() => props.file, (f) => {
+  if (f && f.fileLang) fileLangDisplay.value = f.fileLang;
+  else if (props.fileLang) fileLangDisplay.value = props.fileLang || 'auto';
+  else fileLangDisplay.value = 'auto';
+}, { immediate: true });
+watch(() => props.fileLang, (v) => {
+  if (v) fileLangDisplay.value = v; 
+}, { immediate: true });
+
+async function onFileLangChange(newLang) {
+  const target = newLang || 'auto';
+  if (!esId.value) {
+    ElMessage.warning('缺少文档标识，无法设置语种');
+    return;
+  }
+  try {
+    // optimistic update
+    fileLangDisplay.value = target;
+    const resp = await api.post('/admin-api/rag/documents/indexes/update/lang', { esId: esId.value, fileLang: target });
+    // if backend returns updated fileLang, use it
+    const returned = resp?.data?.fileLang || resp?.fileLang;
+    if (returned) fileLangDisplay.value = returned;
+    ElMessage.success('语种已更新');
+  } catch (e) {
+    ElMessage.error('更新语种失败');
+  }
+}
+
+// Display mapping for source language (show human-readable labels, non-editable)
+const translateSourceLangDisplay = computed(() => {
+  if (!translateSourceLang.value || translateSourceLang.value === 'auto') return getLangLabel('auto');
+  return getLangLabel(translateSourceLang.value);
+});
+
+function detectLanguageSample(text){
+  if(!text) return 'auto';
+  // very small heuristic: presence of CJK characters
+  if (/\p{Script=Han}/u.test(text)) return 'zh';
+  // detect latin letters predominant -> en
+  const alphaRatio = (text.replace(/[^A-Za-z]/g,'').length) / Math.max(1, text.length);
+  if (alphaRatio > 0.6) return 'en';
+  return 'auto';
+}
+
+function openTranslateDialog(){
+  if(!selectedText.value) { ElMessage.warning('请先选择文本'); return; }
+  translateSourceText.value = selectedText.value;
+  // Prefer backend-provided file language when available
+  translateSourceLang.value = (props.file && props.file.fileLang) ? props.file.fileLang : (props.fileLang || detectLanguageSample(selectedText.value));
+  translateTargetLang.value = 'zh';
+  translateResult.value = '';
+  showTranslateDialog.value = true;
+  hideContextMenu();
+  // auto-trigger translation shortly after opening for quick UX
+  setTimeout(() => { doTranslate().catch(()=>{}); }, 60);
+}
+
+async function doTranslate(){
+  if (!translateSourceText.value) return ElMessage.warning('无可翻译文本');
+  translating.value = true;
+  translateResult.value = '';
+  try {
+    // 如果源语言与目标语言相同则跳过翻译，直接显示原文
+    let srcLang = translateSourceLang.value || 'auto';
+    if (srcLang === 'auto') srcLang = detectLanguageSample(translateSourceText.value);
+    if (srcLang && translateTargetLang.value && srcLang === translateTargetLang.value) {
+      translateResult.value = translateSourceText.value;
+    } else {
+      // Use aiService.translateText(text, targetLang) - do not pass esId
+      const res = await aiService.translateText(translateSourceText.value, translateTargetLang.value);
+      // aiService returns string
+      translateResult.value = String(res || '');
+    }
+  } catch (e) {
+    translateResult.value = '';
+    ElMessage.error(e?.message || '翻译失败');
+  } finally {
+    translating.value = false;
+  }
+}
+
 // Encyclopedia lookup
 function lookupEncyclopedia() {
   if (selectedText.value) {
@@ -465,7 +601,9 @@ async function saveNERMark(){
       ElMessage.success('实体已保存');
       showNERDialog.value = false;
       // 触发右侧面板切换
-      window.dispatchEvent(new Event('activate-ner'));
+  window.dispatchEvent(new Event('activate-ner'));
+  // also request a direct refresh to ensure panel reloads latest cached data
+  window.dispatchEvent(new Event('refresh-ner'));
     } else {
       ElMessage.error(resp.message || '保存失败');
     }
@@ -558,10 +696,9 @@ async function ocrText(){
   if (!esId) { ElMessage.error('缺少文件标识，无法进行 OCR 识别'); return; }
   ocring.value = true;
   try {
-    const txt = await aiService.ocrRecognize(esId);
-    console.log('ocrText result', txt);
+  const txt = await aiService.ocrRecognize(esId);
     const finalText = (txt && typeof txt === 'string') ? txt : (txt?.text || txt?.result || txt?.content || '');
-    ElMessage.info(finalText);
+  // user-visible messages handled below; avoid echoing raw debug text
     return;
     if (finalText) {
       // 后端可能只返回提示字符串 "OCR识别完成" 表示任务已完成并异步写入结果，
@@ -717,6 +854,11 @@ document.addEventListener('click', (e) => {
   font-weight: 600;
   font-size: 14px;
   color: #303133;
+}
+
+.file-lang-select {
+  width: 81px;
+  margin-left: 4px;
 }
 
 .header-actions {

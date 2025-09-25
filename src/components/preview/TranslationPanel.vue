@@ -4,10 +4,7 @@
       <h3>翻译</h3>
       <div class="translation-controls">
         <el-select v-model="targetLanguage" size="small" placeholder="选择语言">
-          <el-option label="英文" value="en" />
-          <el-option label="中文" value="zh" />
-          <el-option label="日文" value="ja" />
-          <el-option label="韩文" value="ko" />
+          <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
         <el-button size="small" @click="translateText" :loading="loading">翻译</el-button>
       </div>
@@ -32,6 +29,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
+import { getLangOptions } from '../../utils/language';
 
 const props = defineProps({
   sourceText: {
@@ -48,6 +46,7 @@ const emit = defineEmits(['update:targetText']);
 
 const aiToolsStore = useAiToolsStore();
 const targetLanguage = ref('en');
+const smallLangOptions = getLangOptions(['zh','en','ru','fr','hi']);
 const loading = ref(false);
 
 async function translateText() {

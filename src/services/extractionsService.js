@@ -1,4 +1,4 @@
-import api from './api';
+import api, { getUserInfo } from './api';
 
 // 将后端返回的抽取历史记录对象统一标准化，便于前端 UI 处理。
 // 输入可能为多种不同字段命名的形式（兼容历史遗留接口），输出为统一字段：
@@ -234,3 +234,50 @@ class ExtractionsService {
 }
 
 export const extractionsService = new ExtractionsService();
+
+// 新增方法：按表单导出/导出全部，使用后端导出接口
+ExtractionsService.prototype.exportByForm = async function(params = {}) {
+  try {
+    const { ids, formId, fieldsOnly } = params || {};
+    const query = {};
+  if (ids && Array.isArray(ids) && ids.length) query.ids = ids.join(',');
+    if (formId != null) query.formId = formId;
+    if (fieldsOnly != null) query.fieldsOnly = fieldsOnly ? true : false;
+  // include headers similar to curl example: Accept and Content-Type, and X-User-Id if available
+  const user = getUserInfo ? (getUserInfo() || {}) : {};
+  const uid = user.userId || user.id || user.uid || null;
+  const headers = { 'Accept': '*/*', 'Content-Type': 'application/x-www-form-urlencoded' };
+  if (uid) headers['X-User-Id'] = String(uid);
+  const res = await api.get('/admin-api/rag/ai/text/extract/form/history/export', { params: query, responseType: 'blob', timeout: 60000, headers });
+    const blob = res && res.data ? res.data : res;
+    // Determine filename from Content-Disposition if present, otherwise infer from mime type
+    let filenameBase = `extractions_${Date.now()}`;
+    try {
+      const disposition = res && res.headers ? (res.headers['content-disposition'] || res.headers['Content-Disposition']) : undefined;
+      if (disposition) {
+        const m = /filename\*=UTF-8''(.+)$/.exec(disposition) || /filename="?([^";]+)"?/.exec(disposition);
+        if (m && m[1]) filenameBase = decodeURIComponent(m[1]);
+      }
+    } catch (e) { /* ignore */ }
+
+    // If filenameBase already contains an extension, use it. Otherwise infer from blob.type or headers
+    let filename = filenameBase;
+    const hasExt = /\.[a-zA-Z0-9]+$/.test(filenameBase);
+    if (!hasExt) {
+      const mimeType = (blob && blob.type) || (res && res.headers && (res.headers['content-type'] || res.headers['Content-Type'])) || '';
+      let ext = 'bin';
+      if (/csv/i.test(mimeType)) ext = 'csv';
+      else if (/zip/i.test(mimeType)) ext = 'zip';
+      else if (/json/i.test(mimeType)) ext = 'json';
+      else if (/excel|sheet|spreadsheet|xlsx|xls/i.test(mimeType)) ext = 'xlsx';
+      filename = `${filenameBase}.${ext}`;
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
+    return { success: true, filename };
+  } catch (e) {
+    console.warn('[ExtractionsService] exportByForm failed', e);
+    throw e;
+  }
+};

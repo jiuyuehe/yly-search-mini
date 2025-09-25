@@ -3981,6 +3981,61 @@ object
 
 
 
+## 导出抽取结果
+
+
+**接口地址**:`/admin-api/rag/ai/text/extract/form/history/export`
+
+
+**请求方式**:`GET`
+
+
+**请求数据类型**:`application/x-www-form-urlencoded`
+
+
+**响应数据类型**:`*/*`
+
+
+**接口描述**:
+
+
+**请求参数**:
+
+
+**请求参数**:
+
+
+| 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
+| -------- | -------- | ----- | -------- | -------- | ------ |
+|ids||query|false|array|integer|
+|fieldsOnly||query|false|boolean||
+|formId||query|false|integer(int64)||
+|esId||query|false|string||
+|X-User-Id||header|false|string||
+|tenant-id|租户编号|header|false|integer(int32)||
+|Authorization|认证 Token|header|false|string||
+
+
+**响应状态**:
+
+
+| 状态码 | 说明 | schema |
+| -------- | -------- | ----- | 
+|200|OK||
+
+
+**响应参数**:
+
+
+暂无
+
+
+**响应示例**:
+```javascript
+
+```
+
+
 
 
 
@@ -4574,4 +4629,108 @@ string
 	"data": "",
 	"msg": ""
 }
+```
+
+
+
+## 下载导入模板
+
+
+**接口地址**:`/admin-api/rag/ai/translate/glossary/import-template`
+
+
+**请求方式**:`GET`
+
+
+**请求数据类型**:`application/x-www-form-urlencoded`
+
+
+**响应数据类型**:`*/*`
+
+
+**接口描述**:
+
+
+**请求参数**:
+
+
+**请求参数**:
+
+
+| 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
+| -------- | -------- | ----- | -------- | -------- | ------ |
+|format||query|false|string||
+|tenant-id|租户编号|header|false|integer(int32)||
+|Authorization|认证 Token|header|false|string||
+
+
+**响应状态**:
+
+
+| 状态码 | 说明 | schema |
+| -------- | -------- | ----- | 
+|200|OK||
+
+
+**响应参数**:
+
+
+暂无
+
+
+**响应示例**:
+```javascript
+
+```
+
+
+
+## 导出全部条目
+
+
+**接口地址**:`/admin-api/rag/ai/translate/glossary/export-all`
+
+
+**请求方式**:`GET`
+
+
+**请求数据类型**:`application/x-www-form-urlencoded`
+
+
+**响应数据类型**:`*/*`
+
+
+**接口描述**:
+
+
+**请求参数**:
+
+
+**请求参数**:
+
+
+| 参数名称 | 参数说明 | 请求类型    | 是否必须 | 数据类型 | schema |
+| -------- | -------- | ----- | -------- | -------- | ------ |
+|format||query|false|string||
+|tenant-id|租户编号|header|false|integer(int32)||
+|Authorization|认证 Token|header|false|string||
+
+
+**响应状态**:
+
+
+| 状态码 | 说明 | schema |
+| -------- | -------- | ----- | 
+|200|OK||
+
+
+**响应参数**:
+
+
+暂无
+
+
+**响应示例**:
+```javascript
+
 ```

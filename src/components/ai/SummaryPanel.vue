@@ -47,10 +47,7 @@
             <div class="card-header">
               <span class="card-title">译文摘要 
                 <el-select v-model="targetLanguage" size="small" class="lang-select" placeholder="目标语言">
-          <el-option label="中文" value="zh" />
-          <el-option label="英文" value="en" />
-          <!-- <el-option label="日文" value="ja" />
-          <el-option label="韩文" value="ko" /> -->
+          <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
   <el-button size="small" type="primary" :loading="loadingTarget" @click="() => generateSummary(true)">{{ loadingTarget? '生成中...' : (hasAnySummary? '重新生成' : '生成摘要') }}</el-button>
               </span>
@@ -91,6 +88,7 @@
 
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue';
+import { getLangOptions, getLangLabel } from '../../utils/language';
 import { useAiToolsStore } from '../../stores/aiTools';
 import { ElMessage } from 'element-plus';
 import { aiService } from '../../services/aiService';
@@ -107,6 +105,7 @@ const loadingTarget = ref(false);
 const loading = computed(() => loadingSource.value || loadingTarget.value);
 const error = ref('');
 const targetLanguage = ref('zh'); // 默认中文(内部值用 zh)
+const smallLangOptions = getLangOptions(['zh','en','ru','fr','hi']);
 const summaryLength = ref(200); // 默认 200
 const startTime = ref(0);
 const durationMs = ref(0);

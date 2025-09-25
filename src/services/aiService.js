@@ -517,14 +517,17 @@ class AIService {
       const orgArr = makeArray(nerGrouped?.organizations);
       const locArr = makeArray(nerGrouped?.locations);
       const timeArr = makeArray(nerGrouped?.dates);
-      const eventsArr = makeArray(nerGrouped?.events);
+  // merge events and others (some callers use 'others' for miscellaneous entities)
+  const eventsArr = makeArray(nerGrouped?.events);
+  const othersArr = makeArray(nerGrouped?.others);
 
       const obj = {
         PERSON: personsArr.length ? personsArr : null,
         ADDR: locArr.length ? locArr : null,
         TIME: timeArr,
         ORG: orgArr,
-        EVENT: eventsArr
+        EVENT: eventsArr.length ? eventsArr : null,
+        OTHERS: othersArr.length ? othersArr : null
       };
       const payload = [ obj ];
       const res = await api.post('/admin-api/rag/ai/text/ner/update', { esId, esid: esId, ner: payload }, { headers:{'Content-Type':'application/json'}, timeout: 20000 });

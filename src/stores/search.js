@@ -4,6 +4,51 @@ import { imageSearchService } from '../services/imageSearch';
 import { tabToDocTypeParam } from '../constants/fileTypes';
 import { ElMessage } from 'element-plus';
 
+// Utility: robustly parse AI tag payloads into an array of keyword strings (max 10)
+function parseAiKeywords(aiTag) {
+  if (!aiTag && aiTag !== 0) return [];
+  try {
+    if (typeof aiTag === 'object' && aiTag) {
+      const list = Array.isArray(aiTag.keywords) ? aiTag.keywords : [];
+      return list.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+    }
+    let txt = String(aiTag).trim();
+    if (!txt) return [];
+    try {
+      const obj = JSON.parse(txt);
+      if (obj && Array.isArray(obj.keywords)) {
+        return obj.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+      }
+    } catch {}
+    try {
+      const unwrapped = JSON.parse(txt);
+      if (unwrapped && typeof unwrapped === 'string') {
+        const obj2 = JSON.parse(unwrapped);
+        if (obj2 && Array.isArray(obj2.keywords)) {
+          return obj2.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+        }
+      } else if (unwrapped && typeof unwrapped === 'object' && Array.isArray(unwrapped.keywords)) {
+        return unwrapped.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+      }
+    } catch {}
+    try {
+      const stripped = txt.replace(/^"|"$/g, '');
+      const normalized = stripped.replace(/\\"/g, '"').replace(/\\n/g, '');
+      const obj3 = JSON.parse(normalized);
+      if (obj3 && Array.isArray(obj3.keywords)) {
+        return obj3.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+      }
+    } catch {}
+    const matches = [];
+    const re = /"keyword"\s*:\s*"([^\"]+)"/g;
+    let m;
+    while ((m = re.exec(txt)) && matches.length < 10) { matches.push(m[1]); }
+    return matches;
+  } catch {
+    return [];
+  }
+}
+
 export const useSearchStore = defineStore('search', {
   state: () => ({
     query: '',
@@ -297,8 +342,20 @@ export const useSearchStore = defineStore('search', {
         const resp = await tagCloudService.filesByTags({ tags, page, pageSize });
         const { normalizeFile } = await import('../constants/fileModel');
         const { mapDocTypeCodeToTab, mapExtToTab } = await import('../constants/fileTypes');
-        const norm = resp.list.map(r=>{ const f=normalizeFile(r); const tab = f.docType!=null? mapDocTypeCodeToTab(Number(f.docType)) : mapExtToTab(f.fileType); return { ...f, type: tab }; });
-        this.results=norm; this.pagination.total=resp.total;
+        let norm = resp.list.map(r=>{ const f=normalizeFile(r); const tab = f.docType!=null? mapDocTypeCodeToTab(Number(f.docType)) : mapExtToTab(f.fileType); return { ...f, type: tab }; });
+          // ensure AI tags are parsed and mapped to fileSysTag/tags as in regular search
+          if (Array.isArray(norm)) {
+            norm.forEach(r => {
+              const rawAi = r ? (r.fileAiTag != null ? r.fileAiTag : (r._raw && r._raw.fileAiTag)) : null;
+              const kws = parseAiKeywords(rawAi);
+              if (kws && kws.length) {
+                r.fileSysTag = kws.join(',');
+                r.tags = kws.slice(0, 10);
+              }
+              if (r && r.fileAiTag == null && rawAi != null) r.fileAiTag = rawAi;
+            });
+          }
+          this.results=norm; this.pagination.total=resp.total;
         const counter={ document:0,image:0,multimedia:0,archive:0,other:0 };
         norm.forEach(r=>{ if(counter[r.type]!=null) counter[r.type]++; else counter.other++; });
         this.tabCounts = { all: resp.total, ...counter };

@@ -17,23 +17,29 @@
             />
           </el-select>
         </el-col>
-        <el-col :span="8" class="text-right">
-          <el-button 
-            type="primary" 
-            @click="exportSelected" 
-            :disabled="selectedExtractions.length === 0"
-            :loading="extractionsStore.loading.export"
-          >
-            导出选中
-          </el-button>
-          <el-button 
-            type="danger" 
-            @click="deleteSelected" 
-            :disabled="selectedExtractions.length === 0"
-            :loading="extractionsStore.loading.delete"
-          >
-            删除选中
-          </el-button>
+        <el-col :span="16">
+          <div class="actions-right">
+            <el-dropdown @command="onExportCommand">
+              <el-button type="primary" :loading="extractionsStore.loading.export">
+                导出数据<i class="el-icon-arrow-down el-icon--right"></i>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="export_all">导出全部数据</el-dropdown-item>
+                  <el-dropdown-item command="export_by_form">导出抽取结果（当前表单）</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+
+            <el-button 
+              type="danger" 
+              @click="deleteSelected" 
+              :disabled="selectedExtractions.length === 0"
+              :loading="extractionsStore.loading.delete"
+            >
+              删除选中
+            </el-button>
+          </div>
         </el-col>
       </el-row>
     </div>
@@ -345,6 +351,34 @@ async function exportSelected() {
   }
 }
 
+// 导出下拉命令处理
+async function onExportCommand(command) {
+  try {
+
+    // 如果有选中项则在请求中传递 ids，否则不传 ids
+    const ids = (selectedExtractions.value && selectedExtractions.value.length) ? selectedExtractions.value : null;
+    // 调用导出接口：所有/按表单的分支根据 command 处理，统一在参数中附带 ids（如果存在）
+    if (command === 'export_all') {
+      await extractionsStore.exportByForm({ ...(ids ? { ids } : {}), fieldsOnly: false });
+      ElMessage.success('导出全部任务已提交，下载应已开始');
+      return;
+    }
+
+    if (command === 'export_by_form') {
+      const fid = filters.form_id || null;
+      if (!fid) {
+        ElMessage.warning('请先选择表单');
+        return;
+      }
+      await extractionsStore.exportByForm({ formId: fid, ...(ids ? { ids } : {}), fieldsOnly: true });
+      ElMessage.success('按表单导出完成');
+      return;
+    }
+  } catch (e) {
+    ElMessage.error('导出失败: ' + (e?.message || e));
+  }
+}
+
 
 function onPageChange(page) {
   pagination.page = page;
@@ -380,6 +414,8 @@ function formatDate(dateString) {
 .text-right {
   text-align: right;
 }
+
+.actions-right { display:flex; justify-content:flex-end; gap:8px; align-items:center; }
 
 .extractions-list {
   min-height: 400px;

@@ -374,7 +374,7 @@ async function load() {
   resp = await previewService.getFileView({ fc, fi: fid });
   }
 
-    // 优先处理后端直接返回原始文本/数字/布尔（无包装结构），不依赖扩展名
+  // 优先处理后端直接返回原始文本/数字/布尔（无包装结构），不依赖扩展名
     if (['string','number','boolean'].includes(typeof resp)) {
       const raw = String(resp);
       fileData.value = { ...(fileData.value || {}), extractedText: raw, fileContents: raw, hasAccess: true };
@@ -382,7 +382,7 @@ async function load() {
       return;
     }
     // 若返回 ArrayBuffer，尝试解码 -> JSON or 纯文本
-    if (resp instanceof ArrayBuffer) {
+  if (resp instanceof ArrayBuffer) {
       const decoded = decodeBufferToText(resp) || '';
       let parsed = null;
       try { parsed = JSON.parse(decoded); } catch { /* not json */ }
@@ -409,6 +409,17 @@ async function load() {
       }
     }
 
+    // 如果后端明确返回预览不支持，但用户有操作权限（仅无法在线预览）
+    if (resp?.status === 'err_view_not_supported') {
+      // 将权限保留为有权限，仅标记预览不可用
+      hasPerm.value = true;
+      applyStatus.value = 'none';
+      // 标记 fileData 以便界面或下游逻辑可以判断为不可预览
+      fileData.value = { ...(fileData.value || {}), hasAccess: true, previewSupported: false };
+      loading.value = false;
+      return;
+    }
+
     if (resp?.status === 'err_no_permission') {
       throw { response: { status: 403, data: resp } };
     }
@@ -432,7 +443,8 @@ async function load() {
       console.log('[PreviewView] built previewUrl:', merged.previewUrl, 'ext=', ext);
       nextTick(() => { adjustSizes(); });
       fileData.value = merged;
-      hasPerm.value = true; applyStatus.value = 'approved';
+      hasPerm.value = true;
+       applyStatus.value = 'approved';
       return;
     }
     throw new Error('unexpected response');
