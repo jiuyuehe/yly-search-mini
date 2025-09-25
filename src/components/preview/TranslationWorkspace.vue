@@ -16,7 +16,9 @@
 </template>
 
 <script setup>
-import AdvancedTranslationModule from '../ai/AdvancedTranslationModule.vue';
+import AdvancedTranslationModule from '../ai/translation/AdvancedTranslationModule.vue';
+
+
 
 defineProps({
   file: { type: Object, default: null },

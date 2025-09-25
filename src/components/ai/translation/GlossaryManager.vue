@@ -150,8 +150,8 @@
 import {ref, reactive, nextTick, onMounted} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import {Plus, Refresh, Search, Download, Upload} from '@element-plus/icons-vue';
-import {aiService} from '../../services/aiService';
-import api from '../../services/api';
+import {aiService} from '../../../services/aiService';
+import api from '../../../services/api';
 
 // 可选：当术语库发生变化时通知父组件
 const emit = defineEmits(['changed']);

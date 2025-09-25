@@ -4,13 +4,18 @@
       <div class="language-selectors">
         <div class="language-selector">
           <label>源语言</label>
-          <el-select 
-            v-model="sourceLanguage" 
-            size="small" 
-            style="width: 80px;"
-            @change="onSourceLanguageChange"
-          >
-            <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          <el-select v-model="sourceLanguage" size="small" @change="onSourceLanguageChange">
+            <el-option label="自动检测" value="auto"/>
+            <el-option label="English" value="en"/>
+            <el-option label="中文" value="zh"/>
+            <el-option label="Français" value="fr"/>
+            <el-option label="Español" value="es"/>
+            <el-option label="Deutsch" value="de"/>
+            <el-option label="日本語" value="ja"/>
+            <el-option label="Русский" value="ru"/>
+            <el-option label="Italiano" value="it"/>
+            <el-option label="한국어" value="ko"/>
+            <el-option label="Português" value="pt"/>
           </el-select>
         </div>
         <div class="swap-languages">
@@ -26,13 +31,8 @@
         </div>
         <div class="language-selector">
           <label>目标语言</label>
-          <el-select 
-            v-model="targetLanguage" 
-            size="small" 
-            disabled
-            placeholder="中文"
-          >
-            <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          <el-select v-model="targetLanguage" size="small" disabled placeholder="中文">
+            <el-option label="中文" value="zh"/>
           </el-select>
         </div>
       </div>
@@ -61,7 +61,7 @@
             <el-button size="mini" type="primary" v-if="sourceEditable" @click="finishSourceEdit">完成</el-button>
           </div>
         </div>
-        <div ref="sourceTextRef" class="text-editor markdown-body" :contenteditable="sourceEditable" @input="onSourceTextInput" @scroll="onSourceScroll" @mouseup="onSourceMouseUp" @keyup="onSourceMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')" :placeholder="'请输入要翻译的文本...'"></div>
+  <div ref="sourceTextRef" class="text-editor markdown-body markdown-body-root" :contenteditable="sourceEditable" @input="onSourceTextInput" @scroll="onSourceScroll" @mouseup="onSourceMouseUp" @keyup="onSourceMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'source')" :placeholder="'请输入要翻译的文本...'"></div>
       </div>
       <div class="text-panel target-panel">
         <div class="panel-header">
@@ -75,16 +75,10 @@
             <el-button size="mini" type="primary" v-else @click="finishEdit">保存</el-button>
           </div>
         </div>
-        <div ref="targetTextRef" class="text-editor target markdown-body" :class="{loading: translating}" :contenteditable="targetEditable" @input="onTargetInput" @scroll="onTargetScroll" @mouseup="onTargetMouseUp" @keyup="onTargetMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"></div>
+  <div ref="targetTextRef" class="text-editor target markdown-body markdown-body-root" :class="{loading: translating}" :contenteditable="targetEditable" @input="onTargetInput" @scroll="onTargetScroll" @mouseup="onTargetMouseUp" @keyup="onTargetMouseUp" @contextmenu.prevent.stop="onEditorContextMenu($event, 'target')"></div>
       </div>
     </div>
 
-    <!-- Context Menu for Text Selection (temporarily disabled) -->
-    <div v-if="false" ref="contextMenuRef" class="context-menu" :style="contextMenuStyle">
-      <!-- menu intentionally disabled during debugging -->
-    </div>
-
-    <!-- Settings Modal -->
     <el-dialog v-model="showSettings" title="翻译设置" width="600px">
       <el-form :model="settings" label-width="120px">
         <el-form-item label="翻译接口">
@@ -135,15 +129,17 @@
 </template>
 
 <script setup>
+// 高级翻译模块（补充：引入 GitHub Markdown 样式使表格/代码块显示更清晰）
 import {ref, reactive, onMounted, watch, onUnmounted, nextTick} from 'vue';
 import MarkdownIt from 'markdown-it';
-import {useAiToolsStore} from '../../stores/aiTools';
+import {useAiToolsStore} from '../../../stores/aiTools';
 import {ElMessage} from 'element-plus';
 import { Setting, Collection } from '@element-plus/icons-vue';
-import {aiService} from '../../services/aiService';
-import CloudSave from '../preview/CloudSave.vue';
-import {uploadStream} from '../../services/uploadStream';
+import {aiService} from '../../../services/aiService';
+import CloudSave from '../../preview/CloudSave.vue';
+import {uploadStream} from '../../../services/uploadStream';
 import GlossaryManager from './GlossaryManager.vue';
+import 'github-markdown-css/github-markdown.css';
 
 const props = defineProps({
   file: {type: Object, default: null},
@@ -202,18 +198,23 @@ function enterSourceEdit() {
   sourceEditable.value = true;
   nextTick(() => {
     if (sourceTextRef.value) {
+      // 进入编辑模式时将之前渲染后的 HTML 恢复为原始 Markdown 源文
+      // 这样可以看到诸如 **加粗**、`代码`、# 标题 等原始标记
+      sourceTextRef.value.innerText = sourceText.value || '';
       sourceTextRef.value.focus();
-      placeCaretAtEnd(sourceTextRef.value);
+      placeCaretAtEnd(sourceTextRef.value); // 光标定位末尾，方便继续编辑
     }
   });
 }
 
 async function finishSourceEdit() {
   // 结束源文本编辑并保存到后端（固定 esId = 19public226）
+  const esId = props.esId || props.fileId;
   sourceEditable.value = false;
-  nextTick(updateSourceTextContent);
+  // 保存后再重新渲染为 Markdown（延迟一个 tick 等 contenteditable 关闭）
+  nextTick(() => updateSourceTextContent());
   try {
-    const res = await aiService.saveSourceContent('19public226', sourceText.value);
+    const res = await aiService.saveSourceContent(esId, sourceText.value);
     if(res?.success){
       ElMessage.success('源文本已保存');
     } else {
@@ -283,6 +284,8 @@ function enterEdit() {
   targetEditable.value = true;
   nextTick(() => {
     if (targetTextRef.value) {
+      // 进入译文编辑模式时同样恢复为原始译文 Markdown 源
+      targetTextRef.value.innerText = translatedText.value || '';
       targetTextRef.value.focus();
       placeCaretAtEnd(targetTextRef.value);
     }
@@ -292,6 +295,7 @@ function enterEdit() {
 async function finishEdit() {
   targetEditable.value = false; // preserve model
   // push model back to DOM
+  // 退出编辑模式后按 Markdown 渲染译文
   nextTick(() => {
     updateTargetTextContent();
   });
@@ -385,9 +389,22 @@ const settings = reactive({
 });
 
 // 语言名称映射与摘要显示
-import { computed } from 'vue';
-const smallLangOptions = getLangOptions(['auto','zh','en','ru','fr','hi']);
-const languageSummary = computed(()=>`${getLangLabel(sourceLanguage.value)||sourceLanguage.value} → ${getLangLabel(targetLanguage.value)||targetLanguage.value}`);
+import {computed} from 'vue';
+
+const languageNameMap = {
+  auto: '自动检测',
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  es: 'Español',
+  de: 'Deutsch',
+  ja: '日本語',
+  ru: 'Русский',
+  it: 'Italiano',
+  ko: '한국어',
+  pt: 'Português'
+};
+const languageSummary = computed(() => `${languageNameMap[sourceLanguage.value] || sourceLanguage.value} → ${languageNameMap[targetLanguage.value] || targetLanguage.value}`);
 
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
@@ -482,7 +499,7 @@ async function loadCachedOrTranslate() {
   try {
     const esId = props.esId || props.fileId; // 正确传递 esId
     if (esId) {
-      const {aiService} = await import('../../services/aiService');
+      const {aiService} = await import('../../../services/aiService');
       const cached = await aiService.fetchCachedTranslation(esId);
       if (cached && cached.translation) {
         translatedText.value = cached.translation;
@@ -586,7 +603,7 @@ async function translateText() {
     let translatedParagraphs = [];
 
     if (settings.provider === 'builtin') {
-      const {aiService} = await import('../../services/aiService');
+      const {aiService} = await import('../../../services/aiService');
       for (let i = 0; i < paragraphs.length; i++) {
         if (cancelRequested.value) break;
         const paragraph = paragraphs[i];
@@ -605,7 +622,7 @@ async function translateText() {
     } else if (settings.provider === 'xunfei') {
       // 调用讯飞批量接口一次性翻译整段
       try {
-        const {aiService} = await import('../../services/aiService');
+        const {aiService} = await import('../../../services/aiService');
         const xfResPromise = aiService.translateWithXunfei(sourceText.value, sourceLanguage.value === 'auto' ? '' : sourceLanguage.value, targetLanguage.value);
         const xfRes = await xfResPromise;
         if (cancelRequested.value) throw new Error('cancelled');
@@ -626,7 +643,7 @@ async function translateText() {
         }
       } catch (e) {
         console.warn('Xunfei translate failed fallback to builtin', e);
-        const {aiService: aiSvcFallback} = await import('../../services/aiService');
+        const {aiService: aiSvcFallback} = await import('../../../services/aiService');
         for (let i = 0; i < paragraphs.length; i++) {
           if (cancelRequested.value) break;
           const paragraph = paragraphs[i];
@@ -654,7 +671,7 @@ async function translateText() {
       try {
         const esId = props.esId || props.fileId;
         if (esId) {
-          const {aiService} = await import('../../services/aiService');
+          const {aiService} = await import('../../../services/aiService');
           await aiService.saveTranslation(esId, translatedText.value, targetLanguage.value);
         }
       } catch (e) {
@@ -1008,18 +1025,6 @@ function applyFontSize() {
   if (targetTextRef.value) targetTextRef.value.style.fontSize = settings.fontSize + 'px';
 }
 
-// Show context menu at specified event
-function showContextMenuAt(event) {
-  // prevent the immediate document click from closing the menu/highlight
-  _ignoreNextDocumentClick = true;
-  _suppressSelectionClear = true;
-  showContextMenu.value = true;
-  nextTick(() => {
-    contextMenuStyle.value = { position:'fixed', left: event.clientX + 'px', top: event.clientY + 'px', zIndex: 9999 };
-    // small timeout to allow any native click to finish; then allow clears again when appropriate
-    setTimeout(() => { _suppressSelectionClear = false; }, 200);
-  });
-}
 
 // Hide context menu
 function hideContextMenu() {
@@ -1036,55 +1041,9 @@ function hideContextMenu() {
 
 // 术语 CRUD 相关逻辑已迁移至 GlossaryManager 组件
 
-// removed local getLanguageLabel; use getLangLabel directly from utils
-
-async function loadGlossary(){
-  try {
-    glossaryPagination.loading = true;
-    const { aiService } = await import('../../services/aiService');
-    const { list, total } = await aiService.getGlossaryPage({
-      pageNo: glossaryPagination.pageNo,
-      pageSize: glossaryPagination.pageSize,
-      type: glossaryPagination.typeFilter,
-      originalText: glossaryPagination.keyword,
-      language: 'zh'
-    });
-    terminologyList.value = list.map(it=>({
-      id: it.id,
-      type: it.type || 'terminology',
-      originalText: it.originalText || it.source || '',
-      translatedText: it.translatedText || it.target || '',
-      language: it.language || 'zh',
-      status: it.status
-    }));
-    glossaryPagination.total = total;
-  } catch(e){ console.warn('loadGlossary failed', e); }
-  finally { glossaryPagination.loading = false; }
-}
-
-function editTerminology(term) {
-  editingTerm.value = term;
-  Object.assign(terminologyForm, { ...term });
-  showAddTermDialog.value = true;
-}
-
-async function deleteTerminology(id) {
-  try {
-    await ElMessageBox.confirm('确认删除该术语？','提示',{ type:'warning', confirmButtonText:'删除', cancelButtonText:'取消' });
-    const { aiService } = await import('../../services/aiService');
-    const res = await aiService.deleteGlossaryEntry(id);
-    if (res && res.success) {
-      ElMessage.success('删除成功');
-      await loadGlossary();
-    } else {
-      ElMessage.error(res?.message || '删除失败');
-    }
-  } catch(e){ if (e !== 'cancel') ElMessage.error('删除失败'); }
-}
-
-async function saveTerminology() {
-  if (!terminologyForm.originalText || !terminologyForm.translatedText) {
-    ElMessage.error('请填写完整信息');
+function saveCustomTag(){
+  if(!customTagName.value.trim()){
+    ElMessage.error('请输入标签名称');
     return;
   }
   customTags.value.push({ name: customTagName.value.trim(), color: customTagColor.value });
@@ -1109,6 +1068,11 @@ onUnmounted(() => {
 .markdown-body ul{padding-left:1.2em;margin:6px 0;}
 .markdown-body p{margin:6px 0;line-height:1.55;}
 .markdown-body hr{border:none;border-top:1px solid #e5e7eb;margin:12px 0;}
+.markdown-body table{border-collapse:collapse;margin:12px 0;width:100%;}
+.markdown-body table th,.markdown-body table td{border:1px solid #d0d7de;padding:6px 10px;text-align:left;}
+.markdown-body table th{background:#f6f8fa;font-weight:600;}
+.theme-dark .markdown-body table th,.theme-dark .markdown-body table td{border-color:#30363d;}
+.theme-dark .markdown-body table th{background:#161b22;}
 .selection-highlight{background:rgba(64,158,255,0.35);border-radius:2px;}
 .line-highlight-active{background:rgba(255,215,0,0.35);}
 /* 原样式恢复 + 补充 cross-highlight */

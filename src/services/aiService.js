@@ -887,8 +887,11 @@ class AIService {
     async saveSourceContent(esId, fileContents) {
         if (!esId) return {success:false, message:'缺少 esId'};
         try {
-            const body = { esId, fileContents };
-            const res = await api.post('/admin-api/rag/ai/text/source/update', body, {
+            const body = {
+                esId: esId,
+                docs: [{fileContents: fileContents}]
+            };
+            const res = await api.post('/admin-api/rag/documents/indexes/update-fields', body, {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 20000
             });
