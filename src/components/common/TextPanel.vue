@@ -809,6 +809,7 @@ async function ocrText(){
   ocring.value = true;
   try {
   const txt = await aiService.ocrRecognize(esId);
+  ElMessage.warning('这个任务比较耗时，请耐心等待结果写入后刷新页面查看');
     const finalText = (txt && typeof txt === 'string') ? txt : (txt?.text || txt?.result || txt?.content || '');
   // user-visible messages handled below; avoid echoing raw debug text
     return;

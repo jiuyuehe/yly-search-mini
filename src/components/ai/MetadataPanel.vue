@@ -27,6 +27,10 @@
           <div class="label">文件版本:</div>
           <div class="value">{{ file.fileVersion || file.version || '-' }}</div>
         </div>
+        <div class="info-row">
+          <div class="label">文本语言:</div>
+          <div class="value">{{ file.fileLang || file.fileLanguage || '-' }}</div>
+        </div>
       </div>
       <el-empty v-else description="无文件信息" />
     </div>
