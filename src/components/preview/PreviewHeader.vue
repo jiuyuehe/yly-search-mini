@@ -68,7 +68,7 @@ const props = defineProps({
 const emit = defineEmits(['back', 'toggle-preview', 'toggle-text', 'translate', 'reload', 'download', 'download-finish', 'download-error']);
 
 // canPreview 仍用于切换“AI阅读/文本/翻译”按钮的可用状态（需要有内容可预览）
-const canPreview = computed(() => !!props.hasPerm && (!!props.file?.previewUrl || !!props.file?.extractedText));
+const canPreview = computed(() => !!props.hasPerm);
 // canOperate 专用于顶部下载/收藏/云盘按钮显示条件，只要有权限即可
 const canOperate = computed(() => !!props.hasPerm);
 // 允许下载条件：有权限 且 (后端已给 downloadUrl 或 提供 (fileId+fileCategory) 以便即时获取)

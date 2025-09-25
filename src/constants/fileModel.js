@@ -158,6 +158,27 @@ export function normalizeFile(raw = {}) {
   imageThumbnail: raw.imageThumbnail ?? raw.image_thumb ?? raw.thumbnail ?? null
   };
 
+  // preserve backend-provided AI tag field and merge into tags for display
+  try {
+    obj.fileAiTag = raw.fileAiTag ?? null;
+    const ai = raw.fileAiTag;
+    if (ai != null) {
+      if (Array.isArray(ai)) {
+        // prepend unique values so AI tags show first
+        ai.slice().reverse().forEach(v => {
+          if (v == null) return;
+          const s = String(v);
+          if (!obj.tags.includes(s)) obj.tags.unshift(s);
+        });
+        obj.fileAiTag = ai.join(',');
+      } else {
+        const s = String(ai);
+        if (s && !obj.tags.includes(s)) obj.tags.unshift(s);
+        obj.fileAiTag = s;
+      }
+    }
+  } catch (e) { /* ignore */ }
+
   return obj;
 }
 

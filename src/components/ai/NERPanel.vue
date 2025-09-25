@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useAiToolsStore } from '../../stores/aiTools';
 import { ElMessage } from 'element-plus';
 import { aiService } from '../../services/aiService';
@@ -189,7 +189,28 @@ async function saveChanges() {
 }
 
 watch(()=>props.fileId, ()=>{ initTried.value = false; initIfNeeded(); });
-onMounted(()=>{ initIfNeeded(); });
+onMounted(()=>{
+  initIfNeeded();
+  // listen for external activation to refresh/activate NER panel
+  window.addEventListener('activate-ner', handleExternalActivate);
+  // explicit refresh event to force reload latest entities
+  window.addEventListener('refresh-ner', handleRefreshNER);
+});
+onBeforeUnmount(()=>{
+  window.removeEventListener('activate-ner', handleExternalActivate);
+  window.removeEventListener('refresh-ner', handleRefreshNER);
+});
+
+function handleExternalActivate() {
+  // Force reload cached entities when other components request activation
+  initTried.value = false;
+  initIfNeeded();
+}
+
+function handleRefreshNER() {
+  // Force re-fetch recognized entities from backend
+  recognizeEntities().catch(()=>{});
+}
 </script>
 
 <style scoped>

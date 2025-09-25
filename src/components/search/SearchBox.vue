@@ -34,9 +34,9 @@
           <!-- 模式选择：全文(1)/段落(2)/精准(3) 仅文本相关显示 -->
           <div class="mode-select" v-if="!['image','qa'].includes(searchType)">
             <el-select v-model="textSearchMode" size="small" class="mode-select-inner" @change="handleModeChange">
-              <el-option label="默认匹配" :value="1" />
-              <el-option label="精准搜索" :value="2" />
-              <el-option label="混合搜索" :value="3" />
+              <el-option label="快速" :value="1" />
+              <el-option label="精准" :value="2" />
+              <el-option label="模糊" :value="3" />
             </el-select>
           </div>
 

@@ -4,18 +4,13 @@
       <div class="language-selectors">
         <div class="language-selector">
           <label>源语言</label>
-          <el-select v-model="sourceLanguage" size="small" @change="onSourceLanguageChange">
-            <el-option label="自动检测" value="auto"/>
-            <el-option label="English" value="en"/>
-            <el-option label="中文" value="zh"/>
-            <el-option label="Français" value="fr"/>
-            <el-option label="Español" value="es"/>
-            <el-option label="Deutsch" value="de"/>
-            <el-option label="日本語" value="ja"/>
-            <el-option label="Русский" value="ru"/>
-            <el-option label="Italiano" value="it"/>
-            <el-option label="한국어" value="ko"/>
-            <el-option label="Português" value="pt"/>
+          <el-select 
+            v-model="sourceLanguage" 
+            size="small" 
+            style="width: 80px;"
+            @change="onSourceLanguageChange"
+          >
+            <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
         <div class="swap-languages">
@@ -31,8 +26,13 @@
         </div>
         <div class="language-selector">
           <label>目标语言</label>
-          <el-select v-model="targetLanguage" size="small" disabled placeholder="中文">
-            <el-option label="中文" value="zh"/>
+          <el-select 
+            v-model="targetLanguage" 
+            size="small" 
+            disabled
+            placeholder="中文"
+          >
+            <el-option v-for="opt in smallLangOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
       </div>
@@ -79,6 +79,12 @@
       </div>
     </div>
 
+    <!-- Context Menu for Text Selection (temporarily disabled) -->
+    <div v-if="false" ref="contextMenuRef" class="context-menu" :style="contextMenuStyle">
+      <!-- menu intentionally disabled during debugging -->
+    </div>
+
+    <!-- Settings Modal -->
     <el-dialog v-model="showSettings" title="翻译设置" width="600px">
       <el-form :model="settings" label-width="120px">
         <el-form-item label="翻译接口">
@@ -379,22 +385,9 @@ const settings = reactive({
 });
 
 // 语言名称映射与摘要显示
-import {computed} from 'vue';
-
-const languageNameMap = {
-  auto: '自动检测',
-  zh: '中文',
-  en: 'English',
-  fr: 'Français',
-  es: 'Español',
-  de: 'Deutsch',
-  ja: '日本語',
-  ru: 'Русский',
-  it: 'Italiano',
-  ko: '한국어',
-  pt: 'Português'
-};
-const languageSummary = computed(() => `${languageNameMap[sourceLanguage.value] || sourceLanguage.value} → ${languageNameMap[targetLanguage.value] || targetLanguage.value}`);
+import { computed } from 'vue';
+const smallLangOptions = getLangOptions(['auto','zh','en','ru','fr','hi']);
+const languageSummary = computed(()=>`${getLangLabel(sourceLanguage.value)||sourceLanguage.value} → ${getLangLabel(targetLanguage.value)||targetLanguage.value}`);
 
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
@@ -1015,6 +1008,18 @@ function applyFontSize() {
   if (targetTextRef.value) targetTextRef.value.style.fontSize = settings.fontSize + 'px';
 }
 
+// Show context menu at specified event
+function showContextMenuAt(event) {
+  // prevent the immediate document click from closing the menu/highlight
+  _ignoreNextDocumentClick = true;
+  _suppressSelectionClear = true;
+  showContextMenu.value = true;
+  nextTick(() => {
+    contextMenuStyle.value = { position:'fixed', left: event.clientX + 'px', top: event.clientY + 'px', zIndex: 9999 };
+    // small timeout to allow any native click to finish; then allow clears again when appropriate
+    setTimeout(() => { _suppressSelectionClear = false; }, 200);
+  });
+}
 
 // Hide context menu
 function hideContextMenu() {
@@ -1031,9 +1036,55 @@ function hideContextMenu() {
 
 // 术语 CRUD 相关逻辑已迁移至 GlossaryManager 组件
 
-function saveCustomTag(){
-  if(!customTagName.value.trim()){
-    ElMessage.error('请输入标签名称');
+// removed local getLanguageLabel; use getLangLabel directly from utils
+
+async function loadGlossary(){
+  try {
+    glossaryPagination.loading = true;
+    const { aiService } = await import('../../services/aiService');
+    const { list, total } = await aiService.getGlossaryPage({
+      pageNo: glossaryPagination.pageNo,
+      pageSize: glossaryPagination.pageSize,
+      type: glossaryPagination.typeFilter,
+      originalText: glossaryPagination.keyword,
+      language: 'zh'
+    });
+    terminologyList.value = list.map(it=>({
+      id: it.id,
+      type: it.type || 'terminology',
+      originalText: it.originalText || it.source || '',
+      translatedText: it.translatedText || it.target || '',
+      language: it.language || 'zh',
+      status: it.status
+    }));
+    glossaryPagination.total = total;
+  } catch(e){ console.warn('loadGlossary failed', e); }
+  finally { glossaryPagination.loading = false; }
+}
+
+function editTerminology(term) {
+  editingTerm.value = term;
+  Object.assign(terminologyForm, { ...term });
+  showAddTermDialog.value = true;
+}
+
+async function deleteTerminology(id) {
+  try {
+    await ElMessageBox.confirm('确认删除该术语？','提示',{ type:'warning', confirmButtonText:'删除', cancelButtonText:'取消' });
+    const { aiService } = await import('../../services/aiService');
+    const res = await aiService.deleteGlossaryEntry(id);
+    if (res && res.success) {
+      ElMessage.success('删除成功');
+      await loadGlossary();
+    } else {
+      ElMessage.error(res?.message || '删除失败');
+    }
+  } catch(e){ if (e !== 'cancel') ElMessage.error('删除失败'); }
+}
+
+async function saveTerminology() {
+  if (!terminologyForm.originalText || !terminologyForm.translatedText) {
+    ElMessage.error('请填写完整信息');
     return;
   }
   customTags.value.push({ name: customTagName.value.trim(), color: customTagColor.value });

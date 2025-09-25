@@ -258,6 +258,21 @@ export const useExtractionsStore = defineStore('extractions', {
             }
         },
 
+        // 使用后端导出接口按表单或全部导出
+        async exportByForm(params = {}) {
+            this.loading.export = true;
+            this.error = null;
+            try {
+                const res = await extractionsService.exportByForm(params);
+                return res;
+            } catch (e) {
+                this.error = e.message || e;
+                throw e;
+            } finally {
+                this.loading.export = false;
+            }
+        },
+
         // 加载可用的AI模型列表
         async loadAvailableModels() {
             this.loading.models = true;

@@ -134,7 +134,7 @@
 
       <!-- 标签 -->
       <div class="filter-section">
-        <div class="section-title" @click="toggleSection('tags')" v-if="searchStore.precisionMode === 3">
+        <div class="section-title" @click="toggleSection('tags')" >
           <span>标签</span>
           <el-icon class="toggle-icon" :class="{ expanded: expandedSections.tags }">
             <ArrowDown />
@@ -208,6 +208,8 @@ import { useSearchStore } from '../../stores/search';
 import { searchService } from '../../services/search';
 
 const searchStore = useSearchStore();
+// define emits so we can call emit('tag-click', ...)
+const emit = defineEmits(['tag-click']);
 
 const expandedSections = reactive({
   fileCategory: true,
@@ -268,6 +270,8 @@ const tagSize = ref(10);
 const tagTotal = ref(0);
 const tagQuery = ref('');
 const tagSelectRef = ref(null);
+// When true, skip syncing filters -> store; used to reflect a UI-only tag selection
+const suppressFilterSync = ref(false);
 async function querySearchCreators(query) {
   loadingCreators.value = true;
   const all = await searchService.getCreators();
@@ -325,14 +329,29 @@ async function querySearchTags(query) {
 
 // handle selection changes for single-select
 function onTagsChange(newVal) {
-  // when user clears, reset pagination
+  // When user selects a tag from the sidebar dropdown, dispatch a centralized
+  // tag-selected event so the tag-search path is used. Reflect selection in
+  // the local UI (filters.tag) but suppress the watch that would sync it to
+  // the store/search API.
   if (!newVal) {
     tagPage.value = 1;
     tagQuery.value = '';
     // refresh first page (optional)
     fetchTagPage('', 1, false);
+    return;
   }
-  // otherwise, selection is just a single value; nothing special to do
+  // normalize label: ensure we send the human-readable label
+  const found = tagOptions.value.find(o => o.value === newVal);
+  const label = found ? found.label : newVal;
+  // Emit event to parent so it can route to TagCloud handler (no global events)
+  try { emit('tag-click', label); } catch(e){}
+  // reflect selection in UI but suppress syncing to store
+  try {
+    suppressFilterSync.value = true;
+    filters.tag = newVal;
+    // clear suppression on next tick so the watcher won't act on this programmatic change
+    setTimeout(() => { suppressFilterSync.value = false; }, 0);
+  } catch(e) { suppressFilterSync.value = false; }
 }
 
 function handleLoadMoreClick() {
@@ -390,6 +409,11 @@ defineExpose({ resetFilters, clearTagSelection /*, getCurrentFilters: () => ({..
 
 // Watch filters and apply to store
 watch(filters, (newFilters) => {
+  // If we are intentionally reflecting a UI-only tag selection, skip syncing
+  // filters to the store to avoid triggering a search or persisting the tag.
+  if (suppressFilterSync.value) {
+    return;
+  }
   // 如果用户刚切换到自定义时间范围，但尚未选择开始/结束日期，则不要立即触发搜索/更新
   if (newFilters.timeRange === 'custom' && (!Array.isArray(newFilters.customTimeRange) || newFilters.customTimeRange.length !== 2)) {
     return;

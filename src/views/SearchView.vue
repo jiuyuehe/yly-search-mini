@@ -6,7 +6,7 @@
 
       <!-- Left sidebar with filters (default hidden) -->
       <div v-if="uiMode === 'search'" class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
-        <filter-sidebar ref="filterSidebarRef" v-if="showFilters" />
+        <filter-sidebar ref="filterSidebarRef" v-if="showFilters" @tag-click="handleTagClick" />
       </div>
 
       <!-- Right content area -->
@@ -62,7 +62,8 @@
               @tab-change="handleTabChange"
             />
 
-          <TagCloud v-if="showTagCloud" @tag-click="handleTagClick" />
+          <TagCloud ref="tagCloudRef" v-if="showTagCloud" @tag-click="handleTagClick" />
+          <div v-if="tagSearching" class="tag-searching-indicator">按标签搜索中...</div>
 
       <div class="results-wrapper" style="position:relative; display:flex; flex-direction:column; flex:1; min-height:0;">
         <div v-if="!showTagCloud" class="search-results" :class="{ 'grid-layout': searchStore.isImageSearch }" :style="gridStyle">
@@ -72,6 +73,7 @@
             :item="item"
             :selected="isSelected(stableKeyFor(item, idx))"
             @update:selected="toggleSelected(stableKeyFor(item, idx), item, $event)"
+            @tag-click="handleTagClick"
             :search-query="searchStore.query"
             :display-mode="searchStore.isImageSearch ? imageDisplayMode : 'list'"
             :is-image-search="searchStore.isImageSearch"
@@ -118,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { List, Cloudy, Iphone, Loading } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -152,6 +154,8 @@ const pageSize = ref(searchStore.pagination.pageSize || 10);
 
 // 新增：侧栏 ref
 const filterSidebarRef = ref(null);
+const tagCloudRef = ref(null);
+const tagSearching = ref(false);
 
 // Image display controls
 const imageDisplayMode = ref('grid'); // 'grid' or 'list'
@@ -315,11 +319,7 @@ function handleTabChange(tab) {
   currentPage.value = 1;
 }
 
-function handleTagClick(tag){
-  showTagCloud.value=false;
-  searchStore.pagination.currentPage=1;
-  searchStore.searchFilesByTags([tag]);
-}
+
 
 function stableKeyFor(item, idx) {
   if (!item) return String(idx || 0);
@@ -431,6 +431,37 @@ onMounted(async () => {
   // after initial load and tag cloud fetch attempt to apply URL params
   applyUrlParamsIfAny();
 });
+
+onBeforeUnmount(() => {
+  // nothing to clean up for tag events; using component emits and refs
+});
+
+function handleGlobalTagSelected(e){
+  const tag = e?.detail?.tag;
+  if (!tag) return;
+  // Route the event to the TagCloud / existing tag handler so tag-search uses
+  // the same code path as clicking in the tag cloud. Do not put tag into filters.
+  try {
+    handleTagClick(tag);
+  } catch (err) { /* ignore */ }
+}
+
+function handleTagClick(tag){
+  // show UI indicator and call TagCloud handler programmatically (suppress emit)
+  try {
+    tagSearching.value = true;
+    // call TagCloud's exposed method if available
+    if (tagCloudRef.value && typeof tagCloudRef.value.handleClick === 'function') {
+      try { tagCloudRef.value.handleClick(tag, { suppressEmit: true }); }
+      catch { /* ignore */ }
+    }
+    // fall back to store-driven tag search if TagCloud handler didn't run
+    try { searchStore.searchFilesByTags([tag]); } catch (e) { /* ignore */ }
+  } finally {
+    // hide indicator after short delay to cover async search duration
+    setTimeout(() => { tagSearching.value = false; }, 600);
+  }
+}
 
 // selection UI is driven directly from store.selectedMap; no local selectedItems required
 

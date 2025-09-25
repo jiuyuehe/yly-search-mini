@@ -389,7 +389,12 @@ async function onRefresh(){
   finally { loading.value=false; rendering.value=false; scheduleRender(10); }
 }
 
-function handleClick(tag){ emit('tag-click', tag); }
+function handleClick(tag, opts = {}){
+  // When called programmatically with { suppressEmit: true } we skip emitting
+  if (!opts || !opts.suppressEmit) {
+    emit('tag-click', tag);
+  }
+}
 
 // Watch tags change
 watch(tags, ()=> scheduleRender(20));
@@ -412,6 +417,9 @@ function normalizeCustomCode(raw){
   // Otherwise treat last expression as implicit return
   return 'function(theta){ return ('+code+'); }';
 }
+
+// Expose the primary click handler so parent views can reuse tag-selection logic
+defineExpose({ handleClick });
 
 function applyCustomShape(){
   customShapeError.value='';
