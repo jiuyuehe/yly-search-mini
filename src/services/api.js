@@ -10,7 +10,7 @@ function getCtFromCookie() {
 }
 
 export function getCT() {
-  return localStorage.getItem(CT_KEY) || getCtFromCookie();
+  return getCtFromCookie() || localStorage.getItem(CT_KEY) || localStorage.getItem("ngStorage-ct");
 }
 export function clearCT() {
   try { localStorage.removeItem(CT_KEY); } catch { /* ignore */ }
