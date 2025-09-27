@@ -182,7 +182,7 @@ class AIService {
                 const targetRaw = data.summaryTarget || data.summary || data.target || '';
                 const targetObj = parseMaybeJson(targetRaw);
                 let targetSummary = String(targetObj.summary || targetRaw || '');
-                if (length && targetSummary && targetSummary.length > length) targetSummary = targetSummary.slice(0, length) + '...';
+                // 取消长度截断，完整展示摘要内容（原逻辑: if (length && targetSummary && targetSummary.length > length) targetSummary = targetSummary.slice(0, length) + '...';）
                 // Streaming only for target summary
                 if (onChunk && targetSummary) {
                     const chars = targetSummary.split('');

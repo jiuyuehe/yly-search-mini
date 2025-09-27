@@ -21,7 +21,19 @@
           size="small"
           type="text"
           class="s-button"
+          @click="refreshFileContents"
+          :loading="refreshing"
+        >
+          <el-icon><Refresh /></el-icon>
+          刷新
+        </el-button>
+        <el-button
+          v-if="showDownload"
+          size="small"
+          type="text"
+          class="s-button"
           @click="handleHeaderOcr"
+          :loading="ocring"
         >
           <el-icon><Image /></el-icon>
           OCR识别
@@ -242,9 +254,10 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Download, Iphone, Search, CopyDocument, Collection, CollectionTag, Connection,Loading,ChatLineRound  } from '@element-plus/icons-vue';
+import { Download, Iphone, Search, CopyDocument, Collection, CollectionTag, Connection,Loading,ChatLineRound, Refresh  } from '@element-plus/icons-vue';
 
 import { aiService } from '../../services/aiService';
+import previewService from '../../services/preview';
 import { wikiStream } from '../../services/wiki';
 import { resolveEsId } from '../../utils/esid';
 import api from '../../services/api';
@@ -334,18 +347,35 @@ const tagSaving = ref(false);
 const existingTagValues = ref([]); // loaded from cached tags
 // OCR loading state
 const ocring = ref(false);
-// OCR dialog state
-const showOcrDialog = ref(false);
+// 移除 OCR 弹窗，直接后台触发，刷新后用户通过刷新按钮看到最新 fileContents
 const ocrResultText = ref('');
-const ocrDialogFullscreen = ref(false);
+const ocrDialogFullscreen = ref(false); // 保留变量避免其它引用报错（若无引用可删除）
+const refreshing = ref(false);
 
-// preload existing file.imageOcrText when dialog opens
-watch(() => showOcrDialog.value, (v) => {
-  if (v) {
-    const existing = props.file?.imageOcrText || '';
-    ocrResultText.value = existing;
+// 刷新：重新获取文件详情（detail 接口），更新文本内容 fileContents
+async function refreshFileContents(){
+  const esId = resolveEsId(props.file, props.fileId);
+  if(!esId){ ElMessage.error('缺少文件标识，无法刷新'); return; }
+  if(refreshing.value) return;
+  refreshing.value = true;
+  try {
+    const detail = await previewService.getDetailByEsId(esId);
+    const newContents = detail?.fileContents || detail?.extractedText || detail?.text || '';
+    if(newContents){
+      textContent.value = newContents;
+      emit('update:content', newContents);
+      ElMessage.success('已获取最新内容');
+    } else {
+      ElMessage.info('未获取到新的内容');
+    }
+  } catch(e){
+    ElMessage.error(e?.message || '刷新失败');
+  } finally {
+    refreshing.value = false;
   }
-});
+}
+
+// 已移除 OCR 弹窗，不再监听 showOcrDialog
 
 // Terminology dialog
 const showTerminologyDialog = ref(false);
@@ -850,9 +880,7 @@ async function performOcr(){
 // Called from header OCR button: directly invoke OCR and open dialog when result present
 async function handleHeaderOcr(){
   if (ocring.value) return;
-  // open dialog immediately to show progress and prevent duplicate clicks
-  // showOcrDialog.value = true;
-  // clear previous result for clarity
+  // 直接触发，不显示弹窗
   ocrResultText.value = '';
   try {
     await ocrText();
@@ -860,7 +888,7 @@ async function handleHeaderOcr(){
     const existing = ocrResultText.value || props.file?.imageOcrText || '';
     if (existing) {
       ocrResultText.value = existing;
-      // dialog already opened above
+  // 不再有弹窗
     } else {
       // no immediate text returned; inform user that OCR task completed or is processing
       // ocrText already displays a message; leave dialog open so user can close
@@ -908,17 +936,7 @@ function toggleOcrFullscreen(){
   });
 }
 
-// ensure cleanup when dialog closes
-watch(() => showOcrDialog.value, (open) => {
-  if (!open) {
-    nextTick(()=>{
-      try { document.querySelectorAll('.el-dialog__wrapper.ocr-fullscreen-wrapper').forEach(w => w.classList.remove('ocr-fullscreen-wrapper')); } catch {};
-      try { document.querySelectorAll('.el-dialog.ocr-dialog-fullscreen-force').forEach(d => d.classList.remove('ocr-dialog-fullscreen-force')); } catch {};
-      // emit current ocrResultText so parent can save edits made in dialog
-      if (ocrResultText.value) emit('update:imageOcrText', ocrResultText.value);
-    });
-  }
-});
+// 已移除 OCR 弹窗，清理相关 watch 逻辑
 
 // Download text content
 function downloadText() {

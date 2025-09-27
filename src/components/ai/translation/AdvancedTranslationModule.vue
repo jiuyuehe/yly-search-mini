@@ -71,12 +71,12 @@
             <span class="char-count">{{ sourceText.length }}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <el-button v-if="showFormatBtn" size="mini" type="primary" :loading="formatLoading" @click="fetchFormattedSource">获取格式文本</el-button>
-            <el-button size="mini" type="primary" v-if="!sourceEditable" @click="enterSourceEdit">编辑</el-button>
+            <el-button v-if="showFormatBtn" size="mini" type="text" :loading="formatLoading" @click="fetchFormattedSource">获取格式文本</el-button>
+            <el-button size="mini" type="text" v-if="!sourceEditable" @click="enterSourceEdit">编辑</el-button>
             <cloud-save v-if="!sourceEditable" :file="file" type="create"
                         :defaultFileName="(file && file.fileName) ? (file.fileName.replace(/\.[^/.]+$/, '') + '-文本.txt') : ''"
                         ref="sourceCloudSaveRef" @confirm="onSourceCloudSaveConfirm"/>
-            <el-button size="mini" type="primary" v-if="sourceEditable" @click="finishSourceEdit">完成</el-button>
+            <el-button size="mini" type="text" v-if="sourceEditable" @click="finishSourceEdit">完成</el-button>
           </div>
         </div>
         <div ref="sourceTextRef" class="text-editor markdown-body markdown-body-root" :contenteditable="sourceEditable"
@@ -93,10 +93,11 @@
             <span class="char-count">{{ translatedText.length }}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
+            
+            <el-button size="mini" type="text" v-if="!targetEditable" @click="enterEdit">编辑</el-button>
+            <el-button size="mini" type="text" v-else @click="finishEdit">保存</el-button>
             <cloud-save v-if="!targetEditable" :file="file" type="create" ref="cloudSaveRef"
                         @confirm="onCloudSaveConfirm"/>
-            <el-button size="mini" type="primary" v-if="!targetEditable" @click="enterEdit">编辑</el-button>
-            <el-button size="mini" type="primary" v-else @click="finishEdit">保存</el-button>
           </div>
         </div>
         <div ref="targetTextRef" class="text-editor target markdown-body markdown-body-root"
