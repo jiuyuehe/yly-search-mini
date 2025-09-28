@@ -122,7 +122,7 @@ function buildFromFileData() {
     // 若第一次构建且 url 为空则跳过日志
     previewUrl.value = url;
     if (url && (!initialBuilt || previewUrl.value !== url)) {
-      console.log('[FilePreview] built previewUrl:', previewUrl.value, 'ext=', ext.value);
+  // debug log removed
     }
     initialBuilt = true;
   }

@@ -79,6 +79,7 @@
         @resend="resendMessage"
         @edit="editMessage"
         @delete="deleteMessage"
+        @scroll-state="(s)=> onChildScrollState(s)"
       />
 
       <div v-if="!messages.length && !currentSessionId && !streaming" class="starter-container">
@@ -109,6 +110,8 @@
           </div>
         </div>
       </footer>
+  <!-- parent-level scroll button to avoid clipping by the scroll container -->
+  <el-button v-if="!childNearBottom" class="scroll-to-bottom-parent" size="small" plain @click="scrollToBottom">回到底部</el-button>
     </section>
   </div>
 
@@ -147,6 +150,8 @@
 </template>
 <script setup>
 import { ref, onMounted, watch, nextTick, computed, reactive, onBeforeUnmount, provide } from 'vue';
+// declare emitted events so parent listeners are recognized (support kebab and camelCase)
+const emit = defineEmits(['return-to-search', 'returnToSearch']);
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Delete, Refresh, Close, ArrowLeft, Menu, Setting, Download } from '@element-plus/icons-vue';
 import FileChatMessageList from './FileChatMessageList.vue';
@@ -224,20 +229,25 @@ async function loadModels(){ modelsLoading.value=true; try { const { aiService }
 function fillConfigDraftFromSession(){
   const s = sessions.value.find(s=>s.id===currentSessionId.value);
   if(!s) return;
-  // copy session raw into draft; do not modify configForm yet
-  configDraft.userPrompt = s.raw?.userPrompt || '';
-  configDraft.modelId = s.raw?.modelId || s.raw?.model || '';
-  configDraft.temperature = s.raw?.temperature ?? 1;
-  configDraft.maxTokens = s.raw?.maxTokens ?? 1024;
-  configDraft.maxContexts = s.raw?.maxContexts ?? 10;
-  configDraft.topK = topK.value;
-  configDraft.maxContextChars = maxContextChars.value;
-  configDraft.systemMessage = s.raw?.systemMessage || '';
+  // copy session raw into draft; only override when session provides a concrete value
+  const raw = s.raw || {};
+  if (raw.userPrompt !== undefined && raw.userPrompt !== null) configDraft.userPrompt = raw.userPrompt;
+  if (raw.modelId !== undefined && raw.modelId !== null) configDraft.modelId = raw.modelId;
+  else if (raw.model !== undefined && raw.model !== null) configDraft.modelId = raw.model;
+  if (raw.temperature !== undefined && raw.temperature !== null) configDraft.temperature = raw.temperature;
+  if (raw.maxTokens !== undefined && raw.maxTokens !== null) configDraft.maxTokens = raw.maxTokens;
+  if (raw.maxContexts !== undefined && raw.maxContexts !== null) configDraft.maxContexts = raw.maxContexts;
+  // keep UI-driven values for topK / maxContextChars as current control defaults
+  configDraft.topK = topK.value ?? configDraft.topK;
+  configDraft.maxContextChars = maxContextChars.value ?? configDraft.maxContextChars;
+  if (raw.systemMessage !== undefined && raw.systemMessage !== null) configDraft.systemMessage = raw.systemMessage;
 }
 async function openConfig(){
+  //TODO 后续完善,先屏蔽
+  // fill draft from current session (only overrides when session provides explicit values)
   fillConfigDraftFromSession();
   await loadModels();
-  showConfig.value=true;
+  showConfig.value = true;
 }
 async function applyConfig(){
   savingConfig.value=true;
@@ -285,6 +295,7 @@ function resolveUserId(){ if(props.userId){ internalUserId.value=String(props.us
 const effectiveUserId = computed(()=> props.userId || internalUserId.value || '');
 const abortRef = ref(null);
 const messageListRef = ref(null);
+const childNearBottom = ref(true);
 const editingTitle = ref(false);
 const editableTitle = ref('');
 const recentQuestions = ref([]);
@@ -392,17 +403,27 @@ async function loadLatest(){
   // loadLatest fetched
     if(success && session){
       // merge with any local session info to preserve raw/config fields
-      const local = sessions.value.find(s=>s.id===session.id) || {};
+      const local = sessions.value.find(s=>String(s.id)===String(session.id)) || {};
       const merged = { ...session, raw: { ...(session.raw||{}), ...(local.raw||{}) }, title: session.title || local.title || '' };
-  // loadLatest merged
+      // set current session id
       currentSessionId.value = merged.id;
-      sessions.value = [merged];
+      // merge into existing sessions list instead of replacing it so previous reloadSessions results are preserved
+      const existIdx = sessions.value.findIndex(s => String(s.id) === String(merged.id));
+      if (existIdx >= 0) {
+        // replace existing entry
+        sessions.value.splice(existIdx, 1, merged);
+      } else {
+        // add to front
+        sessions.value.unshift(merged);
+      }
+      // ensure persisted-stored session is present (compare as string to avoid type mismatch)
+      if (stored && String(stored) !== String(merged.id)) {
+        const localStored = sessions.value.find(s=>String(s.id)===String(stored)) || { id: stored, esId: esForApi, title:'', raw:{} };
+        if (!sessions.value.find(s => String(s.id) === String(localStored.id))) sessions.value.push(localStored);
+      }
+      // load messages for the current session
       messages.value = history;
       scrollSoon();
-      if(stored && stored!==merged.id){
-        const localStored = sessions.value.find(s=>s.id===stored) || { id: stored, esId: esForApi, title:'', raw:{} };
-        sessions.value.push(localStored);
-      }
     }
   } catch(err){
     console.warn('加载会话失败', err);
@@ -461,30 +482,31 @@ async function reloadSessions(){
     const { list } = await aiService.listFileChatSessions({ esId: esForApi, pageNo:1, pageSize:50, userId: effectiveUserId.value });
     if(list && list.length){
       const cur = currentSessionId.value;
-      // map local sessions for merging raw/title
-      const localMap = new Map(sessions.value.map(s=>[s.id, s]));
+      // map local sessions for merging raw/title (use string keys)
+      const localMap = new Map(sessions.value.map(s=>[String(s.id), s]));
       // merge remote list with local raw/title when available
       let merged = list.map(s => ({
         ...s,
-        raw: { ...(s.raw||{}), ...(localMap.get(s.id)?.raw||{}) },
-        title: s.title || localMap.get(s.id)?.title || ''
+        raw: { ...(s.raw||{}), ...(localMap.get(String(s.id))?.raw||{}) },
+        title: s.title || localMap.get(String(s.id))?.title || ''
       }));
-      const remoteIds = new Set(list.map(s=>s.id));
-      const extras = sessions.value.filter(s=> !remoteIds.has(s.id));
-      if(cur && !remoteIds.has(cur)){
-        merged.unshift(extras.find(e=>e.id===cur) || { id: cur, esId: esForApi, title:'', raw:{} });
+      const remoteIds = new Set(list.map(s=>String(s.id)));
+      const extras = sessions.value.filter(s=> !remoteIds.has(String(s.id)));
+      if(cur && !remoteIds.has(String(cur))){
+        merged.unshift(extras.find(e=>String(e.id)===String(cur)) || { id: cur, esId: esForApi, title:'', raw:{} });
       }
-      extras.filter(e=> e.id!==cur).forEach(e=> merged.push(e));
+      extras.filter(e=> String(e.id)!==String(cur)).forEach(e=> merged.push(e));
+      // dedupe while normalizing ids to string for comparison
       const uniq=[];
       const seen=new Set();
       for(const s of merged){
-        if(!s || !s.id) continue;
-        if(seen.has(s.id)) continue;
-        seen.add(s.id);
+        if(!s || s.id==null) continue;
+        const sid = String(s.id);
+        if(seen.has(sid)) continue;
+        seen.add(sid);
         uniq.push(s);
       }
       sessions.value = uniq;
-  // reloadSessions merged count
     }
   } catch(e){
     console.warn('reload sessions failed', e);
@@ -541,35 +563,36 @@ async function sendMessage(){ if(streaming.value) return; const text = inputText
 }
 async function streamAnswer(aiMsg, question){
   streaming.value=true;
-  // line-based progressive renderer with fallback timer (shows progress even under buffering)
-  let pending = '';
+  // progressive renderer: collect deltas into aiMsg.parts, then flush parts -> content
   let flushTimer = 0;
   const FLUSH_INTERVAL = 80; // ms
   const clearForceFlush = () => { if (flushTimer) { clearTimeout(flushTimer); flushTimer = 0; } };
   const scheduleForceFlush = () => { if (!flushTimer) flushTimer = window.setTimeout(() => { flushLines(true); }, FLUSH_INTERVAL); };
   const flushLines = (force=false) => {
-    let flushed = false;
-    // flush full lines first
-    while (true) {
-      const idx = pending.indexOf('\n');
-      if (idx < 0) break;
-      const seg = pending.slice(0, idx + 1); // include newline
-      pending = pending.slice(idx + 1);
-      aiMsg.content += seg;
-      flushed = true;
-      throttleScroll();
+    clearForceFlush();
+    try {
+      // Build content from parts to avoid duplication or ordering issues
+      const newContent = Array.isArray(aiMsg.parts) ? aiMsg.parts.join('') : (aiMsg.content || '');
+      // Only update if changed
+      if (newContent !== aiMsg.content) {
+        Object.assign(aiMsg, { content: newContent });
+        // replace message entry to force reactivity
+        try {
+          const idx = messages.value.findIndex(m => m.id === aiMsg.id);
+          if (idx >= 0) {
+            const copy = { ...aiMsg };
+            messages.value.splice(idx, 1, copy);
+            aiMsg = messages.value[idx];
+          }
+        } catch (e) { /* ignore */ }
+        throttleScroll();
+      }
+    } finally {
+      // schedule next flush if more parts may come
+      if (!flushTimer && !force) scheduleForceFlush();
     }
-    // fallback: if no newline yet and force requested, flush a small chunk
-    if (!flushed && force && pending.length > 0) {
-      const chunk = pending.slice(0, Math.min(64, pending.length));
-      aiMsg.content += chunk;
-      pending = pending.slice(chunk.length);
-      flushed = true;
-      throttleScroll();
-    }
-    if (pending.length === 0) clearForceFlush(); else scheduleForceFlush();
   };
-  const stopRenderer = () => { clearForceFlush(); pending=''; };
+  const stopRenderer = () => { clearForceFlush(); };
 
   try {
     // 根据 chatType 选择 esId 策略：rag 必须使用文档 esId；qa 允许使用 per-user 全局会话
@@ -590,7 +613,9 @@ async function streamAnswer(aiMsg, question){
       userId: effectiveUserId.value,
       url: props.url,
       signal: controller.signal,
-      onDelta: (delta)=> { if(!delta) return; aiMsg.parts.push(delta); pending += delta; flushLines(false); },
+      onDelta: (delta)=> { if(!delta) return; aiMsg.parts.push(delta);
+  // schedule a flush to build content from parts
+        scheduleForceFlush(); },
       onDone: ()=> { flushLines(true); stopRenderer(); aiMsg.status='done'; streaming.value=false; abortRef.value=null; scrollSoon(); },
       onError: (err)=> { stopRenderer(); if(err==='aborted'){ aiMsg.status='aborted'; } else { aiMsg.status='error'; aiMsg.errorMsg=err; } streaming.value=false; abortRef.value=null; }
     });
@@ -607,17 +632,82 @@ function stopStreaming(){ if(abortRef.value){ abortRef.value.abort(); } }
 function retryMessage(msg){ if(streaming.value) return; if(msg.role!=='assistant') return; const idx = messages.value.findIndex(m=>m.id===msg.id); if(idx>0){ const userBefore = [...messages.value].slice(0,idx).reverse().find(m=>m.role==='user'); if(userBefore){ const newAi={ id:`a_${Date.now()}`, sessionId: currentSessionId.value, role:'assistant', content:'', parts:[], status:'streaming', createdAt:Date.now() }; messages.value.push(newAi); streamAnswer(newAi, userBefore.content); } } }
 function resendMessage(userMsg){ if(streaming.value) return; if(userMsg.role!=='user') return; const newAi={ id:`a_${Date.now()}`, sessionId: currentSessionId.value, role:'assistant', content:'', parts:[], status:'streaming', createdAt:Date.now() }; messages.value.push(newAi); streamAnswer(newAi, userMsg.content); }
 function editMessage(userMsg){ if(streaming.value) return; if(userMsg.role!=='user') return; inputText.value = userMsg.content; nextTick(()=> inputRef.value?.focus?.()); }
-function deleteMessage(m){ if(streaming.value && m.status==='streaming') return; const idx = messages.value.findIndex(x=>x.id===m.id); if(idx>-1){ messages.value.splice(idx,1); } }
+async function deleteMessage(m){
+  if(!m) return;
+  if(streaming.value && m.status==='streaming') return;
+  const idx = messages.value.findIndex(x=>x.id===m.id);
+  // determine backend message id candidate
+  const candidate = (m.messageId !== undefined && m.messageId !== null) ? m.messageId : m.id;
+  const isNumericId = candidate !== undefined && candidate !== null && /^\d+$/.test(String(candidate));
+  if(isNumericId){
+    const ok = await ElMessageBox.confirm('确认删除该消息？','提示',{ type:'warning' }).catch(()=>false);
+    if(!ok) return;
+    try{
+      const { aiService } = await import('../../../services/aiService');
+      const res = await aiService.deleteFileChatMessage(String(candidate), effectiveUserId.value);
+      if(res && res.success){
+        if(idx>-1) messages.value.splice(idx,1);
+        ElMessage.success('已删除');
+      } else {
+        ElMessage.error('删除失败');
+      }
+    } catch(e){
+      ElMessage.error('删除异常');
+    }
+  } else {
+    // local-only message (e.g. temporary client id), just remove from UI
+    if(idx>-1) messages.value.splice(idx,1);
+  }
+}
 function copyMessage(m){ try { navigator.clipboard?.writeText(m.content); ElMessage.success('已复制'); } catch { const ta=document.createElement('textarea'); ta.value=m.content; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ElMessage.success('已复制'); } catch { ElMessage.error('复制失败'); } document.body.removeChild(ta); } }
 async function deleteSession(id){ const ok = await ElMessageBox.confirm('确认删除该会话？','提示',{ type:'warning' }).catch(()=>false); if(!ok) return; try { const { aiService } = await import('../../../services/aiService'); const { success } = await aiService.deleteFileChatSession(id, effectiveUserId.value); if(success){ sessions.value = sessions.value.filter(s=>s.id!==id); if(id===currentSessionId.value){ currentSessionId.value = sessions.value[0]?.id || null; messages.value = []; } ElMessage.success('已删除'); } else ElMessage.error('删除失败'); } catch{ ElMessage.error('删除异常'); } }
 async function confirmClearAll(){ const ok = await ElMessageBox.confirm('确认清空该文件所有会话？','清空',{ type:'warning' }).catch(()=>false); if(!ok) return; const esId = effectiveEsId.value; if(!esId){ ElMessage.info('当前为百科模式，无文件会话可清空'); return; } try { const { aiService } = await import('../../../services/aiService'); const { success } = await aiService.clearFileChatSessions(esId, effectiveUserId.value); if(success){ ElMessage.success('已清空'); resetAll(); await ensureSession(); await reloadSessions(); } else ElMessage.error('清空失败'); } catch{ ElMessage.error('清空异常'); } }
-async function confirmClearCurrent(){ const ok = await ElMessageBox.confirm('确认清空当前会话消息？\n（将通过删除并立即新建同一会话实现）','清空当前',{ type:'warning', confirmButtonText:'确定', cancelButtonText:'取消' }).catch(()=>false); if(!ok) return; const oldTitle = currentSessionTitle.value; const oldModel = modelDisplayName.value; const curId = currentSessionId.value; if(!curId) return; const esId = effectiveEsId.value; if(!esId){ // 百科模式：仅清空本地消息
-  messages.value = []; ElMessage.success('已清空'); return; }
-  try { const { aiService } = await import('../../../services/aiService'); await aiService.deleteFileChatSession(curId, effectiveUserId.value); const { success, sessionId, raw } = await aiService.createFileChatSession({ esId, userPrompt: configForm.userPrompt || '', userId: effectiveUserId.value }); if(success){ currentSessionId.value = sessionId; sessions.value = sessions.value.filter(s=>s.id!==curId); sessions.value.unshift({ id: sessionId, esId, title: oldTitle, raw:{ modelName: oldModel, ...(raw||{}), userPrompt: configForm.userPrompt||'' }}); messages.value = []; persistLastSession(); ElMessage.success('已清空'); reloadSessions(); } else { ElMessage.error('清空失败'); } } catch{ ElMessage.error('清空异常'); } }
+async function confirmClearCurrent(){
+  const ok = await ElMessageBox.confirm('确认清空当前会话消息？\n（保留会话元信息）','清空当前',{ type:'warning', confirmButtonText:'确定', cancelButtonText:'取消' }).catch(()=>false);
+  if(!ok) return;
+  const oldTitle = currentSessionTitle.value;
+  const oldModel = modelDisplayName.value;
+  const curId = currentSessionId.value;
+  if(!curId) return;
+  const esId = effectiveEsId.value;
+  // Try to clear on server whenever we have a sessionId; fall back to local clear if server not reachable.
+  // (Previously we skipped server call when no esId; change to always attempt server-side clear if session exists.)
+  try {
+    const { aiService } = await import('../../../services/aiService');
+    // prefer clear-history API which preserves session meta
+    const res = await aiService.clearFileChatSessionHistory(curId, effectiveUserId.value);
+    if(res && res.success){
+      messages.value = [];
+      ElMessage.success('已清空');
+      // refresh sessions list to reflect any server-side changes
+      await reloadSessions();
+      return;
+    }
+    // fallback: if clear-history not supported or failed, try delete+recreate session as before
+    const del = await aiService.deleteFileChatSession(curId, effectiveUserId.value);
+    if(!del || !del.success){
+      // if deletion also failed, try local clear as last resort
+      messages.value = [];
+      ElMessage.error('清空失败（已本地清空）');
+      return;
+    }
+    const { success, sessionId, raw } = await aiService.createFileChatSession({ esId, userPrompt: configForm.userPrompt || '', userId: effectiveUserId.value });
+    if(success){
+      currentSessionId.value = sessionId;
+      sessions.value = sessions.value.filter(s=>s.id!==curId);
+      sessions.value.unshift({ id: sessionId, esId, title: oldTitle, raw:{ modelName: oldModel, ...(raw||{}), userPrompt: configForm.userPrompt||'' }});
+      messages.value = [];
+      persistLastSession();
+      ElMessage.success('已清空');
+      reloadSessions();
+    } else { ElMessage.error('清空失败'); }
+  } catch(e){ ElMessage.error('清空异常'); }
+}
 function exportConversation(){ const data = { sessionId: currentSessionId.value, messages: messages.value.map(m=>({ role:m.role, content:m.content })) }; const blob = new Blob([JSON.stringify(data,null,2)], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`conversation_${currentSessionId.value||'new'}.json`; a.click(); URL.revokeObjectURL(url); }
 function scrollSoon(){ nextTick(()=> scrollToBottom()); }
 function scrollToBottom(){ messageListRef.value?.scrollToBottom?.(); }
 function scrollToTop(){ messageListRef.value?.scrollToTop?.(); }
+function onChildScrollState(state){ try { if(!state) return; childNearBottom.value = !!state.nearBottom; } catch(e){} }
 let scrollThrottleTimer=null; function throttleScroll(){ if(scrollThrottleTimer) return; scrollThrottleTimer = requestAnimationFrame(()=>{ scrollThrottleTimer=null; scrollToBottom(); }); }
 function beginEditTitle(){ const cur = sessions.value.find(s=>s.id===currentSessionId.value); if(!cur) return; editableTitle.value = cur.title || ''; editingTitle.value=true; nextTick(()=>{ const el = document.querySelector('.title-edit-input input'); el && el.focus(); }); }
 function saveTitle(){ const cur = sessions.value.find(s=>s.id===currentSessionId.value); if(cur){ cur.title = editableTitle.value.trim(); } editingTitle.value=false; }
@@ -715,4 +805,7 @@ session-item:hover{background:#f0f2f5;}
 @keyframes blink{50%{opacity:0;}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 @media (max-width:960px){.file-chat-root{flex-direction:column;}.sessions-pane{width:100%;flex-direction:row;overflow-x:auto;}.sessions-list{display:flex;flex-wrap:nowrap;}.session-item{min-width:160px;border-right:1px solid #e5e7eb;}}
+
+/* parent-level scroll-to-bottom button to avoid clipping by child's scroll area */
+.scroll-to-bottom-parent{position:fixed;right:28px;bottom:96px;padding:6px 10px;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 6px 12px rgba(0,0,0,.08);z-index:1200;background:transparent;color:inherit;border:1px solid rgba(0,0,0,0.06);} 
 </style>

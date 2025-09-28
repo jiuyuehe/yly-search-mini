@@ -93,7 +93,7 @@ class FileService {
   
   async downloadFile(fileId) {
     try {
-      console.log('Downloading file:', fileId);
+  // debug log removed
       const fileData = MOCK_FILE_DATA[fileId];
       if (fileData) {
         alert(`正在下载文件：${fileData.name}`);
@@ -110,7 +110,7 @@ class FileService {
   async requestAccess(fileId, requestType, reason) {
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
-      console.log('Access requested for file:', fileId, 'Type:', requestType, 'Reason:', reason);
+  // debug log removed
       alert(`已提交访问申请，文件ID: ${fileId}`);
       return { success: true, message: '访问申请已提交' };
     } catch (e) {

@@ -5,7 +5,7 @@
       <div class="language-selectors">
         <div class="language-selector">
           <label>源语言</label>
-          <el-select v-model="sourceLanguage" size="small" @change="onSourceLanguageChange">
+          <el-select style="width: 80px;" v-model="sourceLanguage" size="small" @change="onSourceLanguageChange">
             <el-option label="自动检测" value="auto"/>
             <el-option label="English" value="en"/>
             <el-option label="中文" value="zh"/>

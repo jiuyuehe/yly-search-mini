@@ -62,7 +62,7 @@ class ImageSearchService {
         formData.append('imageFile', imageFile);
       }
 
-      console.log('图片搜索参数:', formData);
+  // debug log removed
 
       const response = await api.post(url, formData, {
         headers: {

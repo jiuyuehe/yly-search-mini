@@ -23,7 +23,7 @@ const router = useRouter();
 
 function onFormSelected(form) {
   // Can be used for specific actions when form is selected
-  console.log('Form selected:', form);
+  // debug log removed
 }
 </script>
 

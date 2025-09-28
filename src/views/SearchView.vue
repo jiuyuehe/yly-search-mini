@@ -56,7 +56,7 @@
             </div>
           </div>
 
-           <search-result-tabs v-if="!searchStore.isImageSearch && searchStore.searchType !== 'qa'"
+           <search-result-tabs v-if="!showTagCloud && !searchStore.isImageSearch && searchStore.searchType !== 'qa'"
               :activeTab="activeTab"
               :counts="tabCounts"
               @tab-change="handleTabChange"
@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, onActivated } from 'vue';
 import { useRoute } from 'vue-router';
 import { List, Cloudy, Iphone, Loading } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -151,7 +151,7 @@ const searchStore = useSearchStore();
     const showExportDialog = ref(false);
     const exportIds = ref([]);
 const showFilters = ref(false); // 默认隐藏
-const showTagCloud = ref(false); // 默认显示标签云（无搜索条件）
+const showTagCloud = ref(true); // 默认显示标签云（无搜索条件）
 const activeTab = ref('all');
 const uiMode = ref('search'); // 'search' | 'qa'
 const chatPanelRef = ref(null);
@@ -163,6 +163,18 @@ const pageSize = ref(searchStore.pagination.pageSize || 10);
 const filterSidebarRef = ref(null);
 const tagCloudRef = ref(null);
 const tagSearching = ref(false);
+
+// Helper to determine if filters object actually contains active criteria
+function filtersHaveActive(filters) {
+  if (!filters) return false;
+  try {
+    return Object.entries(filters).some(([k, v]) => {
+      if (k === 'timeRange') return v && v !== 'all';
+      if (Array.isArray(v)) return v.length > 0;
+      return !!v;
+    });
+  } catch (e) { return false; }
+}
 
 // Image display controls
 const imageDisplayMode = ref('grid'); // 'grid' or 'list'
@@ -220,6 +232,8 @@ function handleSearch(query, searchType, imageFile, options) {
     currentPage.value = 1;
     pageSize.value = searchStore.pagination.pageSize || pageSize.value;
   }
+  // hide tag cloud when an explicit search is triggered
+  showTagCloud.value = false;
   searchStore.search(query, searchType, imageFile, options || null);
   currentPage.value = 1;
   // if(query && query.trim()) { showTagCloud.value=false; } else if(!searchStore.tagSearchActive) { showTagCloud.value=true; }
@@ -265,6 +279,18 @@ function navigateToPreview(file, evt) {
   const norm = normalizeFile(file);
   const newTab = evt && (evt.ctrlKey || evt.metaKey || evt.button === 1);
   // indicate navigation origin so preview can show a back button
+  try {
+    const state = {
+      showTagCloud: showTagCloud.value,
+      currentPage: currentPage.value,
+      pageSize: pageSize.value,
+      activeTab: activeTab.value,
+      showFilters: showFilters.value,
+      query: searchStore.query,
+      filters: searchStore.filters
+    };
+    sessionStorage.setItem('search_view_state', JSON.stringify(state));
+  } catch (e) { /* ignore storage errors */ }
   goPreview(norm, { newTab, retureBtn: true });
 }
 
@@ -394,8 +420,8 @@ const route = useRoute();
 function applyUrlParamsIfAny(){
   try{
     const params = route.query || {};
-    const rawKey = params.key || params.q || params.query || '';
-    const rawFc = params.fc || params.fileSpace || params.space || '';
+  const rawKey = params.key || params.q || params.query || '';
+  const rawFc = params.fc || params.fileSpace || params.space || '';
     const key = rawKey ? String(rawKey).trim() : '';
     const fc = rawFc ? String(rawFc).trim() : '';
     if(!key && !fc) return false;
@@ -418,6 +444,70 @@ function applyUrlParamsIfAny(){
   }catch(e){ console.warn('applyUrlParamsIfAny failed', e); return false; }
 }
 
+async function restoreUIFromSession() {
+  try {
+  const raw = sessionStorage.getItem('search_view_state');
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s) {
+        // restore pagination and UI flags
+        currentPage.value = s.currentPage || currentPage.value;
+        pageSize.value = s.pageSize || pageSize.value;
+        activeTab.value = s.activeTab || activeTab.value;
+        showFilters.value = !!s.showFilters;
+        // restore filters and query into store but do not overwrite other store state
+        if (s.filters) searchStore.updateFilters(s.filters);
+        if (s.query) searchStore.query = s.query;
+        // if previously in list view, hide tag cloud. Only trigger a network search
+        // if the saved state contains an explicit query or non-empty filters.
+        if (!s.showTagCloud) {
+          showTagCloud.value = false;
+          const hasSavedQuery = !!(s.query && String(s.query).trim());
+          const hasSavedFilter = !!s.filters && Object.values(s.filters).some(v => Array.isArray(v) ? v.length > 0 : !!v);
+          // restored saved state indicates previous view
+          if (hasSavedQuery || hasSavedFilter) {
+            // trigger a search to repopulate results with restored query/filters
+            setTimeout(() => {
+              try { searchStore.search(s.query || '', searchStore.searchType || 'fullText'); } catch (e) {}
+            }, 60);
+          }
+        }
+        // clear saved state after restore so subsequent fresh visits are clean
+        sessionStorage.removeItem('search_view_state');
+        return; // restored from explicit session state, skip further checks
+      }
+    }
+  } catch (e) {
+    // ignore parse/storage errors and continue to other restore paths
+  }
+
+  // fallback: apply URL params if any
+  try { if (applyUrlParamsIfAny()) return; } catch (e) { /* ignore */ }
+
+  // If there are explicit user-driven search conditions, switch to list view.
+  // Do NOT hide the tag cloud just because background data (e.g. initial load) populated results.
+  try {
+    const hasQuery = !!(searchStore.query && String(searchStore.query).trim());
+  const hasFilter = filtersHaveActive(searchStore.filters);
+  // post-restore checks
+    // Only switch to list when there's an actual query or active filters (user intent).
+    if (hasQuery || hasFilter) {
+      showTagCloud.value = false;
+      // If we have conditions but no results yet, trigger a search to repopulate
+      const hasResults = Array.isArray(searchStore.results) && searchStore.results.length > 0;
+      if (!hasResults) {
+        setTimeout(() => {
+          try { searchStore.search(searchStore.query || '', searchStore.searchType || 'fullText'); } catch (e) { /* ignore */ }
+        }, 60);
+      }
+    }
+  } catch (e) { /* ignore */ }
+}
+// Register lifecycle hooks synchronously during setup
+onActivated(() => { try { restoreUIFromSession(); } catch(e){} });
+// watch route changes to catch navigation back into this view (non-keep-alive cases)
+watch(() => route.fullPath, (v, old) => { try { restoreUIFromSession(); } catch(e){} });
+
 onMounted(async () => {
   // Sync local UI from store so when returning from preview we keep previous state
   currentPage.value = searchStore.pagination.currentPage || currentPage.value;
@@ -425,9 +515,20 @@ onMounted(async () => {
   activeTab.value = searchStore.activeTab || activeTab.value;
   showFilters.value = !!searchStore.filters && Object.values(searchStore.filters).some(v => Array.isArray(v)? v.length>0 : !!v);
 
+  
+
   // Only load initial data when we don't already have results cached in the store
+  // Always avoid running an automatic initial search here. If URL/session require a search,
+  // restoreUIFromSession() / applyUrlParamsIfAny() will trigger it explicitly.
   if (!Array.isArray(searchStore.results) || searchStore.results.length === 0) {
-    await searchStore.loadInitialData();
+  // Decide initial view: if URL provides search params, show tag cloud; otherwise show list
+  const params = route.query || {};
+  const rawKey = params.key || params.q || params.query || '';
+  const rawFc = params.fc || params.fileSpace || params.space || '';
+  const urlHasSearch = !!(rawKey || rawFc);
+  // If URL has search params we should show the list; otherwise default to tag cloud
+  showTagCloud.value = !urlHasSearch;
+  await searchStore.loadInitialData(false);
   }
 
   // Ensure tag cloud available but avoid forcing refresh if already present
@@ -435,27 +536,15 @@ onMounted(async () => {
     searchStore.fetchTagCloud(true).catch(()=>{});
   }
 
-  // after initial load and tag cloud fetch attempt to apply URL params
-  applyUrlParamsIfAny();
+  // after initial load and tag cloud fetch attempt to apply URL params / restore from session
+  await restoreUIFromSession();
 });
-
-onBeforeUnmount(() => {
-  // nothing to clean up for tag events; using component emits and refs
-});
-
-function handleGlobalTagSelected(e){
-  const tag = e?.detail?.tag;
-  if (!tag) return;
-  // Route the event to the TagCloud / existing tag handler so tag-search uses
-  // the same code path as clicking in the tag cloud. Do not put tag into filters.
-  try {
-    handleTagClick(tag);
-  } catch (err) { /* ignore */ }
-}
 
 function handleTagClick(tag){
   // show UI indicator and call TagCloud handler programmatically (suppress emit)
   try {
+  // switch to list view when a tag is clicked (user intentionally searching)
+  showTagCloud.value = false;
     tagSearching.value = true;
     // call TagCloud's exposed method if available
     if (tagCloudRef.value && typeof tagCloudRef.value.handleClick === 'function') {
@@ -476,6 +565,14 @@ function handleTagClick(tag){
 watch(() => searchStore.pagination.currentPage, (p) => {
   if (typeof p === 'number' && p !== currentPage.value) currentPage.value = p;
 });
+
+// When filters change (user interacted with sidebar), switch to list view automatically
+watch(() => searchStore.filters, (f) => {
+  try {
+    const hasFilter = !!f && Object.values(f).some(v => Array.isArray(v) ? v.length > 0 : !!v);
+    if (hasFilter) showTagCloud.value = false;
+  } catch (e) { /* ignore */ }
+}, { deep: true });
 watch(() => searchStore.pagination.pageSize, (s) => {
   if (typeof s === 'number' && s !== pageSize.value) pageSize.value = s;
 });

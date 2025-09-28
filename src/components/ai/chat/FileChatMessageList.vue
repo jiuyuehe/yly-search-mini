@@ -14,8 +14,8 @@
             <el-tag v-else-if="m.status==='streaming'" size="small" type="info">生成中</el-tag>
           </div>
           <div class="bubble-text" :class="m.role">
-            <div v-if="m.role==='assistant'" class="markdown-body" v-html="renderMarkdown(m.content)"></div>
-            <span v-else>{{ m.content }}</span>
+            <div v-if="m.role==='assistant'" class="markdown-body" v-html="renderMarkdown(m.content || (Array.isArray(m.parts) ? m.parts.join('') : ''))"></div>
+            <span v-else>{{ m.content || (Array.isArray(m.parts) ? m.parts.join('') : '') }}</span>
             <span v-if="m.status==='streaming'" class="cursor"/>
           </div>
           <div v-if="m.references && m.references.length" class="refs">
@@ -50,7 +50,7 @@
       </div>
     </div>
     <div v-if="streaming" class="streaming-tip">生成中...(Esc 停止)</div>
-    <div v-if="showScrollBtn" class="scroll-to-bottom" @click="scrollToBottom">回到底部</div>
+    <!-- <div v-if="showScrollBtn" class="scroll-to-bottom" @click="scrollToBottom">回到底部</div> -->
   </div>
 </template>
 <script setup>
@@ -64,7 +64,7 @@ const props = defineProps({
   userAvatarText: { type: String, default: '我' },
   aiAvatarText: { type: String, default: 'AI' }
 });
-const emits = defineEmits(['copy','retry','resend','edit','delete']);
+const emits = defineEmits(['copy','retry','resend','edit','delete','scroll-state']);
 
 const container = ref(null);
 const showScrollBtn = ref(false);
@@ -117,12 +117,13 @@ function emitDelete(m){ emits('delete', m); }
 
 function scrollToBottom(){ const el = container.value; if(!el) return; el.scrollTop = el.scrollHeight; showScrollBtn.value=false; }
 function scrollToTop(){ const el = container.value; if(!el) return; el.scrollTop = 0; }
-function handleScroll(){ const el=container.value; if(!el) return; const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120; showScrollBtn.value = !nearBottom; }
+function handleScroll(){ const el=container.value; if(!el) return; const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120; showScrollBtn.value = !nearBottom; // inform parent about scroll state
+  try { emits('scroll-state', { nearBottom, scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }); } catch(e) { /* ignore */ } }
 
 watch(()=>props.list.length, ()=> nextTick(scrollToBottom));
 watch(()=>props.streaming, (v)=>{ if(v) nextTick(scrollToBottom); });
 
-function exposeApi(){ return { scrollToBottom, scrollToTop }; }
+function exposeApi(){ return { scrollToBottom, scrollToTop, getScrollState: () => { const el = container.value; if(!el) return { nearBottom:true, scrollTop:0, scrollHeight:0, clientHeight:0 }; const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120; return { nearBottom, scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }; } }; }
 // expose
 defineExpose(exposeApi());
 </script>

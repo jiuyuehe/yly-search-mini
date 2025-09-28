@@ -131,7 +131,7 @@ function initializeData() {
   // 3. 旧格式：fields 数组（name/value 对象）
   // 4. extracted_data 原始对象
   // 新保存格式：extraction.fields 是字符串数组，每个元素为一段 JSON 字符串，需解析合并
-  try { console.debug('[ExtractionDetail] fields 原始值:', props.extraction.fields); } catch {}
+  try { /* debug removed */ } catch {}
 
   // 统一解析 fields：支持 string | object | (string|object)[]
   const fld = props.extraction.fields;

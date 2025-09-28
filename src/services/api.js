@@ -120,14 +120,14 @@ export async function initAuth(force = false) {
   _authInited = true;
   const ct = getCT();
   if (!ct) {
-    console.log('未检测到登录令牌 ct');
+  // debug log removed
     return null;
   }
   const user = await fetchUserInfo();
   if (!user) {
     // 已在 fetch 内部提示
   } else {
-    console.log({ message: '用户已登录：' + (user.name || user.username || ''), duration: 1800 });
+  // debug log removed
   }
   return user;
 }

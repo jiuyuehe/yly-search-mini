@@ -230,7 +230,7 @@ function goBack() { if (window.history.length > 1) router.back(); else router.pu
 
 // Text selection handler for TextPanel
 function onTextSelected(text) {
-  console.log('Selected text:', text);
+  // debug removed
   // Handle text selection if needed
 }
 
@@ -430,7 +430,7 @@ async function load() {
       const merged = { ...(fileData.value || {}), ...view, fileType: ext };
       if (view.view && /\.html?($|\?)/i.test(view.view)) {
         merged.viewUrl = buildAppsUrl(view.view);
-        console.log('[PreviewView] use backend html viewUrl:', merged.viewUrl);
+  // debug removed
       }
       if (view.file) merged.downloadUrl = buildAppsUrl(view.file);
       if (view.thumb) merged.thumbUrl = buildAppsUrl(view.thumb);
@@ -440,7 +440,7 @@ async function load() {
       }
       merged.hasAccess = true;
       merged.previewUrl = buildPreviewUrl(merged);
-      console.log('[PreviewView] built previewUrl:', merged.previewUrl, 'ext=', ext);
+  // debug removed
       nextTick(() => { adjustSizes(); });
       fileData.value = merged;
       hasPerm.value = true;
@@ -489,7 +489,7 @@ onUnmounted(() => { destroyed = true; window.removeEventListener('resize', adjus
 watch(() => [route.params.fc, route.params.fi, route.params.nsi, route.params.subp].join(':'), () => load());
 
 function buildPreviewUrl(fd) {
-   console.log('[PreviewView] built fd:', fd);
+  // debug removed
   if (!fd) return '';
   const ext = (fd.fileType || fd.ext || getFileExtenName(fd.fileName || fd.name || '') || '').toLowerCase();
   // 若后端已有 viewUrl/previewUrl 优先使用

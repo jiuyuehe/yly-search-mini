@@ -103,13 +103,21 @@ export const useSearchStore = defineStore('search', {
     }
   },
   actions: {
-  async loadInitialData() { try { const fo = await searchService.getFilterOptions(); this.filterOptions = fo; // preserve current searchType if set (e.g., returning from preview)
-    const initialType = this.searchType || 'fullText';
-    await this.search('', initialType);
-  } catch (e) { this.error = e.message; } },
+  // loadInitialData: fetch filter options and optionally run an initial (empty) search.
+  // runSearch: boolean (default true) — when false, only fetches filter options.
+  async loadInitialData(runSearch = true) {
+    try {
+      const fo = await searchService.getFilterOptions();
+      this.filterOptions = fo; // preserve current searchType if set (e.g., returning from preview)
+      const initialType = this.searchType || 'fullText';
+      if (runSearch) {
+        await this.search('', initialType);
+      }
+    } catch (e) { this.error = e.message; }
+  },
   async fetchTagCloud(force=false){ if(!force && this.tagCloud && this.tagCloud.length) return this.tagCloud; const { tagCloudService } = await import('../services/tagCloud'); this.tagCloud = await tagCloudService.getKeywordsCloud(); return this.tagCloud; },
   async refreshTagCloud(){ const { tagCloudService } = await import('../services/tagCloud'); await tagCloudService.updateKeywordsCloud(); this.tagCloud = await tagCloudService.getKeywordsCloud(); },
-    buildParams(query, searchType) {
+  buildParams(query, searchType) {
       const f = this.filters; const page = this.pagination.currentPage; const pageSize = this.pagination.pageSize; const offset = (page - 1) * pageSize;
       // 时间
       let timeDis, startDate, endDate;

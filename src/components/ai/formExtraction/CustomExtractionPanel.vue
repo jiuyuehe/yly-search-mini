@@ -190,8 +190,7 @@ async function extractInfo() {
     if(!payload) {
       console.warn('[extractInfo] 后端返回空 payload', extr_resp);
     }
-    console.log('[extractInfo] 原始响应:', extr_resp);
-    console.log('[extractInfo] 解析后的 payload:', payload);
+  // debug logs removed
 
     rawExtractionPayload.value = payload;
     const formResult = payload?.formResult;
@@ -296,7 +295,7 @@ async function confirmResult(index) {
     }
 
     const saveReq = { esId, formId, fields: fieldsPayload };
-    console.log('[confirmResult] 保存请求 payload:', saveReq);
+  // debug log removed
     const saveResp = await formsService.saveExtractionHistory(saveReq);
     const respPayload = saveResp?.data?.data || saveResp?.data || saveResp;
     const code = saveResp?.data?.code ?? respPayload?.code;

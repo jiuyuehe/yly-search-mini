@@ -214,7 +214,7 @@ async function runThemeClassification(){
     ElMessage.warning('缺少 esId，无法分类');
     return;
   }
-  console.debug('[Classification] runThemeClassification', { esId: esIdVal, themeId: activeThemeId.value });
+  // debug removed
   await store.classifyTheme({ esId: esIdVal, themeId: activeThemeId.value || undefined })
   if(!classificationList.value.length){ ElMessage.info('无推荐结果') }
 }

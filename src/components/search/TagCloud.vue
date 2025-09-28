@@ -4,7 +4,9 @@
       <div class="left-info">
         <span class="title">标签云</span>
         <span v-if="loading" class="loading">加载中...</span>
-        <span v-if="!loading && tags.length" class="meta">共 {{ tags.length }} 个标签</span>
+        <span v-if="!loading" class="meta">
+          共 {{ rawTags.length }} 个标签，已展示 {{ tags.length }} 个
+        </span>
       </div>
       <div class="right-actions">
         <el-select v-model="shape" size="small" style="width:110px" @change="renderCloud" :disabled="loading">
@@ -82,6 +84,9 @@ const props = defineProps({
   maxFont: { type: Number, default: 46 },
   height: { type: Number, default: 540 },
   background: { type: String, default: '#fff' }
+  ,
+  // 最大标签字符长度（默认 32），超过则会被过滤不展示
+  maxTagLength: { type: Number, default: 32 }
 });
 
 const store = useSearchStore();
@@ -117,10 +122,10 @@ const customShapeError = ref('');
 const stylePreset = ref('dynamic');
 
 const rawTags = computed(() => store.tagCloud || []);
-// 过滤掉长度 > 8 的标签（去除首尾空白后判定）
+// 过滤掉长度超过 maxTagLength 的标签（去除首尾空白后判定）
 const tags = computed(()=> rawTags.value.filter(t => {
   const name = (t.tag || '').trim();
-  return name.length > 0 && name.length <= 8;
+  return name.length > 0 && name.length <= (props.maxTagLength || 32);
 }));
 
 function getWeightRange() {
@@ -354,8 +359,7 @@ function renderCloud(){
   inspect.adaptiveGridBase = adaptiveGrid;
   inspect.dpr = window.devicePixelRatio || 1;
   inspect.stylePreset = stylePreset.value;
-        inspect.origin = wcOptions.origin || '(auto)';
-        console.log('[TagCloud][WordCloud options]', inspect);
+  inspect.origin = wcOptions.origin || '(auto)';
   } catch{ /* log ignore */ }
       WordCloud(el, wcOptions);
       // Attach click fallback on container: if WordCloud click didn't fire, use last hoverWord

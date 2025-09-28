@@ -349,7 +349,6 @@ class AIService {
             const out = [];
             if (res && typeof res === 'object') {
                 const data = res.data || res.result || {};
-                console.log('[AIService] getTags response', data);
                 let kw = data.keywords || data.TagItem || data.list || data;
                 // 若是关键字数组对象: [{weight, tag}...]
                 if (Array.isArray(kw)) {
@@ -1363,7 +1362,6 @@ class AIService {
                                 } = {}) {
         try {
             const body = {title, esId, roleId, modelId, temperature, maxTokens, maxContexts, userPrompt};
-            console.log('createFileChatSession body', userPrompt);
             Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
             const headers = {'Content-Type': 'application/json'};
             const uid = this._getUserId(userId);
@@ -1503,6 +1501,25 @@ class AIService {
         }
     }
 
+    async deleteFileChatMessage(messageId, userId) {
+        if (!messageId) return { success: false };
+        try {
+            const headers = {};
+            const uid = this._getUserId(userId);
+            if (uid !== '') headers['X-User-Id'] = uid;
+            const res = await api.delete('/admin-api/rag/ai/text/file-chat/message/delete', {
+                params: { messageId },
+                headers,
+                timeout: 20000
+            });
+            const root = this._normalizeWrapper(res);
+            return { success: root.code === 0, data: root.data };
+        } catch (e) {
+            console.warn('[AIService] deleteFileChatMessage failed', e);
+            return { success: false, message: e.message };
+        }
+    }
+
     async clearFileChatSessions(esId, userId) {
         if (!esId) return {success: false};
         try {
@@ -1519,6 +1536,25 @@ class AIService {
         } catch (e) {
             console.warn('[AIService] clearFileChatSessions failed', e);
             return {success: false, message: e.message};
+        }
+    }
+
+    async clearFileChatSessionHistory(sessionId, userId) {
+        if (!sessionId) return { success: false };
+        try {
+            const headers = {};
+            const uid = this._getUserId(userId);
+            if (uid !== '') headers['X-User-Id'] = uid;
+            const res = await api.delete('/admin-api/rag/ai/text/file-chat/session/clear-history', {
+                params: { sessionId },
+                headers,
+                timeout: 20000
+            });
+            const root = this._normalizeWrapper(res);
+            return { success: root.code === 0, data: root.data };
+        } catch (e) {
+            console.warn('[AIService] clearFileChatSessionHistory failed', e);
+            return { success: false, message: e.message };
         }
     }
 

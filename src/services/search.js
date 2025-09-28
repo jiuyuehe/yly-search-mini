@@ -111,7 +111,10 @@ class SearchService {
   async getLabels(keyword = '', page = 1, pageSize = 20) {
     try {
       const params = { page, pageSize };
-      if (keyword) params.keyword = keyword;
+      if (keyword) {
+        params.keyword = keyword;
+        params.label = keyword;
+      }
       const root = await api.get('/admin-api/rag/enhancement/label/all', { params });
       if (root?.code !== 0) throw new Error(root?.msg || '获取标签失败');
       const dataObj = root.data || {};

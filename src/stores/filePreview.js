@@ -14,7 +14,7 @@ export const useFilePreviewStore = defineStore('filePreview', {
       
       try {
         const file = await fileService.getFilePreview(fileId);
-        console.log("loadFile-----",file)
+  // debug removed
         this.currentFile = file;
         this.error = null;
         return file;

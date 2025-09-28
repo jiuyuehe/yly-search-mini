@@ -145,14 +145,7 @@ const displayFileLang = computed(() => {
 // Debug: if displayFileLang is missing, print the item and raw payload for investigation
 watch(() => props.item, (it) => {
   if (!displayFileLang.value) {
-    console.debug('[SearchResultItem] missing fileLang for item', {
-      id: it?.id || it?.documentId || it?.fileId,
-      file: it?.file,
-      fileLang: it?.file?.fileLang,
-      itemFileLang: it?.fileLang,
-      itemLang: it?.lang,
-      raw: it?._raw || it?._source || null
-    });
+  // debug removed
   }
 }, { immediate: true });
 

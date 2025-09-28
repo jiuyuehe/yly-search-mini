@@ -64,7 +64,7 @@ export async function wikiStream(opts) {
     try { const u = getUserInfo(); userId = (u && (u.id || u.userId)) ? (u.id || u.userId) : ''; } catch { /* ignore */ }
     let resp;
     try {
-      console.log('wikiStream: fetch', WIKI_FULL_PATH);
+  // debug log removed
       resp = await fetch(WIKI_FULL_PATH, {
         method: 'POST',
         headers: {

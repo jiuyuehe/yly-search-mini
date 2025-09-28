@@ -70,7 +70,7 @@ const ext = computed(() => {
 
 const previewUrl = computed(() => {
   const url = props.file?.previewUrl || props.file?.viewUrl || '';
-  if (url) console.log('[DocPreviewPane] previewUrl:', url);
+  // debug log removed
   return url;
 });
 // 文本内容优先级：fileContents (外层直接返回的原始内容) > extractedText > text
@@ -85,7 +85,7 @@ const isText = computed(() => inList(FILE_TYPE.shell) || EXTRA_TEXT_EXTS.include
 
 // 调试：跟踪文件类型判定
 watch([ext, isOffice, isImage, isText], ([e,o,i,t]) => {
-  console.log('[DocPreviewPane][debug] ext=', e, 'isOffice=', o, 'isImage=', i, 'isText=', t, 'hasUrl=', !!previewUrl.value);
+  // debug log removed
 });
 
 // iframe 状态管理
@@ -118,7 +118,7 @@ function handleIframeLoad() {
   iframeLoaded.value = true;
   iframeLoading.value = false;
   iframeError.value = false;
-  console.log('[DocPreviewPane] iframe loaded');
+  // debug log removed
 }
 
 function retryIframe() {
