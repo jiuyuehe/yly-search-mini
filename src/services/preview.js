@@ -69,7 +69,7 @@ class PreviewService {
   }
 
   /** 创建 NAS 在线预览任务 */
-  async createNasPreviewTask({ nasId, nasFilePath, serverCode = 'yliyunviewer', mode = 'view' }) {
+  async createNasPreviewTask({ nascode, nasFilePath, serverCode = 'yliyunviewer', mode = 'view' }) {
     if (!nasId) throw new Error('缺少 nasId');
     if (!nasFilePath) throw new Error('缺少 nasFilePath');
     const body = { mode, serverCode, nasId: String(nasId), nasFilePath, fileCategory: 'nas' };
