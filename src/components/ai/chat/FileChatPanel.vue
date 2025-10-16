@@ -91,18 +91,46 @@
 
       <!-- Input area -->
       <footer class="input-area">
-        <div class="input-box input-overlay">
+        <div class="input-box input-overlay" :class="{ 'rag-mode': isRagMode }">
+          <!-- RAG: 单层 contenteditable 输入 -->
+          <div v-if="isRagMode" class="ce-wrapper">
+            <div
+              ref="ceRef"
+              class="ce-input"
+              :contenteditable="!creatingSession"
+              :data-placeholder="inputPlaceholder"
+              @keydown.enter.prevent="onEnterPress"
+              @input="onCeInput"
+              @paste="onCePaste"
+              @keyup="updateHasSelection"
+              @mouseup="updateHasSelection"
+            ></div>
+          </div>
+          <!-- QA: 仍用 textarea -->
           <el-input
+            v-else
             ref="inputRef"
             v-model="inputText"
             :autosize="{minRows:3,maxRows:10}"
             type="textarea"
-            placeholder="输入你的问题，Enter 发送，Shift+Enter 换行"
+            :placeholder="inputPlaceholder"
             @keydown.enter.prevent="onEnterPress"
             :disabled="creatingSession"
           />
           <div class="inline-control left">
             <el-checkbox v-model="useContext" :disabled="streaming">上下文</el-checkbox>
+            <template v-if="isRagMode">
+              <span class="tag-tools-sep">|</span>
+              <el-tooltip content="选中文本后标记为关键词" placement="top">
+                <el-button text size="small" class="tag-btn kw" :disabled="!hasSelection || streaming" @mousedown.prevent="markSelection('keyword')"><span class="dot kw"></span>关键词</el-button>
+              </el-tooltip>
+              <el-tooltip content="选中文本后标记为关键内容" placement="top">
+                <el-button text size="small" class="tag-btn kc" :disabled="!hasSelection || streaming" @mousedown.prevent="markSelection('keycontent')"><span class="dot kc"></span>关键内容</el-button>
+              </el-tooltip>
+              <el-tooltip content="清除选区标记；无选区则清空全部" placement="top">
+                <el-button text size="small" class="tag-btn clear" :disabled="(!hasSelection && markCount===0) || streaming" @mousedown.prevent="clearMarks">清除标记</el-button>
+              </el-tooltip>
+            </template>
           </div>
           <div class="inline-control right">
             <el-button size="small" @click="stopStreaming" v-if="streaming" type="warning">停止</el-button>
@@ -118,28 +146,28 @@
   <!-- 参数配置弹窗 -->
   <el-dialog v-model="showConfig" title="会话设置" width="520px">
     <el-form label-width="130px" class="config-form" :model="configDraft">
-      <el-form-item label="系统模型">
-        <el-select v-model="configForm.modelId" placeholder="选择模型" filterable :loading="modelsLoading">
-          <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
-        </el-select>
-      </el-form-item>
-       <el-form-item label="用户提示词">
-        <el-input type="textarea" :rows="3" v-model="configForm.systemMessage" placeholder="为本会话设定自定义提示词或风格提示" />
+          <el-form-item label="系统模型">
+            <el-select v-model="configDraft.modelId" placeholder="选择模型" filterable :loading="modelsLoading" @change="onModelChange">
+              <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
+            </el-select>
+          </el-form-item>
+      <el-form-item label="用户提示词">
+        <el-input type="textarea" :rows="3" v-model="configDraft.userPrompt" placeholder="为本会话设定自定义提示词或风格提示" />
       </el-form-item>
       <el-form-item label="温度 temperature">
-        <el-input-number v-model="configForm.temperature" :min="0" :max="2" :step="0.1" :precision="2" />
+        <el-input-number v-model="configDraft.temperature" :min="0" :max="2" :step="0.1" :precision="2" />
       </el-form-item>
       <el-form-item label="回复上限 tokens">
-        <el-input-number v-model="configForm.maxTokens" :min="0" :max="8192" />
+        <el-input-number v-model="configDraft.maxTokens" :min="0" :max="8192" />
       </el-form-item>
       <el-form-item label="上下文条数">
-        <el-input-number v-model="configForm.maxContexts" :min="0" :max="20" />
+        <el-input-number v-model="configDraft.maxContexts" :min="0" :max="20" />
       </el-form-item>
       <el-form-item label="TopK(检索)">
-        <el-input-number v-model="configForm.topK" :min="1" :max="10" />
+        <el-input-number v-model="configDraft.topK" :min="1" :max="10" />
       </el-form-item>
       <el-form-item label="最大上下文字符">
-        <el-input-number v-model="configForm.maxContextChars" :min="1000" :max="50000" step="500" />
+        <el-input-number v-model="configDraft.maxContextChars" :min="1000" :max="50000" step="500" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -149,9 +177,9 @@
   </el-dialog>
 </template>
 <script setup>
-import { ref, onMounted, watch, nextTick, computed, reactive, onBeforeUnmount, provide } from 'vue';
+import { ref, onMounted, watch, nextTick, computed, reactive, provide } from 'vue';
 // declare emitted events so parent listeners are recognized (support kebab and camelCase)
-const emit = defineEmits(['return-to-search', 'returnToSearch']);
+defineEmits(['return-to-search', 'returnToSearch']);
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Delete, Refresh, Close, ArrowLeft, Menu, Setting, Download } from '@element-plus/icons-vue';
 import FileChatMessageList from './FileChatMessageList.vue';
@@ -180,8 +208,9 @@ const props = defineProps({
 // 向子组件全局提供 chatType
 const chatTypeRef = computed(() => props.chatType || 'qa');
 provide('chatType', chatTypeRef);
+const isRagMode = computed(() => chatTypeRef.value === 'rag');
 const showSessions = ref(true);
-const encyclopediaOnly = computed(() => { return !props.file && !props.fileId && !(props.esId && String(props.esId).trim()); });
+// const encyclopediaOnly = computed(() => { return !props.file && !props.fileId && !(props.esId && String(props.esId).trim()); });
 function toggleSessions(){
   showSessions.value = !showSessions.value;
   if(showSessions.value){ reloadSessions(); }
@@ -191,6 +220,15 @@ const sessions = ref([]);
 const currentSessionId = ref(null); // 不自动创建，首次发送时创建
 const messages = ref([]);
 const inputText = ref('');
+// RAG 单层 contenteditable 相关
+const ceRef = ref(null);
+const hasSelection = ref(false);
+const markCount = ref(0);
+let lastRange = null; // 记录最近一次选区，用于按钮点击时恢复
+const ceText = ref(''); // CE 可见纯文本（用于按钮启用和统计）
+const inputPlaceholder = computed(() => isRagMode.value
+  ? '请输入问题，支持选中文本后点击“关键词/关键内容”进行标注，Enter 发送，Shift+Enter 换行'
+  : '输入你的问题，Enter 发送，Shift+Enter 换行');
 const streaming = ref(false);
 const creatingSession = ref(false);
 const loadingSessions = ref(false);
@@ -220,8 +258,7 @@ const configDraft = reactive({
   maxTokens: configForm.maxTokens,
   maxContexts: configForm.maxContexts,
   topK: configForm.topK,
-  maxContextChars: configForm.maxContextChars,
-  systemMessage: ''
+  maxContextChars: configForm.maxContextChars
 });
 // Trace currentSessionId and sessions mutations to find unexpected resets
 // (no debug watches)
@@ -240,7 +277,6 @@ function fillConfigDraftFromSession(){
   // keep UI-driven values for topK / maxContextChars as current control defaults
   configDraft.topK = topK.value ?? configDraft.topK;
   configDraft.maxContextChars = maxContextChars.value ?? configDraft.maxContextChars;
-  if (raw.systemMessage !== undefined && raw.systemMessage !== null) configDraft.systemMessage = raw.systemMessage;
 }
 async function openConfig(){
   //TODO 后续完善,先屏蔽
@@ -252,7 +288,7 @@ async function openConfig(){
 async function applyConfig(){
   savingConfig.value=true;
   try {
-    // only persist after user confirms in dialog
+    // update local chat runtime params
     topK.value = configDraft.topK;
     maxContextChars.value = configDraft.maxContextChars;
     const { aiService } = await import('../../../services/aiService');
@@ -263,31 +299,32 @@ async function applyConfig(){
         temperature: configDraft.temperature,
         maxTokens: configDraft.maxTokens,
         maxContexts: configDraft.maxContexts,
+        userPrompt: configDraft.userPrompt,
         userId: effectiveUserId.value
       });
-      let userPromptUpdated = true;
-      if(configDraft.userPrompt !== (sessions.value.find(s=>s.id===currentSessionId.value)?.raw?.userPrompt||'')){
-        const r = await aiService.updateFileChatUserPrompt({ sessionId: currentSessionId.value, userPrompt: configDraft.userPrompt, userId: effectiveUserId.value });
-        userPromptUpdated = r.success;
-      }
-      if(success && userPromptUpdated){
-        // apply draft to persistent configForm and session raw
-        configForm.userPrompt = configDraft.userPrompt;
-        configForm.modelId = configDraft.modelId;
-        configForm.temperature = configDraft.temperature;
-        configForm.maxTokens = configDraft.maxTokens;
-        configForm.maxContexts = configDraft.maxContexts;
-        configForm.topK = configDraft.topK;
-        configForm.maxContextChars = configDraft.maxContextChars;
+      if(success){
+        // persist draft into configForm
+        Object.assign(configForm, JSON.parse(JSON.stringify(configDraft)));
+        // update current session raw and display model name
         const s = sessions.value.find(s=>s.id===currentSessionId.value);
-        if(s){ s.raw = { ...(s.raw||{}), userPrompt: configDraft.userPrompt, modelId: configDraft.modelId, temperature: configDraft.temperature, maxTokens: configDraft.maxTokens, maxContexts: configDraft.maxContexts, systemMessage: configDraft.systemMessage }; }
+        if(s){
+          const selected = models.value.find(m=> String(m.id) === String(configDraft.modelId));
+          s.raw = { ...(s.raw||{}), userPrompt: configDraft.userPrompt, modelId: configDraft.modelId, temperature: configDraft.temperature, maxTokens: configDraft.maxTokens, maxContexts: configDraft.maxContexts, modelName: selected?.name || s.raw?.modelName };
+        }
         ElMessage.success('已保存');
+        showConfig.value=false;
       } else {
         ElMessage.error('保存失败');
       }
     }
-    showConfig.value=false;
   } finally { savingConfig.value=false; }
+}
+
+function onModelChange(){
+  // 选择模型后，立即在标题处反映已选择的模型名称
+  const s = sessions.value.find(s=>s.id===currentSessionId.value);
+  const selected = models.value.find(m=> String(m.id) === String(configDraft.modelId));
+  if(s){ s.raw = { ...(s.raw||{}), modelId: configDraft.modelId, modelName: selected?.name || s.raw?.modelName }; }
 }
 
 const internalUserId = ref('');
@@ -298,22 +335,18 @@ const messageListRef = ref(null);
 const childNearBottom = ref(true);
 const editingTitle = ref(false);
 const editableTitle = ref('');
-const recentQuestions = ref([]);
 
 // 统一解析 esId（可为空：百科模式）
 const effectiveEsId = computed(()=> resolveEsId(props.file, props.esId || props.fileId) || '');
-// 对于全局百科模式，使用 per-user key 避免不同用户冲突
-const esKey = computed(()=> {
-  return effectiveEsId.value || (`global:${effectiveUserId.value || 'anonymous'}`);
-});
+// 用于持久化最近会话 id 的 key（按 esId 或 per-user 全局键区分）
+const esKey = computed(()=> effectiveEsId.value || (`global:${effectiveUserId.value || 'anonymous'}`));
 // 发送条件：RAG 模式需提供 esId；QA 模式允许百科(global)对话
 const canSend = computed(()=> {
   if (streaming.value) return false;
-  if (!(inputText.value.trim().length>0 && currentSessionId.value)) return false;
-  if (chatTypeRef.value === 'rag') {
-    return !!effectiveEsId.value;
+  if (isRagMode.value) {
+    return ceText.value.trim().length > 0 && !!effectiveEsId.value;
   }
-  return true;
+  return inputText.value.trim().length > 0;
 });
 const currentSessionTitle = computed(()=>{ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return ''; if(s.title) return s.title; const firstUser = messages.value.find(m=>m.role==='user'); return firstUser ? firstUser.content.slice(0,20) : `会话 ${s.id}`; });
 
@@ -326,23 +359,20 @@ function makeTitle(txt=''){
 }
 const modelDisplayName = computed(()=>{ const s = sessions.value.find(s=>s.id===currentSessionId.value); if(!s) return ''; return s.raw?.modelName || s.raw?.model || ''; });
 function sessionDisplayTitle(s){ return s.title || (s.raw?.title) || (s.id?`会话 ${s.id}`:'未命名'); }
-function loadRecentQuestions(){ const es = esKey.value; const key = `fileChat:recentQuestions:${es}`; try { const arr = JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(arr)) recentQuestions.value=arr; } catch { /* ignore */ } }
-function pushRecentQuestion(q){ if(!q) return; const es = esKey.value; const key = `fileChat:recentQuestions:${es}`; const list = [...recentQuestions.value.filter(i=>i!==q)]; list.unshift(q); if(list.length>10) list.length=10; recentQuestions.value=list; try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* ignore */ } }
 function persistLastSession(){ const es = esKey.value; if(!currentSessionId.value) return; try { localStorage.setItem(`fileChat:lastSession:${es}`, currentSessionId.value); } catch { /* ignore */ } }
 function loadPersistedLastSession(){ const es = esKey.value; try { return localStorage.getItem(`fileChat:lastSession:${es}`); } catch { return null; } }
 const inputRef = ref(null);
 async function init(){
   resolveUserId();
-  loadRecentQuestions();
   // 初始化：上下文勾选与会话展开来自外部参数
   useContext.value = !!props.defaultUseContext;
   showSessions.value = !!props.sessionchat;
   // 尝试加载会话列表与最近会话（支持 per-esId 或 global）
-  try { await reloadSessions(); } catch (e) { /* ignore */ }
-  try { await loadLatest(); } catch (e) { /* ignore */ }
+  try { await reloadSessions(); } catch { /* ignore */ ; }
+  try { await loadLatest(); } catch { /* ignore */ ; }
   // 如果没有任何会话，则自动新建一个，便于直接输入即发送
   if (!currentSessionId.value) {
-    try { await createNewSession('', ''); } catch (e) { /* ignore */ }
+    try { await createNewSession('', ''); } catch { /* ignore */ ; }
   }
   bindEsc();
 }
@@ -350,10 +380,6 @@ function bindEsc(){ window.addEventListener('keydown', escHandler); window.addEv
 function escHandler(e){ if(e.key==='Escape' && streaming.value){ stopStreaming(); } }
 function shortcutHandler(e){ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='n'){ e.preventDefault(); quickNewSession(); } }
 onMounted(()=>{ init(); });
-// 监听百科问答触发事件
-window.addEventListener('encyclopedia-qa', handleEncyclopediaQA)
-onMounted(()=>{ /* already calling init above */ })
-onBeforeUnmount(()=>{ window.removeEventListener('encyclopedia-qa', handleEncyclopediaQA) })
 watch(()=>props.esId, ()=>{ resetAll(); init(); });
 watch(()=>props.fileId, ()=>{ resetAll(); init(); });
 watch(()=>props.file, ()=>{ resetAll(); init(); });
@@ -372,16 +398,9 @@ defineExpose({ askQuestion, loadSessions });
 // expose programmatic ask function to parent via ref
 function askQuestion(q) {
   if (!q || !String(q).trim()) return;
-  inputText.value = String(q).trim();
+  if (isRagMode.value) setCeText(String(q).trim()); else inputText.value = String(q).trim();
   // ensure session exists then send
   return (async () => {
-    // derive a short title from the question to use as session title on first create
-    const makeTitle = (txt='')=>{
-      const s = String(txt||'').replace(/\s+/g,' ').trim();
-      if(!s) return '';
-      const max = 80;
-      return s.length>max? (s.slice(0,max-3)+'...') : s;
-    };
     const titleForCreate = makeTitle(q);
     if (!currentSessionId.value) await createNewSession(inputText.value, titleForCreate);
     // small tick to ensure session creation flows
@@ -444,9 +463,10 @@ async function createNewSession(userPromptForCreate='', titleForCreate='', esIdO
   creatingSession.value=true;
   try {
     const { aiService } = await import('../../../services/aiService');
-    // when no explicit title provided, use the current inputText (first user input) as default title
+    // when no explicit title provided, use current input (CE or textarea)
     if(!titleForCreate){
-      titleForCreate = makeTitle(inputText.value || userPromptForCreate || '');
+      const currentInput = isRagMode.value ? (ceRef.value ? String(ceRef.value.innerText||'').replace(/\u200B/g,'') : '') : (inputText.value||'');
+      titleForCreate = makeTitle(currentInput || userPromptForCreate || '');
     }
     // pass title to backend when available
   const payload = { esId, userPrompt: userPromptForCreate || configForm.userPrompt || '', userId: effectiveUserId.value };
@@ -456,7 +476,7 @@ async function createNewSession(userPromptForCreate='', titleForCreate='', esIdO
       currentSessionId.value = sessionId;
       sessions.value.unshift({ id: sessionId, esId: esId || '', title: titleForCreate || '', raw:{ ...(raw||{}), userPrompt: userPromptForCreate || configForm.userPrompt || '' } });
       messages.value = [];
-      nextTick(()=> inputRef.value?.focus?.());
+  nextTick(()=> focusInput());
       persistLastSession();
       setTimeout(()=>{ if(esId) reloadSessions(); }, 300);
     } else { ElMessage.error('创建会话失败'); }
@@ -470,7 +490,7 @@ function quickNewSession(){ if(streaming.value) return;
     const max = 80;
     return s.length>max? (s.slice(0,max-3)+'...') : s;
   };
-  const derived = makeTitle(inputText.value || '');
+  const derived = makeTitle(isRagMode.value ? (ceRef.value ? String(ceRef.value.innerText||'').replace(/\u200B/g,'') : '') : (inputText.value||''));
   createNewSession('', derived);
 }
 async function reloadSessions(){
@@ -544,8 +564,20 @@ async function loadLatestForSwitch(id){
     console.warn('loadLatestForSwitch failed', e);
   }
 }
-function onEnterPress(e){ if(e.shiftKey){ return; } sendMessage(); }
-async function sendMessage(){ if(streaming.value) return; const text = inputText.value.trim(); if(!text) return; if(!currentSessionId.value){ await createNewSession(); }
+function onEnterPress(e){
+  if(e.shiftKey){
+    if (isRagMode.value) {
+      // 在 CE 中插入换行
+      try { document.execCommand('insertLineBreak'); } catch { /* ignore */ }
+    } else {
+      // 在 textarea 中模拟换行（简单追加）
+      inputText.value = (inputText.value || '') + '\n';
+    }
+    return;
+  }
+  sendMessage();
+}
+async function sendMessage(){ if(streaming.value) return; const text = isRagMode.value ? buildTextFromCe() : inputText.value.trim(); if(!text) return; if(!currentSessionId.value){ await createNewSession(); }
   if(!currentSessionId.value){ ElMessage.error('会话创建失败'); return; }
   // RAG 模式必须具备有效 esId
   if (chatTypeRef.value === 'rag' && !effectiveEsId.value) {
@@ -556,9 +588,9 @@ async function sendMessage(){ if(streaming.value) return; const text = inputText
   messages.value.push(userMsg);
   const aiMsg = { id:`a_${Date.now()}`, sessionId: currentSessionId.value, role:'assistant', content:'', parts:[], status:'streaming', createdAt:Date.now() };
   messages.value.push(aiMsg);
-  inputText.value=''; scrollSoon();
+  if (isRagMode.value) { clearCe(); } else { inputText.value=''; }
+  scrollSoon();
   const cur = sessions.value.find(s=>s.id===currentSessionId.value); if(cur && !cur.title){ cur.title = userMsg.content.slice(0,20); }
-  pushRecentQuestion(userMsg.content);
   await streamAnswer(aiMsg, text);
 }
 async function streamAnswer(aiMsg, question){
@@ -584,7 +616,7 @@ async function streamAnswer(aiMsg, question){
             messages.value.splice(idx, 1, copy);
             aiMsg = messages.value[idx];
           }
-        } catch (e) { /* ignore */ }
+  } catch { /* ignore focus failure */ }
         throttleScroll();
       }
     } finally {
@@ -626,12 +658,30 @@ async function streamAnswer(aiMsg, question){
     streaming.value=false;
     abortRef.value=null;
   }
-  nextTick(()=> inputRef.value?.focus?.());
+  nextTick(()=> focusInput());
 }
-function stopStreaming(){ if(abortRef.value){ abortRef.value.abort(); } }
+function stopStreaming(){
+  if(abortRef.value){
+    try { abortRef.value.abort(); } catch { /* ignore abort error */ }
+  }
+  // 将当前处于流式生成中的助手消息，标记为已中断并给出提示语
+  try {
+    const lastStreaming = [...messages.value].reverse().find(m => m.role === 'assistant' && m.status === 'streaming');
+    if (lastStreaming) {
+      lastStreaming.status = 'aborted';
+      lastStreaming.errorMsg = 'aborted';
+      // 清空残留的增量片段，直接给出中断提示内容
+      if (Array.isArray(lastStreaming.parts)) lastStreaming.parts.length = 0;
+      lastStreaming.content = '用户中断了本次对话';
+    }
+  } catch { /* ignore */ }
+  // 确保可继续输入
+  streaming.value = false;
+  nextTick(()=> focusInput());
+}
 function retryMessage(msg){ if(streaming.value) return; if(msg.role!=='assistant') return; const idx = messages.value.findIndex(m=>m.id===msg.id); if(idx>0){ const userBefore = [...messages.value].slice(0,idx).reverse().find(m=>m.role==='user'); if(userBefore){ const newAi={ id:`a_${Date.now()}`, sessionId: currentSessionId.value, role:'assistant', content:'', parts:[], status:'streaming', createdAt:Date.now() }; messages.value.push(newAi); streamAnswer(newAi, userBefore.content); } } }
 function resendMessage(userMsg){ if(streaming.value) return; if(userMsg.role!=='user') return; const newAi={ id:`a_${Date.now()}`, sessionId: currentSessionId.value, role:'assistant', content:'', parts:[], status:'streaming', createdAt:Date.now() }; messages.value.push(newAi); streamAnswer(newAi, userMsg.content); }
-function editMessage(userMsg){ if(streaming.value) return; if(userMsg.role!=='user') return; inputText.value = userMsg.content; nextTick(()=> inputRef.value?.focus?.()); }
+function editMessage(userMsg){ if(streaming.value) return; if(userMsg.role!=='user') return; if (isRagMode.value) setCeText(userMsg.content); else inputText.value = userMsg.content; nextTick(()=> focusInput()); }
 async function deleteMessage(m){
   if(!m) return;
   if(streaming.value && m.status==='streaming') return;
@@ -651,7 +701,7 @@ async function deleteMessage(m){
       } else {
         ElMessage.error('删除失败');
       }
-    } catch(e){
+    } catch{
       ElMessage.error('删除异常');
     }
   } else {
@@ -701,54 +751,160 @@ async function confirmClearCurrent(){
       ElMessage.success('已清空');
       reloadSessions();
     } else { ElMessage.error('清空失败'); }
-  } catch(e){ ElMessage.error('清空异常'); }
+  } catch { ElMessage.error('清空异常'); }
 }
 function exportConversation(){ const data = { sessionId: currentSessionId.value, messages: messages.value.map(m=>({ role:m.role, content:m.content })) }; const blob = new Blob([JSON.stringify(data,null,2)], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`conversation_${currentSessionId.value||'new'}.json`; a.click(); URL.revokeObjectURL(url); }
 function scrollSoon(){ nextTick(()=> scrollToBottom()); }
 function scrollToBottom(){ messageListRef.value?.scrollToBottom?.(); }
 function scrollToTop(){ messageListRef.value?.scrollToTop?.(); }
-function onChildScrollState(state){ try { if(!state) return; childNearBottom.value = !!state.nearBottom; } catch(e){} }
+function onChildScrollState(state){ try { if(!state) return; childNearBottom.value = !!state.nearBottom; } catch { /* ignore */ } }
 let scrollThrottleTimer=null; function throttleScroll(){ if(scrollThrottleTimer) return; scrollThrottleTimer = requestAnimationFrame(()=>{ scrollThrottleTimer=null; scrollToBottom(); }); }
 function beginEditTitle(){ const cur = sessions.value.find(s=>s.id===currentSessionId.value); if(!cur) return; editableTitle.value = cur.title || ''; editingTitle.value=true; nextTick(()=>{ const el = document.querySelector('.title-edit-input input'); el && el.focus(); }); }
 function saveTitle(){ const cur = sessions.value.find(s=>s.id===currentSessionId.value); if(cur){ cur.title = editableTitle.value.trim(); } editingTitle.value=false; }
 
-// 百科问答事件处理：detail: { text, selection, paragraph }
-function handleEncyclopediaQA(e){
-  // 仅 QA 模式响应百科问答事件
-  if (chatTypeRef.value !== 'qa') return;
-  const now = Date.now();
-  if(now - lastEncyclopediaAt < 600) return; // 节流 600ms
-  lastEncyclopediaAt = now;
-  const raw = (e?.detail?.text || '').trim();
-  if(!raw) return;
-  const txt = raw; // 已包含格式化
-  const ask = async ()=>{
-  // set inputText first so createNewSession can use it as the session title
-  inputText.value = txt;
-  // prefer esId passed by the event (when TextPanel can resolve it)
-  const incomingEs = e?.detail?.esId || undefined;
-  if (!incomingEs) {
-    // encyclopedia/global mode: do not use context
-    useContext.value = false;
+// 默认开场白问题（保留简版助推）
+const starterQuestions = [ '这份文档的核心要点是什么？', '帮我生成一个简短的总结' ];
+function clickStarter(q){ if(streaming.value) return; if (isRagMode.value) setCeText(q); else inputText.value = q; sendMessage(); }
+
+// ---------- RAG CE 工具函数 ----------
+function focusInput(){
+  if (isRagMode.value) {
+    nextTick(()=>{ try { ceRef.value?.focus?.(); } catch { /* ignore */ } });
   } else {
-    useContext.value = true;
+    nextTick(()=>{ try { inputRef.value?.focus?.(); } catch { /* ignore */ } });
   }
-  if(!currentSessionId.value){ await createNewSession('', '', incomingEs); }
-  if(!currentSessionId.value) { ElMessage.error('无法创建会话'); return; }
-  sendMessage();
-  };
-  ask();
 }
 
-// 默认开场白问题
-const starterQuestions = [
-  '这份文档的核心要点是什么？',
-  '帮我生成一个简短的总结'
-];
-function clickStarter(q){ if(streaming.value) return; inputText.value = q; sendMessage(); }
-
-// --- 百科问答辅助 ---
-let lastEncyclopediaAt = 0;
+function onCeInput(){ normalizeCe(); updateMarkCount(); updateCeText(); }
+function onCePaste(e){
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (i>0) try { document.execCommand('insertLineBreak'); } catch { /* ignore */ }
+    try { document.execCommand('insertText', false, lines[i]); } catch { /* ignore */ }
+  }
+  updateMarkCount(); updateCeText();
+}
+function updateHasSelection(){
+  if(!isRagMode.value) return;
+  const sel = window.getSelection();
+  const ok = !!sel && !sel.isCollapsed && ceRef.value && ceRef.value.contains(sel.anchorNode);
+  hasSelection.value = ok;
+  if (ok) {
+    try { lastRange = sel.getRangeAt(0).cloneRange(); } catch { /* ignore */ }
+  }
+}
+function markSelection(type){
+  if(!isRagMode.value) return;
+  let sel = window.getSelection();
+  // 若因点击按钮导致选区丢失，尝试恢复
+  if((!sel || sel.isCollapsed) && lastRange && ceRef.value && ceRef.value.contains(lastRange.startContainer)){
+    sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(lastRange);
+  }
+  if(!sel || sel.isCollapsed) return;
+  if(!ceRef.value || !ceRef.value.contains(sel.anchorNode)) return;
+  const range = sel.getRangeAt(0);
+  lastRange = range.cloneRange();
+  unwrapMarksInRange(range);
+  const span = document.createElement('span');
+  span.className = `mark ${type === 'keyword' ? 'kw' : 'kc'}`;
+  span.setAttribute('data-type', type);
+  try { range.surroundContents(span); }
+  catch {
+    const frag = range.cloneContents();
+    span.appendChild(frag);
+    range.deleteContents();
+    range.insertNode(span);
+  }
+  // place caret after
+  sel.removeAllRanges();
+  const after = document.createTextNode('\u200B');
+  span.parentNode && span.parentNode.insertBefore(after, span.nextSibling);
+  const r = document.createRange(); r.setStart(after, 1); r.collapse(true); sel.addRange(r);
+  updateMarkCount(); updateHasSelection(); updateCeText();
+}
+function clearMarks(){
+  if(!isRagMode.value) return;
+  let sel = window.getSelection();
+  // 如果选区因点击按钮丢失，尝试恢复上一选区
+  if((!sel || sel.isCollapsed) && lastRange && ceRef.value && ceRef.value.contains(lastRange.startContainer)){
+    sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(lastRange);
+  }
+  if(sel && !sel.isCollapsed && ceRef.value && ceRef.value.contains(sel.anchorNode)){
+    const range = sel.getRangeAt(0);
+    unwrapMarksInRange(range);
+  } else {
+    const root = ceRef.value; if(!root) return;
+    const text = String(root.innerText||'').replace(/\u200B/g,'');
+    root.innerHTML = '';
+    if (text) root.appendChild(document.createTextNode(text));
+  }
+  updateMarkCount(); updateHasSelection(); updateCeText();
+}
+function unwrapMarksInRange(range){
+  const root = ceRef.value; if(!root) return;
+  const common = range.commonAncestorContainer;
+  const base = common.nodeType === 1 ? common : common.parentNode;
+  const walker = document.createTreeWalker(base, NodeFilter.SHOW_ELEMENT, {
+    acceptNode(node){
+      if(!(node instanceof HTMLElement)) return NodeFilter.FILTER_SKIP;
+      if(!root.contains(node)) return NodeFilter.FILTER_SKIP;
+      if(!node.classList.contains('mark')) return NodeFilter.FILTER_SKIP;
+      const nr = document.createRange(); nr.selectNodeContents(node);
+      return (nr.compareBoundaryPoints(Range.END_TO_START, range) < 0 && nr.compareBoundaryPoints(Range.START_TO_END, range) > 0)
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  const toUnwrap=[]; let n; while((n=walker.nextNode())) toUnwrap.push(n);
+  toUnwrap.forEach(unwrapElement);
+}
+function unwrapElement(el){ const p = el.parentNode; if(!p) return; while(el.firstChild) p.insertBefore(el.firstChild, el); p.removeChild(el); }
+function buildTextFromCe(){
+  const root = ceRef.value; if(!root) return '';
+  const parts = [];
+  const blockBreak = () => { if (parts.length && parts[parts.length-1] !== '\n') parts.push('\n'); };
+  const walk = (node) => {
+    if(node.nodeType === Node.TEXT_NODE){ parts.push(String(node.nodeValue||'').replace(/\u200B/g,'')); return; }
+    if(node.nodeType !== Node.ELEMENT_NODE) return;
+    const el = node;
+    if(el.classList && el.classList.contains('mark')){
+      const type = el.getAttribute('data-type');
+      const before = type === 'keyword' ? '<keyword>' : '<keycontent>';
+      const after  = type === 'keyword' ? '</keyword>' : '</keycontent>';
+      parts.push(before);
+      Array.from(el.childNodes).forEach(walk);
+      parts.push(after);
+      return;
+    }
+    const tag = el.tagName;
+    if(tag === 'BR'){ parts.push('\n'); return; }
+    if(tag === 'DIV' || tag === 'P'){
+      const len0 = parts.length;
+      Array.from(el.childNodes).forEach(walk);
+      if(parts.length>len0) blockBreak(); else parts.push('\n');
+      return;
+    }
+    Array.from(el.childNodes).forEach(walk);
+  };
+  Array.from(root.childNodes).forEach(walk);
+  let text = parts.join('');
+  text = text.replace(/\n{3,}/g,'\n\n');
+  text = text.replace(/[\s\u200B]+$/g,'');
+  return text;
+}
+function clearCe(){ const root = ceRef.value; if(!root) return; root.innerHTML=''; updateMarkCount(); updateHasSelection(); updateCeText(); }
+function updateMarkCount(){ const root = ceRef.value; markCount.value = root ? root.querySelectorAll('.mark').length : 0; }
+function setCeText(text){ const root = ceRef.value; if(!root) return; root.innerText = text || ''; updateMarkCount(); updateHasSelection(); updateCeText(); }
+function updateCeText(){ const root = ceRef.value; ceText.value = root ? String(root.innerText||'').replace(/\u200B/g,'') : ''; }
+function normalizeCe(){
+  const root = ceRef.value; if(!root) return;
+  const marks = root.querySelectorAll('.mark');
+  marks.forEach((m)=>{
+    const txt = m.innerText.replace(/\u200B/g,'').trim();
+    if(!txt){ unwrapElement(m); }
+  });
+}
 </script>
 <style scoped>
 /* copied styles from original DocumentQA */
@@ -796,6 +952,19 @@ session-item:hover{background:#f0f2f5;}
 .inline-control.left{left:12px;bottom:12px;}
 .inline-control.right{right:12px;bottom:12px;}
 .input-overlay :deep(textarea.el-textarea__inner){padding-bottom:40px;}
+.input-overlay.rag-mode{min-height:88px;}
+.ce-wrapper{position:relative;}
+.ce-input{min-height:88px;max-height:260px;overflow:auto;border:1px solid #dcdfe6;border-radius:8px;padding:10px 12px 40px;line-height:1.6;outline:none;}
+.ce-input:empty:before{content:attr(data-placeholder);color:#999;}
+.ce-input :deep(.mark){display:inline-block;padding:2px 10px;border-radius:999px;background:#EEF2FF;
+  color:#3F5BF6;border:1px solid rgba(63,91,246,0.18);box-shadow:none;line-height:1.4;}
+.ce-input :deep(.mark.kw){background:#FFF7E6;color:#AD6800;border-color:rgba(173,104,0,0.2);} 
+.ce-input :deep(.mark.kc){background:#EEF2FF;color:#3F5BF6;border-color:rgba(63,91,246,0.18);} 
+.ce-input :deep(.mark:hover){border-color:rgba(63,91,246,0.28);} 
+.tag-tools-sep{color:#c0c4cc;}
+.tag-btn .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;}
+.tag-btn .dot.kw{background:#faad14;}
+.tag-btn .dot.kc{background:#40a9ff;}
 .header-new-session{margin-left:8px;}
 .starter-container{padding:32px 40px 12px;color:#606266;}
 .starter-title{font-size:14px;font-weight:600;margin-bottom:12px;}

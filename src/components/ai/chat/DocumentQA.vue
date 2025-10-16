@@ -1,7 +1,7 @@
 <template>
   <FileChatPanel
     v-bind="$props"
-    url="/admin-api/rag/ai/text/file-chat/stream-rag"
+    url="/admin-api/rag/ai/text/file-chat/stream-enhanced-rag"
     :defaultUseContext="true"
     :sessionchat="false"
     :showReturn="false"

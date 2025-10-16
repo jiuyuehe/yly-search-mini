@@ -201,7 +201,7 @@ class AIService {
                     esId: esId || body.esId || null
                 };
             }
-            return {summary: '', targetObj: {}, sourceObj: {}, targetLang: uiLang, sourceLang: '', esId: esId || null};
+            return {summary: '', targetObj: {}, sourceObj: {}, targetLang: normalizeToUi(apiLang), sourceLang: '', esId: esId || null};
         } catch (e) {
             // 不立即使用本地 fallback，直接抛出由上层界面显示“生成失败”或重试，避免用户误以为已完成
             console.warn('[AIService] summary failed', e);
@@ -1446,7 +1446,6 @@ class AIService {
             if (uid !== '') headers['X-User-Id'] = uid;
             // 优先尝试可能存在的 detail 接口；若 404/非 200 则进入 fallback
             let session = null, history = [];
-            let triedDirect = false;
             try {
                 if (sessionId) {
                     // 预留：若后端存在 /session/detail 接口
@@ -1458,10 +1457,10 @@ class AIService {
                         session = sid ? { id: sid, esId: data.esId || esId, title: data.title || '', raw: data } : null;
                         const msgs = Array.isArray(data.history) ? data.history : (data.messages || []);
                         history = this._mapChatMessages(msgs, sid);
-                        triedDirect = true;
+                        // direct detail path succeeded
                     }
                 }
-            } catch (e) {
+            } catch {
                 // ignore and fallback
             }
             if (!session && (esId || sessionId)) {
@@ -1558,14 +1557,14 @@ class AIService {
         }
     }
 
-    async updateFileChatSession({sessionId, modelId, temperature, maxTokens, maxContexts, userId} = {}) {
+    async updateFileChatSession({sessionId, modelId, temperature, maxTokens, maxContexts, userPrompt, userId} = {}) {
         if (!sessionId) return {success: false, message: '缺少 sessionId'};
         try {
             const headers = {'Content-Type': 'application/json'};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             // 假设后端提供此更新接口 (如无请调整路径或方法)
-            const body = {sessionId, modelId, temperature, maxTokens, maxContexts};
+            const body = {sessionId, modelId, temperature, maxTokens, maxContexts, userPrompt};
             Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
             const res = await api.post('/admin-api/rag/ai/text/file-chat/session/update', body, {
                 headers,
