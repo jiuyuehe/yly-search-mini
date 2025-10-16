@@ -139,7 +139,7 @@ defineExpose(exposeApi());
 .message-body{flex:1;min-width:0;display:flex;flex-direction:column;}
 .message-body .meta{font-size:12px;color:#909399;display:flex;align-items:center;gap:8px;margin-bottom:4px;}
 .message-item.right-message .message-body .meta{justify-content:flex-end;text-align:right;}
-.bubble-text{display:inline-block;max-width:780px;white-space:pre-wrap;word-break:break-word;line-height:1.6;font-size:14px;padding:10px 14px;border-radius:12px;background:#f5f6f7;position:relative;align-self:flex-start;box-sizing:border-box;}
+.bubble-text{display:inline-block;max-width:780px;white-space:pre-wrap;word-break:break-word;line-height:1.6;font-size:14px;padding:10px 14px;border-radius:12px;position:relative;align-self:flex-start;box-sizing:border-box;}
 .bubble-text.user{background:#409eff;color:#fff;align-self:flex-end;}
 /* markdown body styling, rely on github-markdown-css classes */
 .markdown-body{color:inherit;}

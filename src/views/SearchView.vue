@@ -186,18 +186,6 @@ function setImageCols(n){ imageGridCols.value = n; }
 // Computed properties
 const searchResults = computed(() => {
   const results = searchStore.getFilteredResults(activeTab.value) || [];
-  // when in image search mode and no real results, return mock images for layout tuning
-  // if (searchStore.isImageSearch && (!Array.isArray(results) || results.length === 0)) {
-  //   const mock = Array.from({ length: 3 }).map((_, i) => ({
-  //     id: `mock-${i}`,
-  //     fileName: `mock-${i}.jpg`,
-  //     fileType: 'jpg',
-  //     // lightweight placeholder images for layout testing
-  //     thumb: `https://picsum.photos/seed/mock${i}/400/300`,
-  //     previewUrl: `https://picsum.photos/seed/mock${i}/1200/900`
-  //   }));
-  //   return mock;
-  // }
   return results;
 });
 
