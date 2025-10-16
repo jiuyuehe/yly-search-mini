@@ -7,8 +7,30 @@
         <el-button size="small" @click="$emit('retry')">重试</el-button>
       </div>
       <template v-else>
+        <!-- 优先：若有 previewUrl 并且是 http(s) 地址，优先使用 iframe 加载 -->
+        <div v-if="previewUrlHttp" class="media-wrapper">
+          <div v-show="iframeLoading" class="iframe-loading-tip">正在加载预览...</div>
+          <iframe
+            :key="previewUrl + '_' + iframeReloadKey"
+            :src="previewUrl"
+            class="doc-frame"
+            @load="handleIframeLoad"
+            ref="iframeRef"
+          />
+          <div v-if="iframeError" class="iframe-error">
+            <el-alert title="文档预览加载失败" type="error" :closable="false" />
+            <el-button size="small" @click="retryIframe">重新尝试</el-button>
+            <el-button size="small" type="primary" @click="openInNew" plain>新窗口打开</el-button>
+          </div>
+          <div class="iframe-debug" v-if="showDebug">
+            <div>ext: {{ ext }}</div>
+            <div>url ok: {{ !!previewUrl }}</div>
+            <div>loaded: {{ iframeLoaded }}</div>
+            <div>err: {{ iframeError }}</div>
+          </div>
+        </div>
         <!-- 文本类 -->
-        <div v-if="isText" class="text-wrapper">
+        <div v-else-if="isText" class="text-wrapper">
           <pre>{{ textContent || '暂无文本内容' }}</pre>
         </div>
         <!-- 图片 -->
@@ -68,10 +90,10 @@ const ext = computed(() => {
   return (props.file.fileType || props.file.ext || getFileExtenName(props.file.fileName || props.file.name || '') || '').toLowerCase();
 });
 
-const previewUrl = computed(() => {
-  const url = props.file?.previewUrl || props.file?.viewUrl || '';
-  // debug log removed
-  return url;
+const previewUrl = computed(() => props.file?.previewUrl || props.file?.viewUrl || '');
+const previewUrlHttp = computed(() => {
+  const u = previewUrl.value || '';
+  return typeof u === 'string' && /^https?:\/\//i.test(u);
 });
 // 文本内容优先级：fileContents (外层直接返回的原始内容) > extractedText > text
 const textContent = computed(() => props.file?.fileContents || props.file?.extractedText || props.file?.text || '');
@@ -81,7 +103,38 @@ const isImage = computed(() => inList(FILE_TYPE.pic));
 const isOffice = computed(() => inList(FILE_TYPE.doc));
 // 扩展文本识别: shell 类 + 其它常见纯文本扩展
 const EXTRA_TEXT_EXTS = ['csv','xml','log'];
-const isText = computed(() => inList(FILE_TYPE.shell) || EXTRA_TEXT_EXTS.includes(ext.value));
+
+// 简单判断字符串是否像 URL（排除后端把 preview 链接放到 text 字段的情况）
+function isLikelyUrl(val) {
+  if (!val || typeof val !== 'string') return false;
+  const s = val.trim();
+  if (/^https?:\/\//i.test(s) || /^\/\//.test(s)) return true;
+  if (s.includes('://')) return true;
+  if (s.startsWith('/') && s.length > 20) return true;
+  return false;
+}
+
+// hasTextContent 三态：
+// - undefined: 没有候选文本字段（fileContents/extractedText/text 都为空）
+// - true: 有候选文本且不是 URL（可视为真实文本）
+// - false: 有候选文本但看起来像 URL（不视为真实文本）
+const hasTextContent = computed(() => {
+  const candidate = props.file?.fileContents || props.file?.extractedText || props.file?.text;
+  if (candidate === undefined || candidate === null || candidate === '') return undefined;
+  return !isLikelyUrl(candidate);
+});
+
+// 文本判断：优先真实文本内容；若存在候选但为 URL（false）则不是文本；
+// 若无候选（undefined），再根据 previewUrl / 扩展名回退判断。
+const isText = computed(() => {
+  if (!props.file) return false;
+  const hasText = hasTextContent.value;
+  if (hasText === true) return true;
+  if (hasText === false) return false;
+  // hasText === undefined: 没有候选文本字段
+  if (previewUrl.value) return false;
+  return inList(FILE_TYPE.shell) || EXTRA_TEXT_EXTS.includes(ext.value);
+});
 
 // 调试：跟踪文件类型判定
 watch([ext, isOffice, isImage, isText], ([e,o,i,t]) => {

@@ -35,11 +35,11 @@ export default defineConfig(({ mode }) => {
           rewrite: (p) => p.replace(/^\/rag/, ''),
         },
         '/apps': {
-          target: 'http://127.0.0.1/',
+          target: 'http://192.168.0.188/',
           changeOrigin: true,
         },
         '/group1': {
-          target: 'http://127.0.0.1/',
+          target: 'http://192.168.0.188/',
           changeOrigin: true,
         },
       }

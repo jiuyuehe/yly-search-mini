@@ -28,6 +28,9 @@
               </template>
             </el-table-column>
         </el-table>
+        <div class="history-footer">
+          <el-button type="default" @click="openDialog">重新申请</el-button>
+        </div>
       </div>
       <!-- 新申请按钮 -->
       <div v-else class="apply-actions">
@@ -65,6 +68,8 @@ import { appsApi, getUserInfo } from '../../services/api';
 const props = defineProps({
   fileId: { type: [String, Number], required: true },
   fileCategory: { type: String, required: true },
+  // 可选：完整 file 对象，便于 NAS 场景传递 nasFilePath/nasId
+  file: { type: Object, default: null },
   isFolder: { type: Boolean, default: false }
 });
 const emit = defineEmits(['applied']);
@@ -77,7 +82,7 @@ const submitting = ref(false);
 
 const form = ref({ permissionKey: 'preview', applyDesc: '' });
 
-const PERMISSION_MAP = { preview: 8, download: 16 }; // 如需调整与后端确认
+const PERMISSION_MAP = { preview: 8, download: 72 }; // 如需调整与后端确认
 
 const hasHistory = computed(() => historyRows.value.length > 0);
 const descText = computed(() => hasHistory.value ? '访问申请审核中' : '暂无预览权限');
@@ -89,11 +94,17 @@ function renderPerm(code) {
 }
 
 async function fetchHistory() {
-  if (!props.fileId) return;
+  // 对于 NAS 场景，fileId 可能不存在，但仍需查询历史记录
   loadingHistory.value = true;
   try {
     const user = getUserInfo() || {};
-    const body = { fileCategory: props.fileCategory, isFolder: props.isFolder, fileId: Number(props.fileId), sort: '-updateTime', creatorId: user.userId };
+    const body = { fileCategory: props.fileCategory, isFolder: props.isFolder, sort: '-updateTime', creatorId: user.userId };
+    if (props.fileId) body.fileId = Number(props.fileId);
+    // 若为 NAS，附加 nasFilePath / nasCode（优先 file.filePath，再 fallback 到 subPath）
+    if (String(props.fileCategory).toLowerCase() === 'nas' && props.file) {
+      if (props.file.subPath) body.nasFilePath = props.file.subPath;
+      if (props.file.nasId) body.nasCode = props.file.nasId;
+    }
     const resp = await appsApi.post('/file-apply/history', body);
     if (resp && resp.status === 'ok') {
       const rows = resp.data?.rows || [];
@@ -111,7 +122,14 @@ async function submitApply() {
   submitting.value = true;
   try {
     const perm = PERMISSION_MAP[form.value.permissionKey] || PERMISSION_MAP.preview;
-    const body = { fileCategory: props.fileCategory, isFolder: props.isFolder, fileId: Number(props.fileId), permissions: perm, applyDesc: form.value.applyDesc.trim() };
+    const body = { fileCategory: props.fileCategory, isFolder: props.isFolder, permissions: perm, applyDesc: form.value.applyDesc.trim() };
+    if (props.fileId) body.fileId = Number(props.fileId);
+    // 若为 NAS，附加 nasFilePath / nasCode（优先使用传入的 file 对象的 filePath）
+    if (String(props.fileCategory).toLowerCase() === 'nas') {
+      const f = props.file || {};
+      if (f.subPath) body.nasFilePath = f.subPath;
+      if (f.nasId) body.nasCode = f.nasId;
+    }
     const resp = await appsApi.post('/file-apply/request', body);
     if (resp && resp.status === 'ok') {
       ElMessage.success('申请已提交');
@@ -129,11 +147,12 @@ async function submitApply() {
 }
 
 onMounted(fetchHistory);
-watch(() => [props.fileId, props.fileCategory], fetchHistory);
+watch(() => [props.fileId, props.fileCategory, props.file?.filePath, props.file?.subPath, props.file?.nasId], fetchHistory);
 </script>
 
 <style scoped>
 .no-perm-wrapper { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:24px 16px; }
 .apply-actions { display:flex; gap:12px; }
 .history-box { width:100%; max-width:640px; }
+.history-footer { display:flex; justify-content:center; padding:12px 0 4px; }
 </style>
