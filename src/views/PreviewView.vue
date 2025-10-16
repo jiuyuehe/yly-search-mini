@@ -41,7 +41,14 @@
               <template v-else-if="hasPerm">
                 <DocPreviewPane :file="fileData" :loading="loading" class="file-preview-shell" />
               </template>
-              <FileAccessApply v-else :file-id="fileId" :file-category="props.fc || route.params.fc" :is-folder="false" @applied="reload" />
+              <FileAccessApply
+                v-else
+                :file-id="(fileData && (fileData.fileId || fileData.id)) || props.fi || route.params.fi || fileId"
+                :file-category="(fileData && (fileData.fileCategory || fileData.fc)) || props.fc || route.params.fc"
+                :file="fileData"
+                :is-folder="false"
+                @applied="reload"
+              />
             </div>
           </el-splitter-panel>
           <el-splitter-panel :size="textPanelSize" :class="{ collapsed: !showText }">
@@ -357,14 +364,29 @@ async function load() {
     if (!nasId || !nasFilePath) { loading.value = false; return; }
     // 轮询获取在线预览地址
     try {
-  const { link } = await previewService.waitNasPreviewLink({ nasId, nasFilePath, shouldStop: () => destroyed });
+      const res = await previewService.waitNasPreviewLink({ nasId, nasFilePath, shouldStop: () => destroyed });
+      // 现在 previewService 会在创建或查询阶段返回结构化结果，包含 status 字段
+      if (res && res.status && res.status !== 'ok') {
+        // 当服务层告知无权限时，统一以结构化字段判断权限，不再依赖对 err.message 的正则匹配
+        if (res.status === 'err_no_permission') {
+          hasPerm.value = false;
+          applyStatus.value = 'none';
+          fileData.value = { ...(fileData.value || {}), hasAccess: false };
+          loading.value = false;
+          return;
+        }
+        // 其他非 ok 状态当作失败处理，允许后续逻辑继续尝试或展示失败
+        console.warn('[PreviewView] NAS 预览任务返回非 OK 状态', res);
+      }
+      const link = (res && res.link) ? res.link : (typeof res === 'string' ? res : null);
       const merged = { ...(fileData.value || {}), previewUrl: link, viewUrl: link, hasAccess: true };
       fileData.value = merged;
       hasPerm.value = true; applyStatus.value = 'approved';
       nextTick(() => adjustSizes());
     } catch (e) {
+      // 只依据结构化的业务返回 code/status 判定权限；若是异常则视为普通失败，不做模糊文本匹配
       console.warn('[PreviewView] NAS 预览获取失败', e);
-      // 失败不改变权限，除非后端明确权限错误
+      // 保留不修改 hasPerm 的默认行为，除非响应体明确告知无权限（上面已处理）
     } finally {
       loading.value = false;
     }

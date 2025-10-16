@@ -175,7 +175,7 @@ async function main() {
   await uploadFile();
   await unzipRemote();
   await deleteRemoteZip();
-  deleteLocalZip();
+  // deleteLocalZip();
   console.log('✅ Deploy completed successfully.', config.server.host);
 }
 

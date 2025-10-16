@@ -72,24 +72,29 @@ class PreviewService {
   async createNasPreviewTask({ nascode, nasFilePath, serverCode = 'yliyunviewer', mode = 'view' }) {
     if (!nasId) throw new Error('缺少 nasId');
     if (!nasFilePath) throw new Error('缺少 nasFilePath');
-    const body = { mode, serverCode, nasId: String(nasId), nasFilePath, fileCategory: 'nas' };
-    const res = await appsApi.post('/pub/file-online/url/task', body, { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
-    if (res?.status !== 'ok') throw new Error(res?.msg || 'NAS 预览任务创建失败');
-    return res.data; // { taskId, token }
+    const body = { mode, serverCode, nasCode: String(nasId), nasFilePath, fileCategory: 'nas' };
+  const res = await appsApi.post('/pub/file-online/url/task', body, { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
+  // 不在此处抛出异常，让上层统一根据返回的 status 做判断（减少前端对 error.message 的脆弱解析）  
+  return res; // 可能为 { status: 'ok', data: { taskId, token } } 或 { status: 'err_no_permission', msg: '...' }
   }
 
   /** 查询 NAS 在线预览任务状态 */
   async fetchNasPreviewTask({ taskId, token }) {
     if (!taskId || !token) throw new Error('缺少 taskId/token');
-    const res = await appsApi.get('/pub/file-online/url/task', { params: { task_id: taskId, token } });
-    if (res?.status !== 'ok') throw new Error(res?.msg || 'NAS 预览任务查询失败');
-    return res.data; // 包含 status, result 等
+  // 返回原始响应体，交由调用方按 status 做更细粒度判断
+  const res = await appsApi.get('/pub/file-online/url/task', { params: { task_id: taskId, token } });
+  return res; // 可能结构: { status: 'ok', result: { link, fileName } } 或 { status: 'err_no_permission', msg: '...' }
   }
 
   /** 等待 NAS 预览链接 (轮询) */
   async waitNasPreviewLink({ nasId, nasFilePath, pollInterval = 1000, maxWaitMs = 15000, shouldStop }) {
     const start = Date.now();
-    const { taskId, token } = await this.createNasPreviewTask({ nasId, nasFilePath });
+    const createRes = await this.createNasPreviewTask({ nasId, nasFilePath });
+    // 若创建任务就返回了无权限等状态，直接返回结构给调用方由前端统一处理
+    if (createRes && createRes.status && createRes.status !== 'ok') {
+      return createRes;
+    }
+    const { taskId, token } = (createRes && createRes.data) || {};
     while (true) {
       if (typeof shouldStop === 'function' && shouldStop()) {
         throw new Error('NAS 预览已取消');
@@ -98,11 +103,21 @@ class PreviewService {
         throw new Error('NAS 预览生成超时');
       }
       const data = await this.fetchNasPreviewTask({ taskId, token });
-      if (data.status === 'ok' && data.result?.link) {
-        return { link: data.result.link, fileName: data.result.fileName || '' };
+      
+      // 若后端明确返回无权限，直接把结构返回给调用方，避免上层去解析 error.message
+      if (data && data.status === 'err_no_permission') {
+        return data;
       }
-      if (data.status === 'fail' || data.errorMsg) {
-        throw new Error(data.errorMsg || 'NAS 预览生成失败');
+      if (data && data.status === 'ok' && data.result?.link) {
+        return { status:data.status, link: data.result.link, fileName: data.result.fileName || '' };
+      }
+
+     if (data && data.status === 'ok' && data?.data?.result?.link) {
+        return {status:data.status, link: data.data.result.link, fileName: data.data.result.fileName || '' };
+      }
+
+      if (data && (data.status === 'fail' || data.errorMsg)) {
+        throw new Error(data.errorMsg || data.msg || 'NAS 预览生成失败');
       }
       // deal / processing -> 等待
       await new Promise(r => setTimeout(r, pollInterval));

@@ -115,7 +115,7 @@ function formatSize(size) { if (!size) return ''; const units=['B','KB','MB','GB
 .file-name:hover { color: var(--primary-color); text-decoration: underline; }
 .bottom-line { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; color:#606266; line-height:1.3; }
 .bottom-line span { display:inline-flex; align-items:center; gap:4px; }
-.bottom-line .path a { color:#1671f2; text-decoration:none; max-width:320px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bottom-line .path a { color:#1671f2; text-decoration:none; max-width:460px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .bottom-line .path a:hover { text-decoration:underline; }
 .file-name :deep(.hl) { background:#ffeb3b; padding:0 2px; border-radius:3px; font-weight:600; }
 </style>
