@@ -855,11 +855,48 @@ class AIService {
         if (!esId) return null;
         try {
             const res = await api.get(`/admin-api/rag/ai/text/translate/${encodeURIComponent(esId)}`, {timeout: 30000});
-            const data = res?.data || res?.result || {};
-            if (!data || Object.keys(data).length === 0) return null;
-            const translation = data.translated || data.translation || data.text || data.content || '';
-            if (!translation) return null;
-            return {translation};
+            const root = res?.data || res?.result || res || {};
+            const data = root?.data !== undefined ? root.data : root; // 兼容 { code, data } 包装
+            if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) return null;
+
+            // 后端可能返回完整任务结构：sourceLanguage/targetLanguage/targetList/translatedPairs/concatTarget/translated/translate{...}
+            const translateNode = data.translate || data.statusNode || null;
+            const translation = data.concatTarget || data.translated || data.translation || data.text || data.content || '';
+
+            // 标准化返回：始终返回 { translation, ...data, translate }
+            const out = {
+                translation: String(translation || ''),
+                ...data
+            };
+            if (translateNode && typeof translateNode === 'object') {
+                const total = Number(translateNode.total ?? 0) || 0;
+                const done = Number(translateNode.done ?? 0) || 0;
+                const rawStatus = String(translateNode.status || '').toLowerCase();
+                const rawComplete = !!translateNode.complete;
+                const err = translateNode.error || data.error || null;
+                // 统一计算进度
+                let progress = Number(translateNode.progress);
+                if (!Number.isFinite(progress)) {
+                    progress = total > 0 ? Math.round((done / total) * 100) : 0;
+                }
+                // 规范化完成与状态判断：若 done < total，则不视为完成（即使后端标记 completed）
+                let complete = rawComplete;
+                if (total > 0 && done < total) complete = false;
+                // 将状态映射为 running/done/error 三态
+                let status = rawStatus;
+
+                out.translate = {
+                    status,
+                    total,
+                    done,
+                    complete,
+                    progress,
+                    error: err,
+                    taskId: translateNode.taskId || translateNode.id || null,
+                    updatedAt: translateNode.updatedAt || translateNode.updateTime || translateNode.timestamp || null
+                };
+            }
+            return out;
         } catch (e) {
             console.warn('[AIService] fetchCachedTranslation failed', e);
             return null;
@@ -879,6 +916,32 @@ class AIService {
         } catch (e) {
             console.warn('[AIService] saveTranslation failed', e);
             return {success: false, message: e.message};
+        }
+    }
+
+    // 启动整篇翻译的任务（不传 text，由后端基于 esId 的内容自行翻译）
+    async startTranslateTask({ esId, sourceLang = 'auto', targetLang = 'zh', options = {} } = {}) {
+        if (!esId) return { success: false, message: '缺少 esId' };
+        try {
+            const body = {
+                esId,
+                sourceLang: sourceLang || 'auto',
+                targetLang,
+                // 为了明确意图，可带一个启动标识，后端可忽略
+                start: true,
+                ...options
+            };
+            const res = await api.post('/admin-api/rag/ai/text/translate', body, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: AI_REQUEST_TIMEOUT
+            });
+            const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
+            const data = root?.data !== undefined ? root.data : root;
+            const taskId = data?.taskId || data?.translate?.taskId || null;
+            return { success: true, taskId, data };
+        } catch (e) {
+            console.warn('[AIService] startTranslateTask failed', e);
+            return { success: false, message: e.message };
         }
     }
 

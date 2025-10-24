@@ -47,6 +47,9 @@
                    :disabled="!sourceText.trim()">翻译
         </el-button>
         <el-button v-if="translating" type="danger" size="small" @click="cancelTranslation">取消</el-button>
+        <el-button v-if="settings.provider==='builtin'" size="small" @click="manualRefresh" :loading="refreshing" :disabled="!esIdForOps">
+          刷新状态
+        </el-button>
         <el-button size="small" @click="openGlossaryManager">
           <el-icon>
             <Collection/>
@@ -166,7 +169,7 @@
 
 <script setup>
 // 高级翻译模块（补充：引入 GitHub Markdown 样式使表格/代码块显示更清晰）
-import {ref, reactive, onMounted, watch, onUnmounted, nextTick} from 'vue';
+import {ref, reactive, onMounted, watch, onUnmounted, nextTick, computed} from 'vue';
 import MarkdownIt from 'markdown-it';
 import {useAiToolsStore} from '../../../stores/aiTools';
 import {ElMessage} from 'element-plus';
@@ -221,7 +224,7 @@ function renderMarkdown(text) {
 }
 
 // 获取格式化文本：仅 doc/docx/md 显示按钮
-import {computed} from 'vue';
+// computed 已在上方一起引入
 const formatLoading = ref(false);
 const showFormatBtn = computed(() => {
   const name = props.file?.fileName || props.file?.filename || '';
@@ -231,7 +234,7 @@ const showFormatBtn = computed(() => {
 
 async function fetchFormattedSource(){
   try{
-    const esId = props.esId || props.fileId;
+    const esId = props.esId;
     if(!esId){ ElMessage.error('缺少 esId'); return; }
     formatLoading.value = true;
     const res = await api.get(`/admin-api/rag/ai/file/markdown/${encodeURIComponent(esId)}`);
@@ -286,8 +289,8 @@ function enterSourceEdit() {
 }
 
 async function finishSourceEdit() {
-  // 结束源文本编辑并保存到后端（固定 esId = 19public226）
-  const esId = props.esId || props.fileId;
+  // 结束源文本编辑并保存到后端（基于 props.esId）
+  const esId = props.esId;
   sourceEditable.value = false;
   // 保存后再重新渲染为 Markdown（延迟一个 tick 等 contenteditable 关闭）
   nextTick(() => updateSourceTextContent());
@@ -378,7 +381,7 @@ async function finishEdit() {
   });
   // 保存译文到后端缓存并通知父组件更新 fileContents
   try {
-    const esId = props.esId || props.fileId;
+    const esId = props.esId;
     if (esId) {
       // try save translation via aiService (existing endpoint)
       const res = await aiService.saveTranslation(esId, translatedText.value, targetLanguage.value);
@@ -448,6 +451,8 @@ const translating = ref(false);
 const translationProgress = ref(0);
 const cancelRequested = ref(false);
 const sentenceTranslations = ref([]); // 存放每句译文
+const refreshing = ref(false); // 手动刷新状态
+const esIdForOps = computed(() => props.esId || '');
 
 // Context menu
 const showContextMenu = ref(false);
@@ -539,6 +544,9 @@ watch(() => props.active, (v) => {
     applyFontSize();
     applyTheme();
     initLoad();
+  } else {
+    // 非激活状态停止轮询
+    if (translatePollTimer) { clearInterval(translatePollTimer); translatePollTimer = null; }
   }
 });
 
@@ -579,15 +587,39 @@ async function loadCachedOrTranslate() {
   if (!props.active) return; // 仅在激活时执行
   if (!sourceText.value.trim()) return;
   try {
-    const esId = props.esId || props.fileId; // 正确传递 esId
+    const esId = props.esId ; // 正确传递 esId
     if (esId) {
       const {aiService} = await import('../../../services/aiService');
       const cached = await aiService.fetchCachedTranslation(esId);
-      if (cached && cached.translation) {
-        translatedText.value = cached.translation;
-        emit('translated', translatedText.value);
-        updateTargetTextContent();
-        return;
+      if (cached) {
+        const tnode = cached.translate || {};
+        console.log('Cached translation node:', tnode);
+        const text = cached.concatTarget || cached.translated || cached.translation || '';
+        if (text) {
+          translatedText.value = String(text);
+          emit('translated', translatedText.value);
+          updateTargetTextContent();
+        }
+
+          // 错误态：显示提示但不视为完成
+        if (tnode && (tnode.status === 'error' || tnode.status == 'idle')) {
+          translating.value = false;
+          if (tnode.error) ElMessage.warning(`翻译任务异常：${tnode.error}`);
+          return;
+        }
+        
+        // 若任务仍在运行，仅根据缓存状态展示进度，不再自动轮询
+        if (tnode && (tnode.status === 'running' || tnode.complete === false)) {
+          translating.value = true;
+          if (typeof tnode.progress === 'number') {
+            translationProgress.value = Math.max(0, Math.min(100, Number(tnode.progress)));
+          } else if (tnode.total > 0) {
+            translationProgress.value = Math.round((Number(tnode.done || 0) / Number(tnode.total)) * 100);
+          }
+          return;
+        }
+      
+        if (text) return;
       }
     }
     // 如果源目标语言相同，直接复制
@@ -604,6 +636,63 @@ async function loadCachedOrTranslate() {
     }
   } catch (e) {
     console.warn('loadCachedOrTranslate failed', e);
+  }
+}
+
+// 定时器引用（翻译状态轮询）
+let translatePollTimer = null;
+
+// 轮询后端翻译状态并更新 UI
+async function pollTranslationStatus(esId) {
+  const { aiService } = await import('../../../services/aiService');
+  try {
+    const status = await aiService.fetchCachedTranslation(esId);
+    if (!status) return;
+    // 更新译文（以整篇拼接优先）
+    const text = status.concatTarget || status.translated || status.translation || '';
+    if (text) {
+      translatedText.value = String(text);
+      emit('translated', translatedText.value);
+      updateTargetTextContent();
+    }
+    // 更新进度
+    const t = status.translate || {};
+    if (typeof t.progress === 'number') {
+      translationProgress.value = Math.max(0, Math.min(100, Number(t.progress)));
+    } else if (t.total > 0) {
+      translationProgress.value = Math.round((Number(t.done || 0) / Number(t.total)) * 100);
+    }
+    // 错误态优先
+    if (t.status === 'error' || t.status == 'idle') {
+      if (translatePollTimer) { clearInterval(translatePollTimer); translatePollTimer = null; }
+      translating.value = false;
+      if (t.error) ElMessage.warning(`翻译任务异常：${t.error}`);
+      return;
+    }
+    // 完成收尾
+    if (t.complete === true || t.status === 'done') {
+      if (translatePollTimer) { clearInterval(translatePollTimer); translatePollTimer = null; }
+      translating.value = false;
+      translationProgress.value = 100;
+      ElMessage.success('翻译完成');
+    }
+  } catch (e) {
+    console.warn('pollTranslationStatus failed', e);
+  }
+}
+
+// 手动刷新一次状态
+async function manualRefresh() {
+  const esId = props.esId;
+  if (!esId) {
+    ElMessage.error('缺少 esId');
+    return;
+  }
+  try {
+    refreshing.value = true;
+    await pollTranslationStatus(esId);
+  } finally {
+    refreshing.value = false;
   }
 }
 
@@ -660,7 +749,7 @@ function onSourceLanguageChange() {
 
 // Swap languages
 
-// Main translation function
+// Main translation function（单次启动任务 + 轮询，不再前端分段）
 async function translateText() {
   if (translating.value) return; // 避免重复触发
   if (!sourceText.value.trim()) {
@@ -680,27 +769,20 @@ async function translateText() {
   sentenceTranslations.value = [];
 
   try {
-    // 按段落拆分（空行分隔）
-    const paragraphs = splitIntoParagraphs(sourceText.value);
-    let translatedParagraphs = [];
+    const esId = props.esId;
+    if (!esId) {
+      ElMessage.error('缺少 esId，无法启动翻译任务');
+      translating.value = false;
+      return;
+    }
 
     if (settings.provider === 'builtin') {
-      const {aiService} = await import('../../../services/aiService');
-      for (let i = 0; i < paragraphs.length; i++) {
-        if (cancelRequested.value) break;
-        const paragraph = paragraphs[i];
-        sentenceTranslations.value[i] = '';
-        if (paragraph.trim()) {
-          await aiService.translateText(paragraph, targetLanguage.value, (chunk) => {
-            sentenceTranslations.value[i] = chunk;
-            translatedParagraphs[i] = chunk;
-            translatedText.value = sentenceTranslations.value.join('\n\n');
-            emit('translated', translatedText.value);
-            updateTargetTextContent();
-          });
-          translationProgress.value = Math.round(((i + 1) / paragraphs.length) * 100);
-        }
-      }
+      const { aiService } = await import('../../../services/aiService');
+      const srcLang = sourceLanguage.value === 'auto' ? 'auto' : sourceLanguage.value;
+      // 单次启动任务（不传 text）
+      await aiService.startTranslateTask({ esId, sourceLang: srcLang, targetLang: targetLanguage.value });
+      // 取消自动轮询，改为手动刷新
+      translationProgress.value = 0;
     } else if (settings.provider === 'xunfei') {
       // 调用讯飞批量接口一次性翻译整段
       try {
@@ -709,7 +791,7 @@ async function translateText() {
         const xfRes = await xfResPromise;
         if (cancelRequested.value) throw new Error('cancelled');
         if (xfRes?.sentences && Array.isArray(xfRes.sentences)) {
-          translatedParagraphs = xfRes.sentences.map(s => s.target || s.tgt || s.translation || '');
+          const translatedParagraphs = xfRes.sentences.map(s => s.target || s.tgt || s.translation || '');
           sentenceTranslations.value = [...translatedParagraphs];
           translatedText.value = translatedParagraphs.join('\n\n');
           emit('translated', translatedText.value);
@@ -724,49 +806,15 @@ async function translateText() {
           throw new Error('讯飞返回结构不符合预期');
         }
       } catch (e) {
-        console.warn('Xunfei translate failed fallback to builtin', e);
-        const {aiService: aiSvcFallback} = await import('../../../services/aiService');
-        for (let i = 0; i < paragraphs.length; i++) {
-          if (cancelRequested.value) break;
-          const paragraph = paragraphs[i];
-          sentenceTranslations.value[i] = '';
-          if (paragraph.trim()) {
-            await aiSvcFallback.translateText(paragraph, targetLanguage.value, (chunk) => {
-              sentenceTranslations.value[i] = chunk;
-              translatedParagraphs[i] = chunk;
-              translatedText.value = sentenceTranslations.value.join('\n\n');
-              emit('translated', translatedText.value);
-              updateTargetTextContent();
-            });
-            translationProgress.value = Math.round(((i + 1) / paragraphs.length) * 100);
-          }
-        }
+        console.warn('Xunfei translate failed', e);
+        ElMessage.error('讯飞翻译失败');
+        translating.value = false;
       }
-    }
-
-    // Build text alignment map for synchronized highlighting (按段落)
-    buildTextAlignmentMap(paragraphs, translatedParagraphs);
-
-    if (cancelRequested.value) {
-      ElMessage.info('翻译已取消');
-    } else {
-      try {
-        const esId = props.esId || props.fileId;
-        if (esId) {
-          const {aiService} = await import('../../../services/aiService');
-          await aiService.saveTranslation(esId, translatedText.value, targetLanguage.value);
-        }
-      } catch (e) {
-        console.warn('save translation cache failed', e);
-      }
-      ElMessage.success('翻译完成');
     }
   } catch (error) {
-    ElMessage.error('翻译失败，请重试');
-    console.error('Translation failed:', error);
-  } finally {
+    ElMessage.error('翻译任务启动失败');
+    console.error('Translation start failed:', error);
     translating.value = false;
-    if (!cancelRequested.value) translationProgress.value = 100; else translationProgress.value = Math.min(99, translationProgress.value);
   }
 }
 
@@ -774,6 +822,11 @@ function cancelTranslation() {
   if (!translating.value) return;
   cancelRequested.value = true;
   ElMessage.info('正在取消翻译...');
+  if (translatePollTimer) {
+    clearInterval(translatePollTimer);
+    translatePollTimer = null;
+  }
+  translating.value = false;
 }
 
 // 按段落拆分：优先使用两个及以上连续换行作为段落分隔，否则退化为单行列表
@@ -1142,6 +1195,10 @@ function saveCustomTag() {
 // 组件卸载清理
 onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick);
+  if (translatePollTimer) {
+    clearInterval(translatePollTimer);
+    translatePollTimer = null;
+  }
 });
 </script>
 
