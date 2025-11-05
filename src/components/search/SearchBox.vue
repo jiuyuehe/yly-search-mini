@@ -170,27 +170,27 @@ if (typeof window !== 'undefined') {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-md);
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: var(--spacing-lg);
 }
 
 .search-container {
   flex: 1;
-  background: var(--background-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
-  padding: var(--spacing-md);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s ease;
+  background: #FFFFFF;
+  border: 2px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
 }
 
 .search-container:hover {
-  border-color: var(--primary-color);
-  box-shadow: var(--shadow-md);
+  border-color: #3B82F6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 
 .search-container:focus-within {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px var(--primary-color-light);
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
 .search-input-wrapper {
@@ -200,19 +200,23 @@ if (typeof window !== 'undefined') {
 :deep(.search-textarea .el-textarea__inner) {
   box-shadow: none;
   padding: 0;
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--text-color-primary);
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1F2937;
   background: transparent;
+  border: none;
+  resize: none;
 }
 
 :deep(.search-textarea .el-textarea__inner):focus {
   border: none;
   box-shadow: none;
+  outline: none;
 }
 
 :deep(.search-textarea .el-textarea__inner)::placeholder {
-  color: var(--text-color-placeholder);
+  color: #9CA3AF;
+  font-size: 14px;
 }
 
 .search-footer {
@@ -222,43 +226,65 @@ if (typeof window !== 'undefined') {
   width: 100%;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #F3F4F6;
 }
 
 .left-controls{
   display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .search-type-selector {
   flex: 0 0 auto;
-  margin-right: 2px;
 }
 
 .search-type-select {
-  width: 120px;
+  width: 130px;
 }
 
 :deep(.search-type-select .el-input__wrapper) {
-  border-radius: var(--border-radius-sm);
-  border-color: var(--border-color);
+  border-radius: 8px;
+  border-color: #E5E7EB;
+  background: #F9FAFB;
+  transition: all 0.2s;
+}
+
+:deep(.search-type-select .el-input__wrapper:hover) {
+  border-color: #3B82F6;
+  background: #FFFFFF;
 }
 
 .search-btn {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
-  border-radius: var(--border-radius-sm);
-  padding: var(--spacing-xs) var(--spacing-md);
-  height: 32px;
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  border-color: #3B82F6;
+  border-radius: 8px;
+  padding: 8px 24px;
+  height: 36px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+  transition: all 0.3s;
 }
 
 .search-btn:hover {
-  background-color: var(--primary-color-dark);
-  border-color: var(--primary-color-dark);
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  border-color: #2563EB;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.search-btn:active {
+  transform: translateY(0);
 }
 
 .search-btn:disabled {
-  background-color: var(--border-color);
-  border-color: var(--border-color);
-  color: var(--text-color-placeholder);
+  background: #E5E7EB;
+  border-color: #E5E7EB;
+  color: #9CA3AF;
+  box-shadow: none;
+  transform: none;
 }
 
 .extra-actions {
@@ -267,11 +293,42 @@ if (typeof window !== 'undefined') {
 }
 
 .image-upload-btn {
-  border-radius: var(--border-radius-sm);
+  border-radius: 8px;
+  border-color: #3B82F6;
+  color: #3B82F6;
+  background: #EFF6FF;
+  transition: all 0.2s;
+}
+
+.image-upload-btn:hover {
+  background: #3B82F6;
+  color: #FFFFFF;
+  border-color: #2563EB;
 }
 
 .image-upload-btn .btn-icon {
   margin-right: 4px;
+}
+
+.mode-select {
+  display: flex;
+  align-items: center;
+}
+
+.mode-select-inner {
+  width: 100px;
+}
+
+:deep(.mode-select-inner .el-input__wrapper) {
+  border-radius: 8px;
+  border-color: #E5E7EB;
+  background: #F9FAFB;
+  transition: all 0.2s;
+}
+
+:deep(.mode-select-inner .el-input__wrapper:hover) {
+  border-color: #3B82F6;
+  background: #FFFFFF;
 }
 
 .image-preview-chip {
