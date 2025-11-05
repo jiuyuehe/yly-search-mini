@@ -29,13 +29,23 @@ const isEdit = computed(() => !!route.params.id);
 <style scoped>
 .form-designer-view {
   min-height: 100vh;
-  background-color: #f5f7fa;
+  background-color: #F7F8FA;
 }
 
 .view-header {
-  padding: 20px;
-  background-color: white;
-  border-bottom: 1px solid #ebeef5;
+  padding: 20px 24px;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.view-header :deep(.el-breadcrumb__inner) {
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.view-header :deep(.el-breadcrumb__inner.is-link:hover) {
+  color: #3B82F6;
 }
 
 .view-content {

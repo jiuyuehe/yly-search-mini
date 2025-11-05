@@ -586,20 +586,110 @@ watch(() => searchStore.pagination.total, (total) => {
 </script>
 
 <style scoped>
-.search-view { display: flex; flex-direction: column; height: 100vh; }
-.search-container { display: flex; flex: 1; overflow: hidden; }
-.filter-sidebar { background-color: #f5f7fa; transition: width 0.3s; position: relative; overflow-y: auto; border-right: 1px solid #dcdfe6; }
-.filter-sidebar.collapsed { width: 30px; }
-.sidebar-toggle { position: absolute; top: 20px; right: 10px; cursor: pointer; background-color: #ffffff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
-.search-content { flex: 1; display: flex; flex-direction: column; overflow: hidden;}
-.search-content-inner { width: 900px; max-width: 100%; margin: 10px auto; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 20px; }
-.search-results { flex: 1 1 auto; overflow-y: auto; padding: 10px 0; min-height: 0; }
-  .search-results.grid-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; align-items: start; }
-.search-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; border-top: 1px solid #ebeef5; }
-.summary-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;flex-wrap:wrap;}
-.extra-actions{display:flex;align-items:center;gap:8px;}
-/* When in QA mode, both FilterToggleSummary and .extra-actions may be hidden; ensure row collapses */
-.summary-row:empty { display: none; }
+.search-view { 
+  display: flex; 
+  flex-direction: column; 
+  height: 100vh;
+  background: #F7F8FA;
+}
+
+.search-container { 
+  display: flex; 
+  flex: 1; 
+  overflow: hidden;
+  background: #F7F8FA;
+}
+
+.filter-sidebar { 
+  background-color: #FFFFFF; 
+  transition: width 0.3s; 
+  position: relative; 
+  overflow-y: auto; 
+  border-right: 1px solid #E5E7EB;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
+}
+
+.filter-sidebar.collapsed { 
+  width: 30px; 
+}
+
+.sidebar-toggle { 
+  position: absolute; 
+  top: 20px; 
+  right: 10px; 
+  cursor: pointer; 
+  background-color: #FFFFFF; 
+  border-radius: 50%; 
+  width: 24px; 
+  height: 24px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); 
+}
+
+.search-content { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+  overflow: hidden;
+}
+
+.search-content-inner { 
+  width: 900px; 
+  max-width: 100%; 
+  margin: 20px auto; 
+  display: flex; 
+  flex-direction: column; 
+  flex: 1; 
+  min-height: 0; 
+  padding: 0 24px; 
+}
+
+.search-results { 
+  flex: 1 1 auto; 
+  overflow-y: auto; 
+  padding: 12px 0; 
+  min-height: 0; 
+}
+
+.search-results.grid-layout { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+  gap: 20px; 
+  align-items: start; 
+}
+
+.search-footer { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 16px 0;
+  border-top: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  margin: 0 -24px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.summary-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+  flex-wrap:wrap;
+}
+
+.extra-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.summary-row:empty { 
+  display: none; 
+}
 
 .image-loading-center{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 10px;width:100%;}
 .image-loading-center .loading-icon{font-size:48px;color:var(--primary-color);}

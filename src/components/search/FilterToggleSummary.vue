@@ -81,19 +81,76 @@ function removeTag(tag) { emit('remove', tag); }
 </script>
 
 <style scoped>
-.filter-toggle-summary { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
-.top-row { display:flex; align-items:center; gap:8px; justify-content:flex-start; }
-.toggle-btn { display:inline-flex; align-items:center; gap:4px; }
-.count-badge {
-  background:#fff;
-  color:#1671f2;
-  border-radius:10px;
-  padding:0 6px;
-  font-size:12px;
-  line-height:16px;
-  font-weight:600;
-  margin-left:4px;
+.filter-toggle-summary { 
+  display:flex; 
+  flex-direction:column; 
+  gap:8px; 
+  margin-bottom:16px; 
 }
-.clear-btn { color:#f56c6c; }
-.tags-row { display:flex; flex-wrap:wrap; gap:6px; }
+
+.top-row { 
+  display:flex; 
+  align-items:center; 
+  gap:8px; 
+  justify-content:flex-start; 
+}
+
+.toggle-btn { 
+  display:inline-flex; 
+  align-items:center; 
+  gap:6px;
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.toggle-btn .txt {
+  font-weight: 500;
+}
+
+.count-badge {
+  background: #FFFFFF;
+  color: #3B82F6;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  margin-left: 4px;
+  box-shadow: 0 0 0 1px #3B82F6 inset;
+}
+
+.clear-btn { 
+  color: #EF4444;
+  font-weight: 500;
+}
+
+.clear-btn:hover {
+  color: #DC2626;
+  background: #FEE2E2;
+}
+
+.tags-row { 
+  display:flex; 
+  flex-wrap:wrap; 
+  gap:8px; 
+}
+
+.tags-row :deep(.el-tag) {
+  border-radius: 6px;
+  padding: 0 12px;
+  height: 28px;
+  line-height: 26px;
+  font-size: 13px;
+  border-color: #E5E7EB;
+  background: #F9FAFB;
+  color: #374151;
+}
+
+.tags-row :deep(.el-tag .el-icon) {
+  color: #6B7280;
+}
+
+.tags-row :deep(.el-tag .el-icon:hover) {
+  color: #3B82F6;
+}
 </style>

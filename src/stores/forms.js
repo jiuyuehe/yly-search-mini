@@ -38,9 +38,14 @@ export const useFormsStore = defineStore('forms', {
       
       try {
         const forms = await formsService.getForms();
-        this.forms = forms;
-        this.filteredForms = forms;
-        return forms;
+        // Initialize enabled and dataCount if not present
+        this.forms = forms.map(form => ({
+          ...form,
+          enabled: form.enabled !== undefined ? form.enabled : true,
+          dataCount: form.dataCount || 0
+        }));
+        this.filteredForms = this.forms;
+        return this.forms;
       } catch (error) {
         this.error = error.message;
         throw error;
@@ -122,6 +127,23 @@ export const useFormsStore = defineStore('forms', {
         throw error;
       } finally {
         this.loading.delete = false;
+      }
+    },
+
+    async updateFormStatus(id, enabled) {
+      try {
+        // In a real implementation, this would call an API
+        // await formsService.updateFormStatus(id, enabled);
+        
+        // Update local state
+        const index = this.forms.findIndex(f => f.id === parseInt(id));
+        if (index !== -1) {
+          this.forms[index].enabled = enabled;
+          this.filteredForms = [...this.forms];
+        }
+        return true;
+      } catch (error) {
+        throw error;
       }
     },
 

@@ -81,7 +81,42 @@ function getTabLabel(tab) {
 </script>
 
 <style scoped>
-.search-result-tabs { margin-bottom: 15px; }
-.search-result-tabs :deep(.el-tabs__header) { margin-bottom: 10px; }
+.search-result-tabs { 
+  margin-bottom: 16px; 
+}
+
+.search-result-tabs :deep(.el-tabs__header) { 
+  margin-bottom: 12px;
+  border-bottom: 2px solid #F3F4F6;
+}
+
+.search-result-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 0;
+}
+
+.search-result-tabs :deep(.el-tabs__item) {
+  font-size: 15px;
+  font-weight: 500;
+  color: #6B7280;
+  padding: 0 20px;
+  height: 44px;
+  line-height: 44px;
+  transition: all 0.3s;
+}
+
+.search-result-tabs :deep(.el-tabs__item:hover) {
+  color: #3B82F6;
+}
+
+.search-result-tabs :deep(.el-tabs__item.is-active) {
+  color: #3B82F6;
+  font-weight: 600;
+}
+
+.search-result-tabs :deep(.el-tabs__active-bar) {
+  height: 3px;
+  background: linear-gradient(90deg, #3B82F6 0%, #2563EB 100%);
+  border-radius: 3px 3px 0 0;
+}
 </style>
 
