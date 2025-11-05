@@ -477,13 +477,23 @@ onBeforeUnmount(() => {
 <style scoped>
 .stats-view {
   min-height: 100vh;
-  background-color: var(--background-page);
+  background-color: #F7F8FA;
 }
 
 .view-header {
   padding: 20px 24px;
-  background-color: var(--background-color);
-  border-bottom: 1px solid var(--border-color);
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.view-header :deep(.el-breadcrumb__inner) {
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.view-header :deep(.el-breadcrumb__inner.is-link:hover) {
+  color: #3B82F6;
 }
 
 .view-content {
@@ -498,19 +508,19 @@ onBeforeUnmount(() => {
 }
 
 .stat-card {
-  background: var(--background-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
 }
 
@@ -531,14 +541,15 @@ onBeforeUnmount(() => {
 
 .card-label {
   font-size: 14px;
-  color: var(--text-color-secondary);
+  color: #6B7280;
   margin-bottom: 8px;
+  font-weight: 500;
 }
 
 .card-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--text-color-primary);
+  color: #1F2937;
 }
 
 .charts-row {
@@ -549,22 +560,24 @@ onBeforeUnmount(() => {
 }
 
 .chart-card {
-  background: var(--background-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
   padding: 20px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .chart-header {
   margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #F3F4F6;
 }
 
 .chart-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-color-primary);
+  color: #1F2937;
 }
 
 .chart-container {
@@ -573,11 +586,11 @@ onBeforeUnmount(() => {
 }
 
 .table-section {
-  background: var(--background-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
   padding: 20px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .section-header {
@@ -585,33 +598,72 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #F3F4F6;
 }
 
 .section-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-color-primary);
+  color: #1F2937;
 }
 
 .extraction-table {
   margin-bottom: 16px;
 }
 
+.extraction-table :deep(.el-table__header) {
+  background: #F9FAFB;
+}
+
+.extraction-table :deep(.el-table__header th) {
+  background: #F9FAFB;
+  color: #374151;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.extraction-table :deep(.el-table__row:hover) {
+  background: #F0F9FF;
+}
+
+.extraction-table :deep(.el-table__body tr.el-table__row--striped) {
+  background: #FAFBFC;
+}
+
 .table-pagination {
   display: flex;
   justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #E5E7EB;
 }
 
-:deep(.el-table) {
-  --el-table-border-color: var(--border-color-light);
-  --el-table-header-bg-color: var(--background-color-light);
-  --el-table-header-text-color: var(--text-color-primary);
-  --el-table-row-hover-bg-color: var(--primary-color-lighter);
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  border-color: #3B82F6;
 }
 
-:deep(.el-pagination) {
-  --el-pagination-button-color: var(--text-color-secondary);
-  --el-pagination-hover-color: var(--primary-color);
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  border-color: #2563EB;
+}
+
+:deep(.el-tag--success) {
+  background-color: #D1FAE5;
+  color: #065F46;
+  border-color: #A7F3D0;
+}
+
+:deep(.el-tag--danger) {
+  background-color: #FEE2E2;
+  color: #991B1B;
+  border-color: #FCA5A5;
+}
+
+:deep(.el-tag--warning) {
+  background-color: #FEF3C7;
+  color: #92400E;
+  border-color: #FDE68A;
 }
 </style>
