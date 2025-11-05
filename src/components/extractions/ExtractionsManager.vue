@@ -97,15 +97,27 @@
           </template>
         </el-table-column>
         
-        <el-table-column label="操作" width="200" align="center">
+        <el-table-column label="操作" width="240" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openDetail(row)">详情</el-button>
+            <el-button size="small" type="primary" @click="copyData(row)">
+              <el-icon><DocumentCopy /></el-icon>
+              复制
+            </el-button>
+            <el-button 
+              v-if="isOwner(row)"
+              size="small" 
+              @click="editExtraction(row)"
+            >
+              <el-icon><Edit /></el-icon>
+              编辑
+            </el-button>
             <el-button 
               v-if="isOwner(row)"
               size="small" 
               type="danger" 
               @click="deleteExtraction(row.id)"
             >
+              <el-icon><Delete /></el-icon>
               删除
             </el-button>
           </template>
@@ -149,13 +161,45 @@
         <el-button @click="closeDetail">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- Edit Dialog -->
+    <el-dialog
+      v-model="showEditDialog"
+      title="编辑抽取数据"
+      width="70%"
+    >
+      <el-form v-if="editingRow" :model="editingRow" label-width="120px">
+        <el-form-item label="表单">
+          <el-tag>{{ getFormName(editingRow.form_id) }}</el-tag>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="editingRow.status" placeholder="选择状态">
+            <el-option label="已完成" value="completed" />
+            <el-option label="处理中" value="pending" />
+            <el-option label="失败" value="error" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="抽取数据">
+          <el-input 
+            v-model="editingRow.extracted_data_json" 
+            type="textarea"
+            :rows="12"
+            placeholder="JSON格式的抽取数据"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="cancelEditDialog">取消</el-button>
+        <el-button type="primary" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search } from '@element-plus/icons-vue';
+import { Search, DocumentCopy, Edit, Delete } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { useExtractionsStore } from '../../stores/extractions';
 import { useFormsStore } from '../../stores/forms';
@@ -317,6 +361,63 @@ async function deleteExtraction(id) {
   }
 }
 
+function copyData(row) {
+  try {
+    // Get the extracted data
+    let dataToCopy = '';
+    if (row.fields && Array.isArray(row.fields)) {
+      // Parse and combine all field data
+      const combinedData = {};
+      row.fields.forEach((fieldStr) => {
+        try {
+          const parsed = JSON.parse(fieldStr);
+          Object.assign(combinedData, parsed);
+        } catch (e) {
+          // Ignore parse errors
+        }
+      });
+      dataToCopy = JSON.stringify(combinedData, null, 2);
+    } else if (row.extracted_data) {
+      dataToCopy = JSON.stringify(row.extracted_data, null, 2);
+    }
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(dataToCopy).then(() => {
+      ElMessage.success('数据已复制到剪贴板');
+    }).catch(() => {
+      ElMessage.error('复制失败');
+    });
+  } catch (error) {
+    ElMessage.error('复制失败: ' + error.message);
+  }
+}
+
+const showEditDialog = ref(false);
+const editingRow = ref(null);
+
+function editExtraction(row) {
+  editingRow.value = { ...row };
+  showEditDialog.value = true;
+}
+
+async function saveEdit() {
+  try {
+    await extractionsStore.updateExtraction(editingRow.value.id, editingRow.value);
+    ElMessage.success('更新成功');
+    showEditDialog.value = false;
+    editingRow.value = null;
+    // Reload data
+    await extractionsStore.loadExtractions({ page: pagination.page, pageSize: pagination.pageSize });
+  } catch (error) {
+    ElMessage.error('更新失败: ' + error.message);
+  }
+}
+
+function cancelEditDialog() {
+  showEditDialog.value = false;
+  editingRow.value = null;
+}
+
 async function deleteSelected() {
   if (selectedExtractions.value.length === 0) return;
   
@@ -404,21 +505,59 @@ function formatDate(dateString) {
 
 <style scoped>
 .extractions-manager {
-  padding: 20px;
+  padding: 24px;
+  background-color: #F7F8FA;
+  min-height: calc(100vh - 60px);
 }
 
 .manager-header {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
 .text-right {
   text-align: right;
 }
 
-.actions-right { display:flex; justify-content:flex-end; gap:8px; align-items:center; }
+.actions-right { 
+  display:flex; 
+  justify-content:flex-end; 
+  gap:8px; 
+  align-items:center; 
+}
 
 .extractions-list {
   min-height: 400px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.extractions-list :deep(.el-table) {
+  border-radius: 8px;
+}
+
+.extractions-list :deep(.el-table__header) {
+  background: #F9FAFB;
+}
+
+.extractions-list :deep(.el-table__header th) {
+  background: #F9FAFB;
+  color: #374151;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.extractions-list :deep(.el-table__row:hover) {
+  background: #F0F9FF;
+}
+
+.extractions-list :deep(.el-table__body tr.el-table__row--striped) {
+  background: #FAFBFC;
 }
 
 .data-preview {
@@ -429,10 +568,54 @@ function formatDate(dateString) {
 .empty-extractions {
   padding: 60px 0;
   text-align: center;
+  background: #FFFFFF;
+  border-radius: 8px;
 }
 
 .pagination-container {
   margin-top: 20px;
   text-align: center;
+  padding: 16px;
+  background: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  border-color: #3B82F6;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  border-color: #2563EB;
+}
+
+:deep(.el-button--danger) {
+  background: #EF4444;
+  border-color: #EF4444;
+}
+
+:deep(.el-button--danger:hover) {
+  background: #DC2626;
+  border-color: #DC2626;
+}
+
+:deep(.el-tag--success) {
+  background-color: #D1FAE5;
+  color: #065F46;
+  border-color: #A7F3D0;
+}
+
+:deep(.el-tag--warning) {
+  background-color: #FEF3C7;
+  color: #92400E;
+  border-color: #FDE68A;
+}
+
+:deep(.el-tag--danger) {
+  background-color: #FEE2E2;
+  color: #991B1B;
+  border-color: #FCA5A5;
 }
 </style>
