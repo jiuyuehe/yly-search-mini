@@ -373,7 +373,7 @@ function copyData(row) {
           const parsed = JSON.parse(fieldStr);
           Object.assign(combinedData, parsed);
         } catch (e) {
-          // Ignore parse errors
+          console.warn('Failed to parse field data:', e);
         }
       });
       dataToCopy = JSON.stringify(combinedData, null, 2);
@@ -381,15 +381,37 @@ function copyData(row) {
       dataToCopy = JSON.stringify(row.extracted_data, null, 2);
     }
     
-    // Copy to clipboard
-    navigator.clipboard.writeText(dataToCopy).then(() => {
-      ElMessage.success('数据已复制到剪贴板');
-    }).catch(() => {
-      ElMessage.error('复制失败');
-    });
+    // Copy to clipboard with fallback
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(dataToCopy).then(() => {
+        ElMessage.success('数据已复制到剪贴板');
+      }).catch(() => {
+        // Fallback to textarea method
+        fallbackCopy(dataToCopy);
+      });
+    } else {
+      // Use fallback for browsers without clipboard API
+      fallbackCopy(dataToCopy);
+    }
   } catch (error) {
     ElMessage.error('复制失败: ' + error.message);
   }
+}
+
+function fallbackCopy(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    ElMessage.success('数据已复制到剪贴板');
+  } catch (err) {
+    ElMessage.error('复制失败，请手动复制');
+  }
+  document.body.removeChild(textarea);
 }
 
 const showEditDialog = ref(false);
