@@ -25,6 +25,8 @@
         :data="filteredForms"
         row-key="id"
         highlight-current-row
+        stripe
+        style="width: 100%"
       >
         <el-table-column prop="name" label="表单名称" min-width="200">
           <template #default="{ row }">
@@ -37,7 +39,33 @@
         
         <el-table-column label="字段数量" width="100" align="center">
           <template #default="{ row }">
-            <el-tag size="small">{{ row.structure.fields?.length || 0 }} 个</el-tag>
+            <el-tag size="small" type="info">{{ row.structure.fields?.length || 0 }} 个</el-tag>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="关联数据结果" width="140" align="center">
+          <template #default="{ row }">
+            <el-link 
+              type="primary" 
+              :underline="false"
+              @click="viewFormData(row.id)"
+            >
+              <el-tag size="small" type="success">
+                {{ row.dataCount || 0 }} 条
+              </el-tag>
+            </el-link>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="可用状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-switch 
+              v-model="row.enabled" 
+              size="small"
+              :active-value="true"
+              :inactive-value="false"
+              @change="toggleFormStatus(row)"
+            />
           </template>
         </el-table-column>
         
@@ -47,7 +75,7 @@
           </template>
         </el-table-column>
         
-        <el-table-column label="操作" width="200" align="center">
+        <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
             <el-button v-if="selectable" size="small" type="primary" @click.stop="selectForm(row)">选择</el-button>
             <el-button size="small" @click.stop="editForm(row.id)">编辑</el-button>
@@ -176,15 +204,38 @@ function formatDate(dateString) {
     minute: '2-digit' 
   });
 }
+
+function viewFormData(formId) {
+  // Navigate to extractions view filtered by this form
+  router.push(`/extractions?form_id=${formId}`);
+}
+
+async function toggleFormStatus(form) {
+  try {
+    // Update form status - this would call an API in real implementation
+    await formsStore.updateFormStatus(form.id, form.enabled);
+    ElMessage.success(form.enabled ? '表单已启用' : '表单已禁用');
+  } catch (error) {
+    // Revert the switch on error
+    form.enabled = !form.enabled;
+    ElMessage.error('状态更新失败: ' + (error.message || error));
+  }
+}
 </script>
 
 <style scoped>
 .forms-manager {
-  padding: 20px;
+  padding: 24px;
+  background-color: #F7F8FA;
+  min-height: calc(100vh - 60px);
 }
 
 .manager-header {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
 .text-right {
@@ -193,6 +244,34 @@ function formatDate(dateString) {
 
 .forms-list {
   min-height: 400px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.forms-list :deep(.el-table) {
+  border-radius: 8px;
+}
+
+.forms-list :deep(.el-table__header) {
+  background: #F9FAFB;
+}
+
+.forms-list :deep(.el-table__header th) {
+  background: #F9FAFB;
+  color: #374151;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.forms-list :deep(.el-table__row:hover) {
+  background: #F0F9FF;
+  cursor: pointer;
+}
+
+.forms-list :deep(.el-table__body tr.el-table__row--striped) {
+  background: #FAFBFC;
 }
 
 .form-name {
@@ -200,22 +279,49 @@ function formatDate(dateString) {
   flex-direction: column;
 }
 
+.form-name strong {
+  color: #1F2937;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .form-description {
   font-size: 12px;
-  color: #909399;
+  color: #6B7280;
   margin-top: 4px;
 }
 
 .empty-forms {
   padding: 60px 0;
   text-align: center;
+  background: #FFFFFF;
+  border-radius: 8px;
 }
 
-.el-table :deep(.el-table__row) {
-  cursor: pointer;
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  border-color: #3B82F6;
 }
 
-.el-table :deep(.el-table__row:hover) {
-  background-color: #f5f7fa;
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  border-color: #2563EB;
+}
+
+:deep(.el-switch.is-checked .el-switch__core) {
+  background-color: #3B82F6;
+  border-color: #3B82F6;
+}
+
+:deep(.el-tag--success) {
+  background-color: #D1FAE5;
+  color: #065F46;
+  border-color: #A7F3D0;
+}
+
+:deep(.el-tag--info) {
+  background-color: #E0E7FF;
+  color: #3730A3;
+  border-color: #C7D2FE;
 }
 </style>
