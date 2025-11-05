@@ -214,12 +214,13 @@ function generateDiff() {
 
   try {
     // Create unified diff using diff library
+    // Empty strings for oldHeader and newHeader as they're not needed for display
     const diff = Diff.createPatch(
       fileAName.value || 'File A',
       oldCode.value,
       newCode.value,
-      '',
-      '',
+      '', // oldHeader - not displayed
+      '', // newHeader - not displayed
       { context: 3 }
     );
 
@@ -251,7 +252,6 @@ function calculateStats() {
   
   let additions = 0;
   let deletions = 0;
-  let modifications = 0;
 
   changes.forEach(change => {
     const count = change.value.split('\n').length - 1;
@@ -262,8 +262,10 @@ function calculateStats() {
     }
   });
 
-  // Estimate modifications as overlapping changes
-  modifications = Math.min(additions, deletions);
+  // Estimate modifications as min of additions and deletions
+  // Note: This is a simplified calculation. More accurate diff analysis
+  // would require matching changed lines, but this gives a reasonable estimate.
+  const modifications = Math.min(additions, deletions);
 
   stats.value = { additions, deletions, modifications };
 }

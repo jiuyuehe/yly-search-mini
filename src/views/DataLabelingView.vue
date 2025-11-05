@@ -239,7 +239,7 @@ const themeTreeData = computed(() => {
 async function loadThemes() {
   loadingThemes.value = true;
   try {
-    const res = await aiService.getThemes({ pageNo: 1, pageSize: 1000 });
+    const res = await aiService.listThemesPage({ pageNo: 1, pageSize: 1000 });
     if (res.code === 200 && res.data) {
       themes.value = res.data.list || [];
     }
@@ -314,7 +314,7 @@ async function handleConfirmTheme() {
 
     let res;
     if (editingThemeId.value) {
-      res = await aiService.updateTheme(editingThemeId.value, payload);
+      res = await aiService.updateTheme({ id: editingThemeId.value, ...payload });
     } else {
       res = await aiService.createTheme(payload);
     }
@@ -360,16 +360,17 @@ async function handleConfirmLabel() {
 
   try {
     const payload = {
+      themeId: selectedTheme.value.id,
       name: labelDialogForm.name,
-      synonyms: labelDialogForm.synonyms || '',
+      description: labelDialogForm.synonyms || '',
       enabled: labelDialogForm.enabled
     };
 
     let res;
     if (editingLabelId.value) {
-      res = await aiService.updateLabel(selectedTheme.value.id, editingLabelId.value, payload);
+      res = await aiService.updateThemeLabel({ id: editingLabelId.value, ...payload });
     } else {
-      res = await aiService.addLabel(selectedTheme.value.id, payload);
+      res = await aiService.createThemeLabel(payload);
     }
 
     if (res.code === 200) {
@@ -398,7 +399,7 @@ async function handleRemoveLabel(label) {
       type: 'warning'
     });
 
-    const res = await aiService.removeLabel(selectedTheme.value.id, label.id);
+    const res = await aiService.deleteThemeLabel(label.id);
     if (res.code === 200) {
       ElMessage.success('删除成功');
       await loadThemes();
@@ -422,11 +423,12 @@ async function handleSaveTheme() {
 
   try {
     const payload = {
+      id: selectedTheme.value.id,
       name: themeForm.name,
       description: themeForm.description || ''
     };
 
-    const res = await aiService.updateTheme(selectedTheme.value.id, payload);
+    const res = await aiService.updateTheme(payload);
     if (res.code === 200) {
       ElMessage.success('保存成功');
       await loadThemes();
