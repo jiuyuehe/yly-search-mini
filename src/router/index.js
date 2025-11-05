@@ -73,6 +73,24 @@ const routes = [
     name: 'extractions',
     component: () => import('../views/ExtractionsView.vue')
   },
+  // Data extraction statistics
+  {
+    path: '/stats',
+    name: 'stats',
+    component: () => import('../views/DataExtractionStatsView.vue')
+  },
+  // Data labeling management
+  {
+    path: '/labeling',
+    name: 'labeling',
+    component: () => import('../views/DataLabelingView.vue')
+  },
+  // File diff comparison
+  {
+    path: '/diff',
+    name: 'diff',
+    component: () => import('../views/FileDiffView.vue')
+  },
   // Catch-all: any unknown route redirect to root to avoid blank screen
   { path: '/:pathMatch(.*)*', redirect: '/' }
 ];
