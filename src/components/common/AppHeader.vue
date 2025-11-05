@@ -29,6 +29,21 @@
             <el-icon><DataAnalysis /></el-icon>
             <span>数据管理</span>
           </el-menu-item>
+
+          <el-menu-item index="/stats">
+            <el-icon><TrendCharts /></el-icon>
+            <span>统计分析</span>
+          </el-menu-item>
+
+          <el-menu-item index="/labeling">
+            <el-icon><CollectionTag /></el-icon>
+            <span>标签管理</span>
+          </el-menu-item>
+
+          <el-menu-item index="/diff">
+            <el-icon><DocumentCopy /></el-icon>
+            <span>文件对比</span>
+          </el-menu-item>
         </el-menu>
       </nav>
     </div>
@@ -38,7 +53,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { Search, Document, DataAnalysis } from '@element-plus/icons-vue';
+import { Search, Document, DataAnalysis, TrendCharts, CollectionTag, DocumentCopy } from '@element-plus/icons-vue';
 
 const route = useRoute();
 
@@ -46,6 +61,9 @@ const activeIndex = computed(() => {
   const path = route.path;
   if (path.startsWith('/forms')) return '/forms';
   if (path.startsWith('/extractions')) return '/extractions';
+  if (path.startsWith('/stats')) return '/stats';
+  if (path.startsWith('/labeling')) return '/labeling';
+  if (path.startsWith('/diff')) return '/diff';
   return '/';
 });
 
@@ -82,7 +100,7 @@ function handleMenuSelect(index) {
 
 .logo h2 {
   margin: 0;
-  color: #409eff;
+  color: var(--primary-color);
   font-size: 24px;
   font-weight: 600;
 }

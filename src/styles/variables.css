@@ -1,14 +1,14 @@
 :root {
-  /* Primary Color */
-  --primary-color: rgb(22, 113, 242);
-  --primary-color-light: rgba(22, 113, 242, 0.1);
-  --primary-color-lighter: rgba(22, 113, 242, 0.05);
-  --primary-color-dark: rgb(18, 95, 204);
+  /* Primary Color - Updated to #3B82F6 */
+  --primary-color: #3B82F6;
+  --primary-color-light: rgba(59, 130, 246, 0.1);
+  --primary-color-lighter: rgba(59, 130, 246, 0.05);
+  --primary-color-dark: #2563EB;
   
   /* Border Radius */
   --border-radius-sm: 4px;
-  --border-radius-md: 6px;
-  --border-radius-lg: 8px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
   
   /* Spacing */
   --spacing-xs: 4px;
@@ -19,141 +19,36 @@
   --spacing-xxl: 24px;
   
   /* Colors */
-
-  --text-color-primary: #333333;
-  --text-color-secondary: #666666;
-  --text-color-placeholder: #999999;
-  --border-color: #e4e7ed;
-  --border-color-light: #f0f2f5;
-  --background-color: #ffffff;
-  --background-color-light: #fafbfc;
+  --text-color-primary: #1F2937;
+  --text-color-secondary: #6B7280;
+  --text-color-placeholder: #9CA3AF;
+  --border-color: #E5E7EB;
+  --border-color-light: #F3F4F6;
+  --background-color: #FFFFFF;
+  --background-color-light: #F9FAFB;
+  --background-page: #F7F8FA;
   
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
-
-  /* ===========================
-     AI 紫色炫彩主题（新增）
-     =========================== */
-  --ai-purple-50: #f5eeff;
-  --ai-purple-100: #eadcff;
-  --ai-purple-200: #d6bbff;
-  --ai-purple-300: #c199ff;
-  --ai-purple-400: #a56cff;
-  --ai-purple-500: #7c2eff; /* 主色 */
-  --ai-purple-600: #6419e6;
-  --ai-purple-700: #4b13b4;
-  --ai-purple-800: #340a82;
-  --ai-purple-900: #1f0450;
-
-  /* 渐变 / 霓虹 / 背景 */
-  --ai-gradient: linear-gradient(135deg, rgba(124,46,255,0.98) 0%, rgba(129,73,255,0.90) 45%, rgba(58,122,255,0.85) 100%);
-  --ai-neon-color: rgba(124,46,255,0.20);
-  --ai-glow-shadow: 0 12px 36px rgba(124,46,255,0.18);
-  --ai-card-frost: rgba(255,255,255,0.04);
-  --ai-backdrop-blur: 10px;
-
-  --ai-text-primary-on-purple: #ffffff;
-  --ai-text-muted-on-purple: rgba(255,255,255,0.85);
-
-  /* 小尺寸边距/圆角等可基于已有变量复用 */
-  /* 使用 Element Plus 覆盖变量（常用项，能让大多数组件适配主色） */
-  --el-color-primary: var(--primary-color);
-  --el-color-primary-hover: var(--ai-purple-600);
-  --el-color-primary-pressed: var(--ai-purple-700);
-  --el-color-primary-light-3: var(--ai-purple-200);
-  --el-border-color: rgba(124,46,255,0.12);
-  --el-bg-color: var(--background-color);
-  --el-text-color-primary: var(--text-color-primary);
-}
-
-/* ===========================
-   AI 主题工具类（新增）
-   可在组件/页面上直接使用
-   =========================== */
-
-/* 主色块 */
-.ai-purple {
-  background: var(--ai-gradient);
-  color: var(--ai-text-primary-on-purple);
-  border-radius: var(--border-radius-md);
-  box-shadow: var(--ai-glow-shadow);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* 玻璃卡片（带模糊、细边框） */
-.ai-card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--border-radius-lg);
-  padding: var(--spacing-lg);
-  backdrop-filter: blur(var(--ai-backdrop-blur));
-  box-shadow: 0 6px 20px rgba(16, 12, 32, 0.35);
-}
-
-/* AI 风格主按钮（可用于替换 el-button 的自定义 class） */
-.ai-btn-ai {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: calc(var(--border-radius-md) + 2px);
-  color: var(--ai-text-primary-on-purple);
-  background: linear-gradient(90deg, var(--ai-purple-500) 0%, var(--ai-purple-400) 100%);
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 8px 28px rgba(124,46,255,0.14), inset 0 -2px 6px rgba(0,0,0,0.12);
-  transition: transform .15s ease, box-shadow .15s ease, opacity .12s ease;
-}
-.ai-btn-ai:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(124,46,255,0.20); }
-.ai-btn-ai:active { transform: translateY(0); box-shadow: 0 6px 20px rgba(124,46,255,0.12); }
-
-/* 带渐变背景的容器（可用作页头/英雄区） */
-.ai-gradient-bg {
-  background: var(--ai-gradient);
-  color: var(--ai-text-primary-on-purple);
-  padding: var(--spacing-xxl);
-  border-radius: calc(var(--border-radius-lg) + 4px);
-  box-shadow: var(--ai-glow-shadow);
-}
-
-/* 细微霓虹发光装饰 */
-.ai-glow {
-  position: relative;
-}
-.ai-glow::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  z-index: -1;
-  background: radial-gradient(45% 45% at 10% 10%, rgba(124,46,255,0.18), transparent 30%),
-              radial-gradient(30% 30% at 90% 90%, rgba(81,45,255,0.12), transparent 30%);
-  filter: blur(18px);
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-/* 发光脉冲动画（用于按钮/徽章） */
-@keyframes ai-neon-pulse {
-  0% { box-shadow: 0 6px 20px rgba(124,46,255,0.12); transform: translateY(0); }
-  50% { box-shadow: 0 22px 46px rgba(124,46,255,0.20); transform: translateY(-2px); }
-  100% { box-shadow: 0 6px 20px rgba(124,46,255,0.12); transform: translateY(0); }
-}
-.ai-pulse {
-  animation: ai-neon-pulse 2.6s ease-in-out infinite;
-}
-
-/* 适配 Element Plus 的表单控件和标签（示例） */
-.el-input__inner.ai-input {
-  border-radius: var(--border-radius-md);
-  box-shadow: none;
-  border: 1px solid var(--el-border-color);
-}
-.el-tag.ai-tag {
-  background: linear-gradient(90deg, rgba(124,46,255,0.12), rgba(129,73,255,0.08));
-  color: var(--ai-text-muted-on-purple);
-  border: 1px solid rgba(124,46,255,0.08);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  
+  /* Element Plus theme overrides */
+  --el-color-primary: #3B82F6;
+  --el-color-primary-light-3: rgba(59, 130, 246, 0.3);
+  --el-color-primary-light-5: rgba(59, 130, 246, 0.5);
+  --el-color-primary-light-7: rgba(59, 130, 246, 0.7);
+  --el-color-primary-light-8: rgba(59, 130, 246, 0.8);
+  --el-color-primary-light-9: rgba(59, 130, 246, 0.9);
+  --el-color-primary-dark-2: #2563EB;
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-border-color: #E5E7EB;
+  --el-border-color-light: #F3F4F6;
+  --el-bg-color: #FFFFFF;
+  --el-bg-color-page: #F7F8FA;
+  --el-text-color-primary: #1F2937;
+  --el-text-color-regular: #374151;
+  --el-text-color-secondary: #6B7280;
+  --el-text-color-placeholder: #9CA3AF;
 }
