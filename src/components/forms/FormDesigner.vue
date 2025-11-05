@@ -20,14 +20,26 @@
       <el-col :span="16">
         <el-card header="表单设计" class="designer-card">
           <el-form :model="formData" label-width="120px">
-            <el-form-item label="表单名称" required>
-              <el-input 
-                v-model="formData.name" 
-                placeholder="请输入表单名称"
-                :class="{ 'error': errors.name }"
-              />
-              <div v-if="errors.name" class="error-text">{{ errors.name }}</div>
-            </el-form-item>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="表单名称" required>
+                  <el-input 
+                    v-model="formData.name" 
+                    placeholder="请输入表单名称"
+                    :class="{ 'error': errors.name }"
+                  />
+                  <div v-if="errors.name" class="error-text">{{ errors.name }}</div>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="数据提取模式" required>
+                  <el-radio-group v-model="formData.extractionMode">
+                    <el-radio value="single">单数据提取</el-radio>
+                    <el-radio value="multiple">多数据提取</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
 
           <div class="fields-section">
@@ -36,21 +48,120 @@
               <el-button type="primary" icon="Plus" @click="addField">添加字段</el-button>
             </div>
 
-            <div class="fields-container">
-              <div 
-                v-for="(field, index) in formData.structure.fields" 
-                :key="field.id || index"
-                class="field-item"
+            <div class="fields-table-container">
+              <el-table 
+                :data="formData.structure.fields" 
+                border 
+                stripe
+                style="width: 100%"
+                class="fields-table"
               >
-                <FieldDesigner 
-                  :field="field"
-                  :index="index"
-                  @update="updateField"
-                  @delete="deleteField"
-                  @move-up="moveFieldUp"
-                  @move-down="moveFieldDown"
-                />
-              </div>
+                <el-table-column type="index" label="序号" width="60" align="center" />
+                
+                <el-table-column label="字段名称" min-width="150">
+                  <template #default="{ row, $index }">
+                    <el-input 
+                      v-model="row.name" 
+                      placeholder="字段名称"
+                      size="small"
+                      @input="updateField($index, row)"
+                    />
+                  </template>
+                </el-table-column>
+                
+                <el-table-column label="字段类型" width="140">
+                  <template #default="{ row, $index }">
+                    <el-select 
+                      v-model="row.type" 
+                      placeholder="类型"
+                      size="small"
+                      @change="onTypeChange($index, row)"
+                    >
+                      <el-option label="文本" value="text" />
+                      <el-option label="数字" value="number" />
+                      <el-option label="日期" value="date" />
+                      <el-option label="布尔值" value="boolean" />
+                      <el-option label="对象" value="object" />
+                      <el-option label="数组" value="array" />
+                    </el-select>
+                  </template>
+                </el-table-column>
+                
+                <el-table-column label="必填" width="80" align="center">
+                  <template #default="{ row, $index }">
+                    <el-switch 
+                      v-model="row.required" 
+                      size="small"
+                      @change="updateField($index, row)"
+                    />
+                  </template>
+                </el-table-column>
+                
+                <el-table-column label="示例值" min-width="180">
+                  <template #default="{ row, $index }">
+                    <el-input 
+                      v-if="row.type === 'text'"
+                      v-model="row.example" 
+                      placeholder="示例文本"
+                      size="small"
+                      @input="updateField($index, row)"
+                    />
+                    <el-input-number 
+                      v-else-if="row.type === 'number'"
+                      v-model="row.example" 
+                      placeholder="示例数字"
+                      size="small"
+                      @change="updateField($index, row)"
+                      style="width: 100%"
+                    />
+                    <el-date-picker 
+                      v-else-if="row.type === 'date'"
+                      v-model="row.example" 
+                      type="date"
+                      placeholder="选择日期"
+                      format="YYYY-MM-DD"
+                      value-format="YYYY-MM-DD"
+                      size="small"
+                      @change="updateField($index, row)"
+                      style="width: 100%"
+                    />
+                    <el-switch 
+                      v-else-if="row.type === 'boolean'"
+                      v-model="row.example" 
+                      size="small"
+                      @change="updateField($index, row)"
+                    />
+                    <el-tag v-else-if="row.type === 'object'" type="info" size="small">对象类型</el-tag>
+                    <el-tag v-else-if="row.type === 'array'" type="info" size="small">数组类型</el-tag>
+                  </template>
+                </el-table-column>
+                
+                <el-table-column label="操作" width="180" align="center" fixed="right">
+                  <template #default="{ $index }">
+                    <el-button 
+                      size="small" 
+                      :icon="ArrowUp" 
+                      @click="moveFieldUp($index)"
+                      :disabled="$index === 0"
+                      circle
+                    />
+                    <el-button 
+                      size="small" 
+                      :icon="ArrowDown" 
+                      @click="moveFieldDown($index)"
+                      :disabled="$index === formData.structure.fields.length - 1"
+                      circle
+                    />
+                    <el-button 
+                      size="small" 
+                      type="danger" 
+                      :icon="Delete" 
+                      @click="deleteField($index)"
+                      circle
+                    />
+                  </template>
+                </el-table-column>
+              </el-table>
 
               <div v-if="formData.structure.fields.length === 0" class="empty-fields">
                 <el-empty description="暂无字段，点击上方按钮添加字段" />
@@ -93,9 +204,9 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { ArrowUp, ArrowDown, Delete } from '@element-plus/icons-vue';
 import { useFormsStore } from '../../stores/forms';
 import { formsService } from '../../services/formsService';
-import FieldDesigner from './FieldDesigner.vue';
 import FormPreview from './FormPreview.vue';
 
 const router = useRouter();
@@ -107,6 +218,7 @@ const showPreview = ref(false);
 
 const formData = reactive({
   name: '',
+  extractionMode: 'single', // 'single' or 'multiple'
   structure: {
     formName: '',
     fields: []
@@ -221,6 +333,31 @@ function moveFieldDown(index) {
   }
 }
 
+function onTypeChange(index, field) {
+  // Reset type-specific properties
+  if (field.type === 'object' || field.type === 'array') {
+    if (!field.fields) {
+      field.fields = [];
+    }
+  } else {
+    delete field.fields;
+    delete field.itemType;
+  }
+  
+  // Reset example value
+  if (field.type === 'number') {
+    field.example = 0;
+  } else if (field.type === 'boolean') {
+    field.example = false;
+  } else if (field.type === 'date') {
+    field.example = '';
+  } else {
+    field.example = '';
+  }
+  
+  updateField(index, field);
+}
+
 function validateForm() {
   const validationErrors = formsStore.validateFormStructure(formData.structure);
   
@@ -309,22 +446,24 @@ function loadSample() {
 
 <style scoped>
 .form-designer {
-  padding: 20px;
-  background-color: #f5f7fa;
+  padding: 24px;
+  background-color: #F7F8FA;
   min-height: calc(100vh - 60px);
 }
 
 .designer-header {
-  margin-bottom: 20px;
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
 .designer-header h2 {
   margin: 0;
-  color: #303133;
+  color: #1F2937;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .text-right {
@@ -333,63 +472,121 @@ function loadSample() {
 
 .designer-card, .preview-card, .json-card {
   margin-bottom: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.designer-card :deep(.el-card__header) {
+  background: #F9FAFB;
+  border-bottom: 2px solid #E5E7EB;
+  font-weight: 600;
+  color: #1F2937;
 }
 
 .fields-section {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #ebeef5;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #E5E7EB;
 }
 
 .section-header h3 {
   margin: 0;
-  color: #606266;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
 }
 
-.fields-container {
-  max-height: 600px;
-  overflow-y: auto;
+.fields-table-container {
+  background: #FFFFFF;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.field-item {
-  margin-bottom: 15px;
+.fields-table {
+  border-radius: 8px;
+}
+
+.fields-table :deep(.el-table__header) {
+  background: #F9FAFB;
+}
+
+.fields-table :deep(.el-table__header th) {
+  background: #F9FAFB;
+  color: #374151;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.fields-table :deep(.el-table__row:hover) {
+  background: #F0F9FF;
+}
+
+.fields-table :deep(.el-table__body tr.el-table__row--striped) {
+  background: #FAFBFC;
 }
 
 .empty-fields {
-  padding: 40px 0;
+  padding: 60px 0;
   text-align: center;
+  background: #FFFFFF;
+  border-radius: 8px;
+  margin-top: 16px;
 }
 
 .json-container {
   max-height: 300px;
   overflow-y: auto;
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 4px;
+  background-color: #F9FAFB;
+  padding: 16px;
+  border-radius: 8px;
   font-family: 'Courier New', monospace;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.5;
+  border: 1px solid #E5E7EB;
 }
 
 .error {
-  border-color: #f56c6c !important;
+  border-color: #EF4444 !important;
 }
 
 .error-text {
-  color: #f56c6c;
+  color: #EF4444;
   font-size: 12px;
-  margin-top: 5px;
+  margin-top: 4px;
 }
 
 .preview-card .el-card__body {
   max-height: 400px;
   overflow-y: auto;
+}
+
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  border-color: #3B82F6;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  border-color: #2563EB;
+}
+
+:deep(.el-radio-group .el-radio) {
+  margin-right: 16px;
+}
+
+:deep(.el-radio__input.is-checked .el-radio__inner) {
+  background-color: #3B82F6;
+  border-color: #3B82F6;
+}
+
+:deep(.el-radio__input.is-checked + .el-radio__label) {
+  color: #3B82F6;
 }
 </style>
