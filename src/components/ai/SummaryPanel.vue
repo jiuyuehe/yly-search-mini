@@ -354,7 +354,7 @@ async function saveAll(){
 
 .panel-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .controls {
@@ -381,13 +381,13 @@ async function saveAll(){
 .summary-input :deep(textarea) { font-family: inherit; line-height:1.55; }
 .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
 .card-title { font-weight:600; }
-.meta-line { margin-top:8px; font-size:12px; color:#909399; display:flex; gap:12px; flex-wrap:wrap; }
+.meta-line { margin-top:8px; font-size: var(--font-size-xs); color:var(--text-color-placeholder); display:flex; gap:12px; flex-wrap:wrap; }
 .single-summary-card { position:relative; }
-.summary-view { white-space: pre-wrap; line-height:1.55; font-size:13px; }
+.summary-view { white-space: pre-wrap; line-height:1.55; font-size: var(--font-size-sm); }
 .summary-text { margin:0; font-family:inherit; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; }
 .summary-edit :deep(textarea){ font-family:inherit; }
 .card-header-line { display:flex; justify-content:space-between; align-items:center; font-weight:600; }
-.meta-small { font-size:12px; color:#909399; font-weight:400; }
+.meta-small { font-size: var(--font-size-xs); color:var(--text-color-placeholder); font-weight:400; }
 .points-list { margin:8px 0 0 0; padding-left:18px; font-size:12.5px; line-height:1.5; }
 .points-list li { margin:2px 0; }
 </style>

@@ -56,7 +56,7 @@ function handleCurrentChange(page) {
 
 :deep(.compact-pagination .el-pagination__total) {
   color: var(--text-color-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 :deep(.compact-pagination .el-pagination__sizes .el-select .el-input__wrapper) {

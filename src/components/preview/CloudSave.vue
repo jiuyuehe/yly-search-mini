@@ -1,10 +1,10 @@
 <template>
   <div style="display:inline">
     <el-button size="small" text :loading="loading" @click="open" title="保存到我的云盘">
-      <el-icon style="font-size:15px;">
+      <el-icon class="cloud-icon">
         <Folder />
       </el-icon>
-      <span style="margin-left:6px;">云盘</span>
+  <span class="cloud-button-label">云盘</span>
     </el-button>
     <el-dialog v-model="visible" title="保存至我的云盘" width="520px">
       <div class="toolbar">
@@ -14,7 +14,7 @@
           placeholder="搜索当前层..."
           clearable
           @input="filterChange"
-          style="width:220px;"
+          class="cloud-filter-input"
         />
         <el-button size="small" link @click="refreshRoot" :disabled="treeLoading">刷新</el-button>
       </div>
@@ -38,9 +38,9 @@
           </template>
         </el-tree>
       </div>
-      <div v-if="props.type !== 'copy'" style="padding:8px 12px; border-top:1px solid #f0f0f0; display:flex; gap:8px; align-items:center;">
-        <div style="font-size:12px;color:#606266;white-space:nowrap;">文件名：</div>
-        <el-input v-model="customFileName" size="small" placeholder="输入保存的文件名，如 note.txt" style="flex:1" clearable />
+      <div v-if="props.type !== 'copy'" class="file-name-row">
+        <div class="file-name-label">文件名：</div>
+        <el-input v-model="customFileName" size="small" placeholder="输入保存的文件名，如 note.txt" class="file-name-input" clearable />
       </div>
       <div class="select-info" v-if="currentNode">
         目标目录：<strong>{{ currentNode.name }}</strong>
@@ -159,10 +159,16 @@ async function confirm(){
 </script>
 
 <style scoped>
-.toolbar { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
-.tree-wrap { max-height:340px; overflow:auto; border:1px solid #ebeef5; border-radius:4px; padding:6px 4px; }
-.cloud-tree { font-size:13px; }
+.toolbar { display:flex; align-items:center; gap: var(--spacing-sm); margin-bottom: calc(var(--spacing-sm) - 2px); }
+.cloud-icon { font-size: var(--font-size-md-plus); }
+.cloud-button-label { margin-left: var(--spacing-sm); }
+.cloud-filter-input { width: 220px; }
+.tree-wrap { max-height:340px; overflow:auto; border: var(--border-width-thin) solid var(--border-color-muted); border-radius: var(--border-radius-sm); padding:6px 4px; }
+.cloud-tree { font-size: var(--font-size-sm); }
 .node-row { display:flex; align-items:center; gap:6px; line-height:20px; }
 .node-row .label { max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.select-info { margin-top:8px; font-size:12px; color:#555; }
+.file-name-row { padding: var(--spacing-sm) var(--spacing-md); border-top: var(--border-width-thin) solid var(--border-color-light); display:flex; gap: var(--spacing-sm); align-items:center; }
+.file-name-label { font-size: var(--font-size-xs); color: var(--text-color-regular); white-space: nowrap; }
+.file-name-input { flex: 1; }
+.select-info { margin-top: var(--spacing-sm); font-size: var(--font-size-xs); color: var(--text-color-secondary); }
 </style>

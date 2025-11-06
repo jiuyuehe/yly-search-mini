@@ -87,7 +87,7 @@ function getTabLabel(tab) {
 
 .search-result-tabs :deep(.el-tabs__header) { 
   margin-bottom: 12px;
-  border-bottom: 2px solid #F3F4F6;
+  border-bottom: 2px solid var(--border-color-light);
 }
 
 .search-result-tabs :deep(.el-tabs__nav-wrap::after) {
@@ -95,9 +95,9 @@ function getTabLabel(tab) {
 }
 
 .search-result-tabs :deep(.el-tabs__item) {
-  font-size: 15px;
+  font-size: var(--font-size-md-plus);
   font-weight: 500;
-  color: #6B7280;
+  color: var(--text-color-secondary);
   padding: 0 20px;
   height: 44px;
   line-height: 44px;
@@ -105,17 +105,17 @@ function getTabLabel(tab) {
 }
 
 .search-result-tabs :deep(.el-tabs__item:hover) {
-  color: #3B82F6;
+  color: var(--primary-color);
 }
 
 .search-result-tabs :deep(.el-tabs__item.is-active) {
-  color: #3B82F6;
+  color: var(--primary-color);
   font-weight: 600;
 }
 
 .search-result-tabs :deep(.el-tabs__active-bar) {
   height: 3px;
-  background: linear-gradient(90deg, #3B82F6 0%, #2563EB 100%);
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
   border-radius: 3px 3px 0 0;
 }
 </style>

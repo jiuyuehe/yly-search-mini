@@ -262,6 +262,7 @@ import { wikiStream } from '../../services/wiki';
 import { resolveEsId } from '../../utils/esid';
 import api from '../../services/api';
 import { getLangLabel, getLangOptions } from '../../utils/language';
+import { getPrimaryColor } from '@/utils/theme';
 
 const props = defineProps({
   title: {
@@ -336,7 +337,7 @@ let wikiAbortController = null;
 // Custom tag legacy dialog (deprecated by new tag saving) retained temporarily
 const showCustomTagDialog = ref(false);
 const customTagName = ref('');
-const customTagColor = ref('#409EFF');
+const customTagColor = ref(getPrimaryColor());
 
 // New Tag dialog (integrated with index saving)
 const showTagDialog = ref(false);
@@ -812,7 +813,7 @@ function saveCustomTag() {
     ElMessage.success(`标签 "${customTagName.value}" 已保存`);
     // TODO: Implement tag saving API call
     customTagName.value = '';
-    customTagColor.value = '#409EFF';
+    customTagColor.value = getPrimaryColor();
     showCustomTagDialog.value = false;
   }
 }
@@ -843,27 +844,7 @@ async function ocrText(){
     const finalText = (txt && typeof txt === 'string') ? txt : (txt?.text || txt?.result || txt?.content || '');
   // user-visible messages handled below; avoid echoing raw debug text
     return;
-    if (finalText) {
-      // 后端可能只返回提示字符串 "OCR识别完成" 表示任务已完成并异步写入结果，
-      // 无论后端返回提示还是实际文本，都不应直接写入主编辑内容 (textContent / update:content).
-      // 仅将识别结果放入弹窗显示 (ocrResultText) 并通过 update:imageOcrText 通知父组件。
-      const trimmed = String(finalText).trim();
-      if (trimmed === 'OCR识别完成') {
-        // 如果 props.file.imageOcrText 可用，优先在弹窗显示它，但不写回主编辑器
-        const existing = props.file?.imageOcrText || ocrResultText.value || '';
-        if (existing) {
-          ocrResultText.value = existing;
-        }
-        ElMessage.success('OCR 识别完成');
-      } else {
-        // 收到实际识别文本：仅更新弹窗与父组件的 imageOcrText，不修改主编辑内容
-        ocrResultText.value = finalText;
-        emit('update:imageOcrText', finalText);
-        ElMessage.success('OCR 识别完成');
-      }
-    } else {
-      ElMessage.error('OCR 未识别到文本');
-    }
+    
   } catch (e) {
     ElMessage.error(e?.message || '解析 OCR 失败');
   } finally {
@@ -963,44 +944,44 @@ document.addEventListener('click', (e) => {
 <style scoped>
 .wiki-output {
   white-space: pre-wrap;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   line-height: 1.55;
   padding: 12px;
-  background: #fafafa;
-  border: 1px solid #ebeef5;
+  background: var(--background-color-ghost);
+  border: var(--border-width-thin) solid var(--border-color-muted);
   border-radius: 6px;
   max-height: 360px;
   overflow-y: auto;
   word-break: break-word;
 }
 .wiki-error {
-  color: #f56c6c;
+  color: var(--status-danger);
   padding: 8px 12px;
-  background: #fff2f2;
-  border: 1px solid #fbc4c4;
-  border-radius: 4px;
+  background: var(--status-danger-bg);
+  border: var(--border-width-thin) solid var(--status-danger-border);
+  border-radius: var(--border-radius-sm);
   white-space: pre-wrap;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 .wiki-header-term {
   font-weight: 600;
-  color: #303133;
+  color: var(--text-color-heading);
 }
 .wiki-loading {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
-  color: #606266;
+  font-size: var(--font-size-sm);
+  color: var(--text-color-regular);
 }
 .text-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: var(--border-width-thin) solid var(--border-color);
+  border-radius: var(--border-radius-md);
   overflow: hidden;
-  background: #fff;
+  background: var(--background-color);
 }
 
 .panel-header {
@@ -1009,14 +990,14 @@ document.addEventListener('click', (e) => {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #fafafa;
+  border-bottom: var(--border-width-thin) solid var(--border-color);
+  background: var(--background-color-ghost);
 }
 
 .panel-title {
   font-weight: 600;
-  font-size: 14px;
-  color: #303133;
+  font-size: var(--font-size-md);
+  color: var(--text-color-heading);
 }
 
 .file-lang-select {
@@ -1031,8 +1012,8 @@ document.addEventListener('click', (e) => {
 }
 
 .char-count {
-  font-size: 12px;
-  color: #909399;
+  font-size: var(--font-size-xs);
+  color: var(--text-color-placeholder);
 }
 
 .text-editor {
@@ -1042,7 +1023,7 @@ document.addEventListener('click', (e) => {
   outline: none;
   resize: none;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
+  font-size: var(--font-size-md);
   line-height: 1.6;
   overflow: auto;
   white-space: pre-wrap;
@@ -1057,23 +1038,23 @@ document.addEventListener('click', (e) => {
 }
 
 .text-editor[contenteditable="false"] {
-  background: #f8f9fa;
+  background: var(--background-color-light);
   cursor: default;
 }
 
 .text-editor:empty:before {
   content: attr(placeholder);
-  color: #c0c4cc;
+  color: var(--text-color-disabled);
   pointer-events: none;
 }
 
 /* Context Menu */
 .context-menu {
-  background: #fff;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
+  background: var(--background-color);
+  border: var(--border-width-thin) solid var(--border-color);
+  border-radius: var(--border-radius-md);
   padding: 8px 0;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(var(--color-black-rgb), 0.12);
   min-width: 120px;
 }
 
@@ -1082,24 +1063,24 @@ document.addEventListener('click', (e) => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  font-size: 14px;
-  color: #303133;
+  font-size: var(--font-size-md);
+  color: var(--text-color-heading);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .menu-item:hover {
-  background: #f5f7fa;
+  background: var(--background-color-muted);
   color: var(--el-color-primary);
 }
 
 .menu-item .el-icon {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .menu-separator {
   height: 1px;
-  background: #ebeef5;
+  background: var(--border-color-muted);
   margin: 4px 0;
 }
 
@@ -1119,11 +1100,11 @@ document.addEventListener('click', (e) => {
 }
 
 .text-editor :deep(code) {
-  background: #f1f2f6;
+  background: var(--background-color-strong);
   padding: 2px 4px;
   border-radius: 3px;
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .s-button {

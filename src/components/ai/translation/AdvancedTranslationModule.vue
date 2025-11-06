@@ -181,6 +181,7 @@ import {uploadStream} from '../../../services/uploadStream';
 import GlossaryManager from './GlossaryManager.vue';
 import 'github-markdown-css/github-markdown.css';
 import { getFileExtenName } from '../../../constants/fileTypes';
+import { getPrimaryColor } from '@/utils/theme';
 
 const props = defineProps({
   file: {type: Object, default: null},
@@ -258,12 +259,6 @@ async function fetchFormattedSource(){
   }
 }
 
-// 高亮行的 class
-const LINE_HIGHLIGHT_CLASS = 'line-highlight-active';
-
-function splitLines(text) {
-  return (text || '').replace(/\r\n/g, '\n').split(/\n/);
-}
 
 function rebuildEditorHtml(editor, text) {
   // 根据编辑状态决定使用纯文本还是 markdown 渲染
@@ -491,7 +486,7 @@ const languageSummary = vComputed(() => `${languageNameMap[sourceLanguage.value]
 // Custom tag dialog
 const showCustomTagDialog = ref(false);
 const customTagName = ref('');
-const customTagColor = ref('#409EFF');
+const customTagColor = ref(getPrimaryColor());
 
 // Glossary manager (external component)
 const glossaryManagerRef = ref(null);
@@ -1188,7 +1183,7 @@ function saveCustomTag() {
   customTags.value.push({name: customTagName.value.trim(), color: customTagColor.value});
   ElMessage.success('标签已添加');
   customTagName.value = '';
-  customTagColor.value = '#409EFF';
+  customTagColor.value = getPrimaryColor();
   showCustomTagDialog.value = false;
 }
 
@@ -1205,14 +1200,14 @@ onUnmounted(() => {
 <style scoped>
 .markdown-body h1 {
   font-size: 1.4em;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: var(--border-width-thin) solid var(--border-color);
   padding-bottom: .3em;
   margin-top: 1em;
 }
 
 .markdown-body h2 {
   font-size: 1.25em;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: var(--border-width-thin) solid var(--border-color);
   padding-bottom: .25em;
   margin-top: 1em;
 }
@@ -1227,15 +1222,15 @@ onUnmounted(() => {
   padding: 8px 12px;
   border-radius: 6px;
   overflow: auto;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .markdown-body code {
   background: #f6f8fa;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   font-family: ui-monospace, monospace;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .markdown-body ul {
@@ -1250,7 +1245,7 @@ onUnmounted(() => {
 
 .markdown-body hr {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: var(--border-width-thin) solid var(--border-color);
   margin: 12px 0;
 }
 
@@ -1261,7 +1256,7 @@ onUnmounted(() => {
 }
 
 .markdown-body table th, .markdown-body table td {
-  border: 1px solid #d0d7de;
+  border: var(--border-width-thin) solid #d0d7de;
   padding: 6px 10px;
   text-align: left;
 }
@@ -1280,7 +1275,7 @@ onUnmounted(() => {
 }
 
 .selection-highlight {
-  background: rgba(64, 158, 255, 0.35);
+  background: rgba(var(--primary-color-rgb), 0.35);
   border-radius: 2px;
 }
 
@@ -1293,7 +1288,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fff;
+  background: var(--background-color);
 }
 
 .translation-toolbar {
@@ -1302,8 +1297,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f8f9fa;
+  border-bottom: var(--border-width-thin) solid var(--border-color);
+  background: var(--background-color-light);
 }
 
 .language-selectors {
@@ -1319,8 +1314,8 @@ onUnmounted(() => {
 }
 
 .language-selector label {
-  font-size: 14px;
-  color: #606266;
+  font-size: var(--font-size-md);
+  color: var(--text-color-regular);
   white-space: nowrap;
 }
 
@@ -1336,12 +1331,12 @@ onUnmounted(() => {
 }
 
 .lang-display {
-  font-size: 13px;
-  color: #606266;
+  font-size: var(--font-size-sm);
+  color: var(--text-color-regular);
   margin-left: 12px;
   padding: 4px 8px;
-  background: #ffffffcc;
-  border: 1px solid #e5e7eb;
+  background: var(--background-color)fffcc;
+  border: var(--border-width-thin) solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
   white-space: nowrap;
@@ -1359,7 +1354,7 @@ onUnmounted(() => {
   flex: 1 1 50%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e5e7eb;
+  border-right: var(--border-width-thin) solid var(--border-color);
   min-width: 0;
 }
 
@@ -1373,19 +1368,19 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: var(--border-width-thin) solid var(--border-color);
   background: #fafafa;
 }
 
 .panel-title {
   font-weight: 600;
-  font-size: 14px;
-  color: #303133;
+  font-size: var(--font-size-md);
+  color: var(--text-color-heading);
 }
 
 .char-count {
-  font-size: 12px;
-  color: #909399;
+  font-size: var(--font-size-xs);
+  color: var(--text-color-placeholder);
 }
 
 .text-editor {
@@ -1395,7 +1390,7 @@ onUnmounted(() => {
   outline: none;
   resize: none;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
+  font-size: var(--font-size-md);
   line-height: 1.6;
   overflow: auto;
   white-space: pre-wrap;
@@ -1428,8 +1423,8 @@ onUnmounted(() => {
 }
 
 .context-menu {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--background-color);
+  border: var(--border-width-thin) solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
   padding: 4px 0;
@@ -1442,37 +1437,37 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 12px;
   cursor: pointer;
-  font-size: 14px;
-  color: #303133;
+  font-size: var(--font-size-md);
+  color: var(--text-color-heading);
   transition: background-color .2s;
 }
 
 .menu-item:hover {
-  background: #f5f7fa;
+  background: var(--background-color-muted);
 }
 
 .terminology-marker {
   text-decoration: underline;
-  text-decoration-color: #409EFF;
+  text-decoration-color: var(--primary-color);
   text-decoration-thickness: 2px;
 }
 
 .warning-marker {
-  color: #E6A23C;
+  color: var(--status-warning);
 }
 
 .custom-tag-marker {
-  background: #409EFF;
-  color: #fff;
+  background: var(--primary-color);
+  color: var(--background-color);
   padding: 2px 4px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .setting-desc {
   margin-left: 8px;
-  font-size: 12px;
-  color: #909399;
+  font-size: var(--font-size-xs);
+  color: var(--text-color-placeholder);
 }
 
 .cross-highlight {
@@ -1501,7 +1496,7 @@ onUnmounted(() => {
 
   .text-panel {
     border-right: none;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: var(--border-width-thin) solid var(--border-color);
   }
 
   .text-panel:last-child {
@@ -1516,8 +1511,8 @@ onUnmounted(() => {
 
 /* Dark theme overrides */
 .advanced-translation-module.theme-dark {
-  background: #1f2937;
-  color: #e5e7eb;
+  background: var(--text-color-primary);
+  color: var(--border-color);
 }
 
 .advanced-translation-module.theme-dark .translation-toolbar {
@@ -1537,7 +1532,7 @@ onUnmounted(() => {
 }
 
 .advanced-translation-module.theme-dark .panel-header .panel-title {
-  color: #f3f4f6;
+  color: var(--border-color-light);
 }
 
 .advanced-translation-module.theme-dark .panel-header .char-count {
@@ -1551,7 +1546,7 @@ onUnmounted(() => {
 
 .advanced-translation-module.theme-dark .lang-display {
   background: rgba(255, 255, 255, 0.03);
-  border-color: #374151;
+  border-color: var(--text-color-primary);
   color: #cbd5e1;
 }
 

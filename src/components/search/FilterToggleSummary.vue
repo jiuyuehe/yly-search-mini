@@ -99,7 +99,7 @@ function removeTag(tag) { emit('remove', tag); }
   display:inline-flex; 
   align-items:center; 
   gap:6px;
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   transition: all 0.3s;
 }
 
@@ -108,25 +108,25 @@ function removeTag(tag) { emit('remove', tag); }
 }
 
 .count-badge {
-  background: #FFFFFF;
-  color: #3B82F6;
-  border-radius: 12px;
+  background: var(--background-color);
+  color: var(--primary-color);
+  border-radius: var(--border-radius-lg);
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   line-height: 16px;
   font-weight: 600;
   margin-left: 4px;
-  box-shadow: 0 0 0 1px #3B82F6 inset;
+  box-shadow: 0 0 0 1px var(--primary-color) inset;
 }
 
 .clear-btn { 
-  color: #EF4444;
+  color: var(--status-danger-strong);
   font-weight: 500;
 }
 
 .clear-btn:hover {
-  color: #DC2626;
-  background: #FEE2E2;
+  color: var(--status-danger-intense);
+  background: var(--status-danger-bg);
 }
 
 .tags-row { 
@@ -140,17 +140,17 @@ function removeTag(tag) { emit('remove', tag); }
   padding: 0 12px;
   height: 28px;
   line-height: 26px;
-  font-size: 13px;
-  border-color: #E5E7EB;
-  background: #F9FAFB;
-  color: #374151;
+  font-size: var(--font-size-sm);
+  border-color: var(--border-color);
+  background: var(--background-color-light);
+  color: var(--text-color-primary);
 }
 
 .tags-row :deep(.el-tag .el-icon) {
-  color: #6B7280;
+  color: var(--text-color-secondary);
 }
 
 .tags-row :deep(.el-tag .el-icon:hover) {
-  color: #3B82F6;
+  color: var(--primary-color);
 }
 </style>

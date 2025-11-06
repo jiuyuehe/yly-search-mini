@@ -30,23 +30,23 @@ function onFormSelected(form) {
 <style scoped>
 .forms-view {
   min-height: 100vh;
-  background-color: #F7F8FA;
+  background-color: var(--background-page);
 }
 
 .view-header {
   padding: 20px 24px;
-  background-color: #FFFFFF;
-  border-bottom: 1px solid #E5E7EB;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background-color: var(--background-color);
+  border-bottom: var(--border-width-thin) solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(var(--color-black-rgb), 0.05);
 }
 
 .view-header :deep(.el-breadcrumb__inner) {
-  color: #6B7280;
+  color: var(--text-color-secondary);
   font-weight: 500;
 }
 
 .view-header :deep(.el-breadcrumb__inner.is-link:hover) {
-  color: #3B82F6;
+  color: var(--primary-color);
 }
 
 .view-content {

@@ -193,7 +193,7 @@ defineExpose({ generateTags });
 
 .panel-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .tags-content {
@@ -201,13 +201,13 @@ defineExpose({ generateTags });
 }
 
 .tags-list { display:flex; flex-wrap:wrap; gap:6px; }
-.tag-item { cursor:default; font-size:13px; }
+.tag-item { cursor:default; font-size: var(--font-size-sm); }
 .edit-actions { margin-top:8px; }
-.tags-table { font-size:13px; }
+.tags-table { font-size: var(--font-size-sm); }
 .tags-table :deep(.el-input__wrapper) { padding:0 6px; }
 .tags-table :deep(.el-input-number) { width:100%; }
 .tags-table :deep(.el-input-number .el-input__inner) { text-align:center; }
-.el-dialog :deep(.el-dialog__body) { font-size:13px; }
+.el-dialog :deep(.el-dialog__body) { font-size: var(--font-size-sm); }
 
 .loading {
   padding: 8px 0;

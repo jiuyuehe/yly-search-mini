@@ -537,7 +537,7 @@ function buildPreviewUrl(fd) {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #fff;
+  background: var(--background-color);
 }
 
 .top-bar {
@@ -545,7 +545,7 @@ function buildPreviewUrl(fd) {
   align-items: flex-start;
   padding: 10px 16px 8px;
   gap: 32px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: var(--border-width-thin) solid var(--border-color-muted);
 }
 
 .file-info,
@@ -560,22 +560,22 @@ function buildPreviewUrl(fd) {
   gap: 6px;
   height: 40px;
   padding: 0 18px;
-  font-size: 14px;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  border: 1px solid #d0d5dd;
-  background: #fff;
-  color: #303133;
-  border-radius: 8px;
+  border: var(--border-width-thin) solid var(--border-color-strong);
+  background: var(--background-color);
+  color: var(--text-color-heading);
+  border-radius: var(--border-radius-md);
   line-height: 1;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
+  box-shadow: 0 1px 2px rgba(var(--color-black-rgb), .05);
   transition: .18s;
 }
 
 .back-btn:hover {
-  color: #1671f2;
-  border-color: #1671f2;
-  box-shadow: 0 2px 6px -2px rgba(22, 113, 242, .35);
-  background: #f5f9ff;
+  color: var(--info-color);
+  border-color: var(--info-color);
+  box-shadow: 0 2px 6px -2px rgba(var(--info-color-rgb), .35);
+  background: var(--background-color-hover);
 }
 
 .back-btn:active {
@@ -583,7 +583,7 @@ function buildPreviewUrl(fd) {
 }
 
 .back-btn :deep(.el-icon) {
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   margin-right: 2px;
 }
 
@@ -639,7 +639,7 @@ function buildPreviewUrl(fd) {
 
 /* 让 splitter 两侧区域都撑满高度 */
 :deep(.el-splitter) {
-  --ep-splitter-border-color: #ebeef5;
+  --ep-splitter-border-color: var(--border-color-muted);
 }
 
 :deep(.el-splitter__panel) {
@@ -667,8 +667,8 @@ function buildPreviewUrl(fd) {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
-  font-size: 14px;
+  color: var(--text-color-placeholder);
+  font-size: var(--font-size-md);
 }
 
 .ai-wrapper {
@@ -693,9 +693,9 @@ function buildPreviewUrl(fd) {
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: #f8f9fa;
-  border: 1px dashed #e5e7eb;
-  border-radius: 8px;
+  background: var(--background-color-light);
+  border: var(--border-width-thin) dashed var(--border-color);
+  border-radius: var(--border-radius-md);
   margin: 8px;
 }
 

@@ -128,9 +128,8 @@ function ensureShape() {
     Object.keys(fields).forEach(k => {
       if (props.data[k] === undefined) {
         const fs = fields[k];
-        if (fs.type === 'object') props.data[k] = {};
-        else if (fs.type === 'array') props.data[k] = [];
-        else props.data[k] = '';
+        // 使用统一的默认值生成器，便于维护与扩展
+        props.data[k] = defaultValueFor(fs);
       }
     });
   } else if (props.schema.type === 'array' && Array.isArray(props.data)) {
@@ -209,13 +208,13 @@ function defaultValueFor(s){
 
 <style scoped>
 .object-node { display:flex; flex-direction:column; gap:12px; }
-.field-block { border:1px solid #e5e7eb; border-radius:6px; padding:10px 12px; background:#fafafa; }
+.field-block { border: var(--border-width-thin) solid var(--border-color); border-radius:6px; padding:10px 12px; background:#fafafa; }
 .field-label { font-weight:600; margin-bottom:6px; }
 .array-node { display:flex; flex-direction:column; gap:12px; }
 .array-items { display:flex; flex-direction:column; gap:12px; }
-.array-item { border:1px solid #dcdfe6; border-radius:6px; padding:10px; background:#fff; }
-.array-item-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-weight:600; font-size:12px; color:#606266; }
+.array-item { border: var(--border-width-thin) solid var(--border-color-soft); border-radius:6px; padding:10px; background:var(--background-color); }
+.array-item-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-weight:600; font-size: var(--font-size-xs); color:var(--text-color-regular); }
 .array-item-content { display:flex; flex-direction:column; gap:8px; }
-.sub-field { border:1px solid #f0f0f0; border-radius:4px; padding:8px; background:#fff; }
+.sub-field { border: var(--border-width-thin) solid #f0f0f0; border-radius: var(--border-radius-sm); padding:8px; background:var(--background-color); }
 .array-actions { text-align:left; }
 </style>

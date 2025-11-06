@@ -202,7 +202,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { ArrowDown } from '@element-plus/icons-vue';
 import { useSearchStore } from '../../stores/search';
 import { searchService } from '../../services/search';
@@ -212,13 +212,13 @@ const searchStore = useSearchStore();
 const emit = defineEmits(['tag-click']);
 
 const expandedSections = reactive({
-  fileCategory: true,
-  creators: true,
-  timeRange: true,
-  fileSize: true,
-  versions: true,
-  tags: true,
-  formats: true
+  fileCategory: false,
+  creators: false,
+  timeRange: false,
+  fileSize: false,
+  versions: false,
+  tags: false,
+  formats: false
 });
 
 const filters = reactive({
@@ -344,14 +344,14 @@ function onTagsChange(newVal) {
   const found = tagOptions.value.find(o => o.value === newVal);
   const label = found ? found.label : newVal;
   // Emit event to parent so it can route to TagCloud handler (no global events)
-  try { emit('tag-click', label); } catch(e){}
+  try { emit('tag-click', label); } catch { /* ignore emit failures */ }
   // reflect selection in UI but suppress syncing to store
   try {
     suppressFilterSync.value = true;
     filters.tag = newVal;
     // clear suppression on next tick so the watcher won't act on this programmatic change
     setTimeout(() => { suppressFilterSync.value = false; }, 0);
-  } catch(e) { suppressFilterSync.value = false; }
+  } catch { suppressFilterSync.value = false; }
 }
 
 function handleLoadMoreClick() {
@@ -381,8 +381,6 @@ function findTagLabel(val) {
   return item?.label || val;
 }
 function clearCreator() { filters.creator = ''; }
-function removeTagValue(v) { if (filters.tag === v) { filters.tag = ''; tagPage.value = 1; querySearchTags(''); } }
-
 function toggleSection(section) {
   expandedSections[section] = !expandedSections[section];
 }
@@ -439,7 +437,7 @@ watch(filters, (newFilters) => {
     try {
       const [s, e] = newFilters.customTimeRange;
       customRangeFormatted = [fmt(new Date(s)), fmt(new Date(e))];
-    } catch (err) { customRangeFormatted = null; }
+    } catch { customRangeFormatted = null; }
   }
 
   // normalize fileSize into array; accept the new '1G+' token unchanged
@@ -497,7 +495,7 @@ watch(() => searchStore.filters.fileAiTag, async (label) => {
       tagOptions.value = [{ value: label, label }, ...tagOptions.value];
       filters.tag = label;
     }
-  } catch {}
+  } catch { /* ignore re-sync errors */ }
 });
 
 // When switching to custom timeRange, provide a sensible default range (last 7 days)
@@ -509,7 +507,7 @@ watch(() => filters.timeRange, (val) => {
         const start = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000); // last 7 days including today
         filters.customTimeRange = [start, end];
       }
-    } catch (e) { /* ignore */ }
+  } catch { /* ignore timeRange preset errors */ }
   }
 });
 </script>
@@ -518,7 +516,7 @@ watch(() => filters.timeRange, (val) => {
 .filter-sidebar {
   width: 280px;
   background-color: var(--background-color);
-  border: 1px solid var(--border-color-light);
+  border: var(--border-width-thin) solid var(--border-color-light);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   height:100%;
@@ -531,13 +529,13 @@ watch(() => filters.timeRange, (val) => {
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-lg);
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: var(--border-width-thin) solid var(--border-color-light);
   background-color: var(--background-color-light);
 }
 
 .filter-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-color-primary);
 }
@@ -548,7 +546,7 @@ watch(() => filters.timeRange, (val) => {
 }
 
 .filter-section {
-  border-bottom: 1px solid var(--border-color-light);
+  border-bottom: var(--border-width-thin) solid var(--border-color-light);
 }
 
 .filter-section:last-child {
@@ -618,7 +616,7 @@ watch(() => filters.timeRange, (val) => {
 }
 
 :deep(.file-category-group .el-radio__label) {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   color: var(--text-color-secondary);
   padding-left: var(--spacing-sm);
 }
@@ -629,7 +627,7 @@ watch(() => filters.timeRange, (val) => {
 }
 
 :deep(.filter-checkbox .el-checkbox__label) {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   color: var(--text-color-secondary);
   padding-left: var(--spacing-sm);
 }
@@ -659,7 +657,7 @@ watch(() => filters.timeRange, (val) => {
 }
 
 :deep(.time-radio-group .el-radio__label) {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   color: var(--text-color-secondary);
   padding-left: var(--spacing-sm);
 }
@@ -699,7 +697,7 @@ watch(() => filters.timeRange, (val) => {
   font-weight: 600;
 }
 
-.select-footer{ padding:8px 12px; text-align:center; border-top:1px solid var(--border-color); }
+.select-footer{ padding:8px 12px; text-align:center; border-top: var(--border-width-thin) solid var(--border-color); }
 .load-more-btn{ color:var(--primary-color); font-weight:600; }
 </style>
 

@@ -75,7 +75,7 @@ function handleMenuSelect(index) {
 <style scoped>
 .app-header {
   background-color: white;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: var(--border-width-thin) solid #e4e7ed;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
@@ -101,7 +101,7 @@ function handleMenuSelect(index) {
 .logo h2 {
   margin: 0;
   color: var(--primary-color);
-  font-size: 24px;
+  font-size: var(--font-size-display);
   font-weight: 600;
 }
 

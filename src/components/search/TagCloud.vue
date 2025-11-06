@@ -499,33 +499,33 @@ function drawHighlight(dimension, _item){
 }
 </script>
 <style scoped>
-.tag-cloud-wrapper{padding:8px 10px 18px; border:1px solid #ebeef5; border-radius:8px; background:var(--el-bg-color,#fff); position:relative;}
+.tag-cloud-wrapper{padding:8px 10px 18px; border: var(--border-width-thin) solid var(--border-color-muted); border-radius: var(--border-radius-md); background:var(--el-bg-color,var(--background-color)); position:relative;}
 .cloud-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;flex-wrap:wrap;}
 .left-info{display:flex;align-items:center;gap:8px;}
 .right-actions{display:flex;align-items:center;gap:8px;}
-.title{font-weight:600;font-size:14px;}
-.loading{font-size:12px;color:#909399;}
-.meta{font-size:12px;color:#666;}
+.title{font-weight:600;font-size: var(--font-size-md);}
+.loading{font-size: var(--font-size-xs);color:var(--text-color-placeholder);}
+.meta{font-size: var(--font-size-xs);color:var(--text-color-secondary);}
 .cloud-canvas-wrapper{position:relative;width:100%;height:100%;min-height:180px;}
-.cloud-canvas-wrapper canvas{width:100%;height:100%;display:block;border-radius:4px;}
+.cloud-canvas-wrapper canvas{width:100%;height:100%;display:block;border-radius: var(--border-radius-sm);}
 .cloud-canvas-wrapper .highlight-layer{position:absolute;left:0;top:0;pointer-events:none;}
-.rendering-overlay{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:13px;background:rgba(255,255,255,0.6);backdrop-filter:blur(2px);color:#666;}
+.rendering-overlay{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size: var(--font-size-sm);background:rgba(255,255,255,0.6);backdrop-filter:blur(2px);color:var(--text-color-secondary);}
 /* Fallback list */
 .fallback-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;}
-.fallback-item{cursor:pointer;user-select:none;padding:4px 6px;border-radius:4px;transition:all .15s;background:linear-gradient(145deg,#f6f8fa,#eef3ff);} 
-.fallback-item:hover{background:#409eff;color:#fff;transform:translateY(-2px);} 
+.fallback-item{cursor:pointer;user-select:none;padding:4px 6px;border-radius: var(--border-radius-sm);transition:all .15s;background:linear-gradient(145deg,#f6f8fa,#eef3ff);} 
+.fallback-item:hover{background:var(--primary-color);color:var(--background-color);transform:translateY(-2px);} 
 /* WordCloud injected elements (if DOM mode) */
 :deep(.wc-heavy){font-weight:700;}
 :deep(.wc-medium){font-weight:500;}
 :deep(.wc-light){font-weight:400;opacity:.9;}
-.advanced-panel{margin-top:6px;padding:8px 10px 10px;border:1px dashed #dcdfe6;border-radius:6px;background:#fafafa;}
+.advanced-panel{margin-top:6px;padding:8px 10px 10px;border: var(--border-width-thin) dashed var(--border-color-soft);border-radius:6px;background:#fafafa;}
 .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
-.panel-title{font-size:13px;font-weight:600;color:#333;}
+.panel-title{font-size: var(--font-size-sm);font-weight:600;color:var(--text-color-primary);}
 .panel-actions{display:flex;gap:6px;}
 .help-row{display:flex;justify-content:space-between;align-items:center;margin-top:4px;}
-.hint{font-size:12px;color:#888;}
-.error{margin-top:4px;font-size:12px;color:#d93026;}
+.hint{font-size: var(--font-size-xs);color:#888;}
+.error{margin-top:4px;font-size: var(--font-size-xs);color:#d93026;}
 .fade-enter-active,.fade-leave-active{transition:all .18s ease;}
 .fade-enter-from,.fade-leave-to{opacity:0;transform:translateY(-4px);} 
-.wc-tooltip{position:absolute;z-index:3;pointer-events:none;background:rgba(0,0,0,0.68);color:#fff;padding:4px 8px;font-size:12px;line-height:1;border-radius:4px;white-space:nowrap;transform:translate(-50%, -100%) translateY(-6px);box-shadow:0 2px 6px rgba(0,0,0,0.25);}
+.wc-tooltip{position:absolute;z-index:3;pointer-events:none;background:rgba(0,0,0,0.68);color:var(--background-color);padding:4px 8px;font-size: var(--font-size-xs);line-height:1;border-radius: var(--border-radius-sm);white-space:nowrap;transform:translate(-50%, -100%) translateY(-6px);box-shadow:0 2px 6px rgba(0,0,0,0.25);}
 </style>

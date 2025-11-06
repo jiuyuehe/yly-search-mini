@@ -112,7 +112,7 @@ function onRootChange(newObj){
 </script>
 
 <style scoped>
-.extraction-result-form { padding:8px 4px; background:#fff; font-size:13px; }
-.structure-json { font-size:12px; }
+.extraction-result-form { padding:8px 4px; background:var(--background-color); font-size: var(--font-size-sm); }
+.structure-json { font-size: var(--font-size-xs); }
 /* 样式现在主要在 RecursiveNode.vue 中定义通用块结构，如需覆盖可在此追加 */
 </style>

@@ -245,8 +245,6 @@ function calculateStats() {
     return;
   }
 
-  const oldLines = oldCode.value.split('\n');
-  const newLines = newCode.value.split('\n');
 
   const changes = Diff.diffLines(oldCode.value, newCode.value);
   
@@ -282,7 +280,7 @@ function calculateStats() {
 .view-header {
   padding: 20px 24px;
   background-color: var(--background-color);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width-thin) solid var(--border-color);
 }
 
 .view-content {
@@ -295,7 +293,7 @@ function calculateStats() {
 
 .toolbar {
   background: var(--background-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width-thin) solid var(--border-color);
   border-radius: var(--border-radius-lg);
   padding: 16px 20px;
   display: flex;
@@ -333,7 +331,7 @@ function calculateStats() {
 .diff-container {
   flex: 1;
   background: var(--background-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width-thin) solid var(--border-color);
   border-radius: var(--border-radius-lg);
   overflow: auto;
   box-shadow: var(--shadow-sm);
@@ -346,7 +344,7 @@ function calculateStats() {
 
 :deep(.d2h-wrapper) {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 :deep(.d2h-file-header) {
@@ -368,24 +366,24 @@ function calculateStats() {
 }
 
 :deep(.d2h-ins) {
-  background-color: #d1fae5;
+  background-color: var(--status-success-bg);
 }
 
 :deep(.d2h-del) {
-  background-color: #fee2e2;
+  background-color: var(--diff-removed-bg);
 }
 
 :deep(.d2h-info) {
-  background-color: #dbeafe;
+  background-color: var(--diff-added-bg);
   color: var(--text-color-primary);
 }
 
 :deep(.d2h-ins .d2h-code-line-ctn) {
-  background-color: #a7f3d0;
+  background-color: var(--status-success-border);
 }
 
 :deep(.d2h-del .d2h-code-line-ctn) {
-  background-color: #fecaca;
+  background-color: var(--background-danger-muted);
 }
 
 :deep(.d2h-code-side-linenumber) {
@@ -411,25 +409,25 @@ function calculateStats() {
 }
 
 .stat-item .label {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   color: var(--text-color-secondary);
   font-weight: 500;
 }
 
 .stat-item .value {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
 }
 
 .value.addition {
-  color: #10B981;
+  color: var(--status-success-strong);
 }
 
 .value.deletion {
-  color: #EF4444;
+  color: var(--status-danger-strong);
 }
 
 .value.modification {
-  color: #F59E0B;
+  color: var(--status-warning-strong);
 }
 </style>

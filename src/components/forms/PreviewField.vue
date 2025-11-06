@@ -176,18 +176,18 @@ function updateArrayField(itemIndex, subFieldName, value) {
 .field-label {
   margin-bottom: 8px;
   font-weight: 600;
-  color: #606266;
-  font-size: 14px;
+  color: var(--text-color-regular);
+  font-size: var(--font-size-md);
 }
 
 .required-mark {
-  color: #f56c6c;
+  color: var(--status-danger);
   margin-left: 4px;
 }
 
 .field-type {
-  color: #909399;
-  font-size: 12px;
+  color: var(--text-color-placeholder);
+  font-size: var(--font-size-xs);
   font-weight: normal;
   margin-left: 8px;
 }
@@ -207,8 +207,8 @@ function updateArrayField(itemIndex, subFieldName, value) {
 .sub-field {
   padding: 10px;
   background-color: white;
-  border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  border-radius: var(--border-radius-sm);
+  border: var(--border-width-thin) solid #f0f0f0;
 }
 
 .array-header {
@@ -217,12 +217,12 @@ function updateArrayField(itemIndex, subFieldName, value) {
   align-items: center;
   margin-bottom: 15px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: var(--border-width-thin) solid #e4e7ed;
 }
 
 .array-label {
   font-weight: 600;
-  color: #303133;
+  color: var(--text-color-heading);
 }
 
 .array-container {
@@ -243,10 +243,10 @@ function updateArrayField(itemIndex, subFieldName, value) {
   align-items: center;
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 14px;
+  border-bottom: var(--border-width-thin) solid #f0f0f0;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #606266;
+  color: var(--text-color-regular);
 }
 
 .array-item-content {

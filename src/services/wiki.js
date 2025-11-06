@@ -9,8 +9,6 @@
 import { getCT, getUserInfo } from './api';
 
 // 允许通过环境变量配置管理网关前缀（例如 /admin-api），本地开发可为空
-// Vite 注入：VITE_ADMIN_API_PREFIX=/admin-api  (不带尾斜杠)
-const ADMIN_PREFIX = (import.meta?.env?.VITE_ADMIN_API_PREFIX || '').replace(/\/$/, '');
 // 完整流式接口路径（含 /rag 前缀，因为后端映射的是 /rag/ai/text/wiki）
 const WIKI_FULL_PATH = `/rag/admin-api/rag/ai/text/wiki`;
 // axios 基础实例 searchApi 的 baseURL 已是 /rag，因此 axios 里不应再重复 /rag；拼接时去掉前缀部分

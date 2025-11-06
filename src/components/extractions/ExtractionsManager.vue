@@ -199,7 +199,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search, DocumentCopy, Edit, Delete } from '@element-plus/icons-vue';
+import { DocumentCopy, Edit, Delete } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { useExtractionsStore } from '../../stores/extractions';
 import { useFormsStore } from '../../stores/forms';
@@ -210,7 +210,6 @@ const router = useRouter();
 const extractionsStore = useExtractionsStore();
 const formsStore = useFormsStore();
 
-const searchKeyword = ref('');
 const selectedExtractions = ref([]);
 const showDetail = ref(false);
 const selectedExtraction = ref(null);
@@ -240,10 +239,6 @@ onMounted(async () => {
   pagination.page = extractionsStore.pagination.page || pagination.page;
   pagination.pageSize = extractionsStore.pagination.pageSize || pagination.pageSize;
 });
-
-function onSearch() {
-  extractionsStore.searchExtractions(searchKeyword.value, { ...filters, page: pagination.page, pageSize: pagination.pageSize });
-}
 
 function onFilterChange() {
   extractionsStore.setPagination(1, pagination.pageSize);
@@ -300,7 +295,7 @@ function isOwner(item) {
   return String(owner) === String(currentUserId);
 }
 
-function openDetail(extraction) {
+function _openDetail(extraction) {
   selectedExtraction.value = extraction;
   detailEditable.value = false; // start in view mode
   canEditDetail.value = isOwner(extraction);
@@ -408,7 +403,7 @@ function fallbackCopy(text) {
   try {
     document.execCommand('copy');
     ElMessage.success('数据已复制到剪贴板');
-  } catch (err) {
+  } catch {
     ElMessage.error('复制失败，请手动复制');
   }
   document.body.removeChild(textarea);
@@ -463,7 +458,7 @@ async function deleteSelected() {
   }
 }
 
-async function exportSelected() {
+async function _exportSelected() {
   if (selectedExtractions.value.length === 0) return;
   
   try {
@@ -528,16 +523,16 @@ function formatDate(dateString) {
 <style scoped>
 .extractions-manager {
   padding: 24px;
-  background-color: #F7F8FA;
+  background-color: var(--background-page);
   min-height: calc(100vh - 60px);
 }
 
 .manager-header {
   margin-bottom: 24px;
   padding: 20px 24px;
-  background: #FFFFFF;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  background: var(--background-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
 }
 
 .text-right {
@@ -553,33 +548,33 @@ function formatDate(dateString) {
 
 .extractions-list {
   min-height: 400px;
-  background: #FFFFFF;
-  border-radius: 12px;
+  background: var(--background-color);
+  border-radius: var(--border-radius-lg);
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
 }
 
 .extractions-list :deep(.el-table) {
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
 }
 
 .extractions-list :deep(.el-table__header) {
-  background: #F9FAFB;
+  background: var(--background-color-light);
 }
 
 .extractions-list :deep(.el-table__header th) {
-  background: #F9FAFB;
-  color: #374151;
+  background: var(--background-color-light);
+  color: var(--text-color-primary);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .extractions-list :deep(.el-table__row:hover) {
-  background: #F0F9FF;
+  background: var(--background-info-pale);
 }
 
 .extractions-list :deep(.el-table__body tr.el-table__row--striped) {
-  background: #FAFBFC;
+  background: var(--background-color-alt);
 }
 
 .data-preview {
@@ -590,54 +585,54 @@ function formatDate(dateString) {
 .empty-extractions {
   padding: 60px 0;
   text-align: center;
-  background: #FFFFFF;
-  border-radius: 8px;
+  background: var(--background-color);
+  border-radius: var(--border-radius-md);
 }
 
 .pagination-container {
   margin-top: 20px;
   text-align: center;
   padding: 16px;
-  background: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  background: var(--background-color);
+  border-radius: var(--border-radius-md);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
 }
 
 :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
-  border-color: #3B82F6;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
+  border-color: var(--primary-color);
 }
 
 :deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
-  border-color: #2563EB;
+  background: linear-gradient(135deg, var(--primary-color-dark) 0%, var(--primary-color-darker) 100%);
+  border-color: var(--primary-color-dark);
 }
 
 :deep(.el-button--danger) {
-  background: #EF4444;
-  border-color: #EF4444;
+  background: var(--status-danger-strong);
+  border-color: var(--status-danger-strong);
 }
 
 :deep(.el-button--danger:hover) {
-  background: #DC2626;
-  border-color: #DC2626;
+  background: var(--status-danger-intense);
+  border-color: var(--status-danger-intense);
 }
 
 :deep(.el-tag--success) {
-  background-color: #D1FAE5;
-  color: #065F46;
-  border-color: #A7F3D0;
+  background-color: var(--status-success-bg);
+  color: var(--status-success-text);
+  border-color: var(--status-success-border);
 }
 
 :deep(.el-tag--warning) {
-  background-color: #FEF3C7;
-  color: #92400E;
-  border-color: #FDE68A;
+  background-color: var(--status-warning-bg);
+  color: var(--text-color-warning);
+  border-color: var(--status-warning-border);
 }
 
 :deep(.el-tag--danger) {
-  background-color: #FEE2E2;
-  color: #991B1B;
-  border-color: #FCA5A5;
+  background-color: var(--status-danger-bg);
+  color: var(--status-danger-text);
+  border-color: var(--status-danger-border-strong);
 }
 </style>

@@ -228,7 +228,8 @@ async function extractInfo() {
       candidateEntries.push({ raw: flatObj, editable: false, saving: false, mode: 'legacy' });
     } else if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
       // 兜底：直接使用 payload
-      let originalString = null; try { originalString = JSON.stringify(payload); } catch {}
+      let originalString = null; 
+      originalString = JSON.stringify(payload); 
       candidateEntries.push({ raw: payload, originalString, editable: false, saving: false, mode: 'structured' });
     }
 
@@ -346,7 +347,7 @@ function onFormSelected(form){
 
 .panel-header h3 {
   margin: 0 0 15px 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .extraction-content {
@@ -357,17 +358,17 @@ function onFormSelected(form){
 .extraction-result {
   margin-top: 20px;
   padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
+  background-color: var(--background-color-light);
+  border-radius: var(--border-radius-sm);
 }
 
 .extraction-result pre {
   margin: 10px 0 0 0;
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 /* refresh header */
 .form-selection-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-.form-selection-header h4 { margin:0; font-size:14px; font-weight:600; }
+.form-selection-header h4 { margin:0; font-size: var(--font-size-md); font-weight:600; }
 /* Removed inline forms management styles (using FormsManager component) */
 
 /* result actions layout */

@@ -74,7 +74,7 @@ async function extractText() {
 
 .extractor-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .extracted-content {

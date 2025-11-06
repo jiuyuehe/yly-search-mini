@@ -107,12 +107,12 @@ function formatValue(value) {
 
 <style scoped>
 .data-preview {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   line-height: 1.4;
 }
 
 .empty-data {
-  color: #909399;
+  color: var(--text-color-placeholder);
   font-style: italic;
 }
 
@@ -130,13 +130,13 @@ function formatValue(value) {
 
 .data-key {
   font-weight: 600;
-  color: #606266;
+  color: var(--text-color-regular);
   min-width: 60px;
   flex-shrink: 0;
 }
 
 .data-value {
-  color: #303133;
+  color: var(--text-color-heading);
   flex: 1;
   word-break: break-all;
 }

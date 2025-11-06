@@ -255,9 +255,9 @@ function formatDate(dateString) {
 .detail-header {
   margin-bottom: 30px;
   padding: 20px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
+  background-color: var(--background-color-light);
+  border-radius: var(--border-radius-md);
+  border: var(--border-width-thin) solid #e9ecef;
 }
 
 .info-item {
@@ -268,13 +268,13 @@ function formatDate(dateString) {
 
 .info-item .label {
   font-weight: 600;
-  color: #606266;
+  color: var(--text-color-regular);
   min-width: 80px;
   margin-right: 10px;
 }
 
 .info-item .value {
-  color: #303133;
+  color: var(--text-color-heading);
 }
 
 .action-buttons {
@@ -288,10 +288,10 @@ function formatDate(dateString) {
 
 .detail-content h4 {
   margin: 0 0 20px 0;
-  color: #303133;
-  font-size: 16px;
+  color: var(--text-color-heading);
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: var(--border-width-thin) solid var(--border-color-muted);
   padding-bottom: 10px;
 }
 
@@ -301,17 +301,17 @@ function formatDate(dateString) {
 
 .raw-data h5 {
   margin: 0 0 15px 0;
-  color: #606266;
-  font-size: 14px;
+  color: var(--text-color-regular);
+  font-size: var(--font-size-md);
 }
 
 .json-display {
-  background-color: #f8f9fa;
+  background-color: var(--background-color-light);
   padding: 15px;
   border-radius: 6px;
-  border: 1px solid #e9ecef;
+  border: var(--border-width-thin) solid #e9ecef;
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -320,7 +320,7 @@ function formatDate(dateString) {
 
 .detail-footer {
   padding-top: 20px;
-  border-top: 1px solid #ebeef5;
+  border-top: var(--border-width-thin) solid var(--border-color-muted);
 }
 
 .timestamps {
@@ -335,12 +335,12 @@ function formatDate(dateString) {
 
 .timestamp-item .label {
   font-weight: 600;
-  color: #909399;
+  color: var(--text-color-placeholder);
   margin-right: 10px;
 }
 
 .timestamp-item .value {
-  color: #606266;
-  font-size: 14px;
+  color: var(--text-color-regular);
+  font-size: var(--font-size-md);
 }
 </style>

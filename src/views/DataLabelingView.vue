@@ -462,7 +462,7 @@ onMounted(() => {
 .view-header {
   padding: 20px 24px;
   background-color: var(--background-color);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width-thin) solid var(--border-color);
 }
 
 .view-content {
@@ -478,7 +478,7 @@ onMounted(() => {
 .tree-panel {
   flex: 0 0 320px;
   background: var(--background-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width-thin) solid var(--border-color);
   border-radius: var(--border-radius-lg);
   display: flex;
   flex-direction: column;
@@ -488,7 +488,7 @@ onMounted(() => {
 .detail-panel {
   flex: 1;
   background: var(--background-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width-thin) solid var(--border-color);
   border-radius: var(--border-radius-lg);
   display: flex;
   flex-direction: column;
@@ -497,7 +497,7 @@ onMounted(() => {
 
 .panel-header {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width-thin) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -505,7 +505,7 @@ onMounted(() => {
 
 .panel-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-color-primary);
 }
@@ -545,7 +545,7 @@ onMounted(() => {
 
 .node-label {
   flex: 1;
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .node-actions {
@@ -587,7 +587,7 @@ onMounted(() => {
   align-items: center;
   padding: 12px;
   background: var(--background-color-light);
-  border: 1px solid var(--border-color-light);
+  border: var(--border-width-thin) solid var(--border-color-light);
   border-radius: var(--border-radius-md);
 }
 
@@ -599,7 +599,7 @@ onMounted(() => {
 }
 
 .synonyms {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-color-secondary);
 }
 

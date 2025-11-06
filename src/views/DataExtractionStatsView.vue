@@ -12,7 +12,7 @@
       <!-- Summary Cards -->
       <div class="summary-cards">
         <div class="stat-card">
-          <div class="card-icon" style="background: #3B82F6;">
+          <div class="card-icon" style="background: var(--primary-color);">
             <el-icon><DataAnalysis /></el-icon>
           </div>
           <div class="card-content">
@@ -21,7 +21,7 @@
           </div>
         </div>
         <div class="stat-card">
-          <div class="card-icon" style="background: #10B981;">
+          <div class="card-icon" style="background: var(--status-success-strong);">
             <el-icon><Check /></el-icon>
           </div>
           <div class="card-content">
@@ -30,7 +30,7 @@
           </div>
         </div>
         <div class="stat-card">
-          <div class="card-icon" style="background: #F59E0B;">
+          <div class="card-icon" style="background: var(--status-warning-strong);">
             <el-icon><Timer /></el-icon>
           </div>
           <div class="card-content">
@@ -39,7 +39,7 @@
           </div>
         </div>
         <div class="stat-card">
-          <div class="card-icon" style="background: #8B5CF6;">
+          <div class="card-icon" style="background: var(--accent-purple);">
             <el-icon><TrendCharts /></el-icon>
           </div>
           <div class="card-content">
@@ -477,23 +477,23 @@ onBeforeUnmount(() => {
 <style scoped>
 .stats-view {
   min-height: 100vh;
-  background-color: #F7F8FA;
+  background-color: var(--background-page);
 }
 
 .view-header {
   padding: 20px 24px;
-  background-color: #FFFFFF;
-  border-bottom: 1px solid #E5E7EB;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background-color: var(--background-color);
+  border-bottom: var(--border-width-thin) solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(var(--color-black-rgb), 0.05);
 }
 
 .view-header :deep(.el-breadcrumb__inner) {
-  color: #6B7280;
+  color: var(--text-color-secondary);
   font-weight: 500;
 }
 
 .view-header :deep(.el-breadcrumb__inner.is-link:hover) {
-  color: #3B82F6;
+  color: var(--primary-color);
 }
 
 .view-content {
@@ -508,31 +508,31 @@ onBeforeUnmount(() => {
 }
 
 .stat-card {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
+  background: var(--background-color);
+  border: var(--border-width-thin) solid var(--border-color);
+  border-radius: var(--border-radius-lg);
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
   transition: all 0.3s ease;
 }
 
 .stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(var(--color-black-rgb), 0.1);
   transform: translateY(-2px);
 }
 
 .card-icon {
   width: 56px;
   height: 56px;
-  border-radius: 12px;
+  border-radius: var(--border-radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 24px;
+  color: var(--text-color-inverse);
+  font-size: var(--font-size-display);
 }
 
 .card-content {
@@ -540,8 +540,8 @@ onBeforeUnmount(() => {
 }
 
 .card-label {
-  font-size: 14px;
-  color: #6B7280;
+  font-size: var(--font-size-md);
+  color: var(--text-color-secondary);
   margin-bottom: 8px;
   font-weight: 500;
 }
@@ -549,7 +549,7 @@ onBeforeUnmount(() => {
 .card-value {
   font-size: 28px;
   font-weight: 700;
-  color: #1F2937;
+  color: var(--text-color-primary);
 }
 
 .charts-row {
@@ -560,24 +560,24 @@ onBeforeUnmount(() => {
 }
 
 .chart-card {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
+  background: var(--background-color);
+  border: var(--border-width-thin) solid var(--border-color);
+  border-radius: var(--border-radius-lg);
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
 }
 
 .chart-header {
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 2px solid #F3F4F6;
+  border-bottom: 2px solid var(--border-color-light);
 }
 
 .chart-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: #1F2937;
+  color: var(--text-color-primary);
 }
 
 .chart-container {
@@ -586,11 +586,11 @@ onBeforeUnmount(() => {
 }
 
 .table-section {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
+  background: var(--background-color);
+  border: var(--border-width-thin) solid var(--border-color);
+  border-radius: var(--border-radius-lg);
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
 }
 
 .section-header {
@@ -599,14 +599,14 @@ onBeforeUnmount(() => {
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 2px solid #F3F4F6;
+  border-bottom: 2px solid var(--border-color-light);
 }
 
 .section-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: #1F2937;
+  color: var(--text-color-primary);
 }
 
 .extraction-table {
@@ -614,56 +614,56 @@ onBeforeUnmount(() => {
 }
 
 .extraction-table :deep(.el-table__header) {
-  background: #F9FAFB;
+  background: var(--background-color-light);
 }
 
 .extraction-table :deep(.el-table__header th) {
-  background: #F9FAFB;
-  color: #374151;
+  background: var(--background-color-light);
+  color: var(--text-color-primary);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .extraction-table :deep(.el-table__row:hover) {
-  background: #F0F9FF;
+  background: var(--background-info-pale);
 }
 
 .extraction-table :deep(.el-table__body tr.el-table__row--striped) {
-  background: #FAFBFC;
+  background: var(--background-color-alt);
 }
 
 .table-pagination {
   display: flex;
   justify-content: flex-end;
   padding-top: 16px;
-  border-top: 1px solid #E5E7EB;
+  border-top: var(--border-width-thin) solid var(--border-color);
 }
 
 :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
-  border-color: #3B82F6;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
+  border-color: var(--primary-color);
 }
 
 :deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
-  border-color: #2563EB;
+  background: linear-gradient(135deg, var(--primary-color-dark) 0%, var(--primary-color-darker) 100%);
+  border-color: var(--primary-color-dark);
 }
 
 :deep(.el-tag--success) {
-  background-color: #D1FAE5;
-  color: #065F46;
-  border-color: #A7F3D0;
+  background-color: var(--status-success-bg);
+  color: var(--status-success-text);
+  border-color: var(--status-success-border);
 }
 
 :deep(.el-tag--danger) {
-  background-color: #FEE2E2;
-  color: #991B1B;
-  border-color: #FCA5A5;
+  background-color: var(--status-danger-bg);
+  color: var(--status-danger-text);
+  border-color: var(--status-danger-border-strong);
 }
 
 :deep(.el-tag--warning) {
-  background-color: #FEF3C7;
-  color: #92400E;
-  border-color: #FDE68A;
+  background-color: var(--status-warning-bg);
+  color: var(--text-color-warning);
+  border-color: var(--status-warning-border);
 }
 </style>

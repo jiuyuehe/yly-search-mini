@@ -108,12 +108,12 @@ function formatSize(size) { if (!size) return ''; const units=['B','KB','MB','GB
 
 <style scoped>
 .file-meta-info { display:flex; flex-direction:column; gap:4px; min-width:0; }
-.top-line { display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; }
+.top-line { display:flex; align-items:center; gap:8px; font-weight:600; font-size: var(--font-size-md-plus); }
 .file-icon-img { width:32px; height:32px; object-fit:contain; display:block; }
 .file-name { max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .file-name { cursor: pointer; }
 .file-name:hover { color: var(--primary-color); text-decoration: underline; }
-.bottom-line { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; color:#606266; line-height:1.3; }
+.bottom-line { display:flex; flex-wrap:wrap; gap:16px; font-size: var(--font-size-xs); color:var(--text-color-regular); line-height:1.3; }
 .bottom-line span { display:inline-flex; align-items:center; gap:4px; }
 .bottom-line .path a { color:#1671f2; text-decoration:none; max-width:460px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .bottom-line .path a:hover { text-decoration:underline; }

@@ -231,7 +231,7 @@ function handleRefreshNER() {
 
 .panel-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .entities-content {
@@ -241,13 +241,13 @@ function handleRefreshNER() {
 
 .ner-edit-dialog :deep(.el-dialog__body) { padding-top:8px; }
 .edit-groups { display:flex; flex-wrap:wrap; gap:16px; }
-.edit-group { width:280px; border:1px solid #ebeef5; padding:8px 10px; border-radius:6px; background:#fafafa; }
+.edit-group { width:280px; border: var(--border-width-thin) solid var(--border-color-muted); padding:8px 10px; border-radius:6px; background:#fafafa; }
 .eg-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-.eg-title { font-size:13px; font-weight:600; }
+.eg-title { font-size: var(--font-size-sm); font-weight:600; }
 .eg-list { display:flex; flex-direction:column; gap:6px; }
 .eg-item { display:flex; gap:6px; align-items:center; }
 .eg-item .el-input { flex:1; }
-.empty-hint { font-size:12px; color:#999; }
+.empty-hint { font-size: var(--font-size-xs); color:var(--text-color-placeholder); }
 .dialog-footer { text-align:right; width:100%; }
 
 .entity-group {
@@ -256,8 +256,8 @@ function handleRefreshNER() {
 
 .entity-group h4 {
   margin: 0 0 8px 0;
-  font-size: 14px;
-  color: #606266;
+  font-size: var(--font-size-md);
+  color: var(--text-color-regular);
 }
 
 .entity-group .el-tag {

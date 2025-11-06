@@ -226,16 +226,16 @@ async function toggleFormStatus(form) {
 <style scoped>
 .forms-manager {
   padding: 24px;
-  background-color: #F7F8FA;
+  background-color: var(--background-page);
   min-height: calc(100vh - 60px);
 }
 
 .manager-header {
   margin-bottom: 24px;
   padding: 20px 24px;
-  background: #FFFFFF;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  background: var(--background-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
 }
 
 .text-right {
@@ -244,34 +244,34 @@ async function toggleFormStatus(form) {
 
 .forms-list {
   min-height: 400px;
-  background: #FFFFFF;
-  border-radius: 12px;
+  background: var(--background-color);
+  border-radius: var(--border-radius-lg);
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
 }
 
 .forms-list :deep(.el-table) {
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
 }
 
 .forms-list :deep(.el-table__header) {
-  background: #F9FAFB;
+  background: var(--background-color-light);
 }
 
 .forms-list :deep(.el-table__header th) {
-  background: #F9FAFB;
-  color: #374151;
+  background: var(--background-color-light);
+  color: var(--text-color-primary);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .forms-list :deep(.el-table__row:hover) {
-  background: #F0F9FF;
+  background: var(--background-info-pale);
   cursor: pointer;
 }
 
 .forms-list :deep(.el-table__body tr.el-table__row--striped) {
-  background: #FAFBFC;
+  background: var(--background-color-alt);
 }
 
 .form-name {
@@ -280,48 +280,48 @@ async function toggleFormStatus(form) {
 }
 
 .form-name strong {
-  color: #1F2937;
-  font-size: 14px;
+  color: var(--text-color-primary);
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 
 .form-description {
-  font-size: 12px;
-  color: #6B7280;
+  font-size: var(--font-size-xs);
+  color: var(--text-color-secondary);
   margin-top: 4px;
 }
 
 .empty-forms {
   padding: 60px 0;
   text-align: center;
-  background: #FFFFFF;
-  border-radius: 8px;
+  background: var(--background-color);
+  border-radius: var(--border-radius-md);
 }
 
 :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
-  border-color: #3B82F6;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
+  border-color: var(--primary-color);
 }
 
 :deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
-  border-color: #2563EB;
+  background: linear-gradient(135deg, var(--primary-color-dark) 0%, var(--primary-color-darker) 100%);
+  border-color: var(--primary-color-dark);
 }
 
 :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: #3B82F6;
-  border-color: #3B82F6;
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 :deep(.el-tag--success) {
-  background-color: #D1FAE5;
-  color: #065F46;
-  border-color: #A7F3D0;
+  background-color: var(--status-success-bg);
+  color: var(--status-success-text);
+  border-color: var(--status-success-border);
 }
 
 :deep(.el-tag--info) {
-  background-color: #E0E7FF;
-  color: #3730A3;
-  border-color: #C7D2FE;
+  background-color: var(--background-info-strong);
+  color: var(--accent-indigo-deep);
+  border-color: var(--background-info-bold);
 }
 </style>

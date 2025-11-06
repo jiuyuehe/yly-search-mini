@@ -103,17 +103,17 @@ watch(() => props.file?.fileId, () => loadPerms(), { immediate: true });
 </script>
 
 <style scoped>
-.metadata-panel { display:flex; flex-direction:column; gap:18px; font-size:13px; line-height:1.5; }
-.section { border:1px solid #ebeef5; border-radius:8px; padding:12px 14px 14px; background:#fff; }
-.section-title { font-weight:600; font-size:13px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+.metadata-panel { display:flex; flex-direction:column; gap:18px; font-size: var(--font-size-sm); line-height:1.5; }
+.section { border: var(--border-width-thin) solid var(--border-color-muted); border-radius: var(--border-radius-md); padding:12px 14px 14px; background:var(--background-color); }
+.section-title { font-weight:600; font-size: var(--font-size-sm); margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
 .info-grid { display:flex; flex-direction:column; gap:6px; }
 .info-row { display:flex; align-items:flex-start; gap:6px; }
-.label { width:66px; flex:none; color:#606266; text-align:right; }
-.value { flex:1; color:#303133; word-break:break-all; }
+.label { width:66px; flex:none; color:var(--text-color-regular); text-align:right; }
+.value { flex:1; color:var(--text-color-heading); word-break:break-all; }
 .filename { max-width:240px; }
 .multiline { white-space:normal; word-break:break-all; overflow:visible; }
 .perms .perm-body { display:flex; flex-wrap:wrap; gap:6px; }
-.perm-tag { --el-tag-bg-color:#f5f7fa; }
-.perm-empty { color:#999; font-size:12px; padding:4px 0 2px; }
-.perm-empty.loading { color:#666; }
+.perm-tag { --el-tag-bg-color:var(--background-color-muted); }
+.perm-empty { color:var(--text-color-placeholder); font-size: var(--font-size-xs); padding:4px 0 2px; }
+.perm-empty.loading { color:var(--text-color-secondary); }
 </style>

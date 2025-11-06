@@ -155,8 +155,8 @@ function formatDate(ts) {
   align-items: flex-start;
   gap: 24px;
   padding: 10px 16px 8px;
-  border-bottom: 1px solid #ebeef5;
-  background: #fff;
+  border-bottom: var(--border-width-thin) solid var(--border-color-muted);
+  background: var(--background-color);
 }
 
 .file-meta-block {
@@ -173,7 +173,7 @@ function formatDate(ts) {
 }
 
 .file-meta-block .name {
-  font-size: 15px;
+  font-size: var(--font-size-md-plus);
   font-weight: 600;
   line-height: 20px;
   max-width: 480px;
@@ -191,7 +191,7 @@ function formatDate(ts) {
 .file-meta-block .meta-line {
   display: flex;
   gap: 14px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: #73767a;
   margin-top: 4px;
 }
@@ -215,20 +215,20 @@ function formatDate(ts) {
   gap: 6px;
   height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  border: 1px solid #d0d5dd;
-  background: #fff;
-  color: #303133;
+  border: var(--border-width-thin) solid var(--border-color-strong);
+  background: var(--background-color);
+  color: var(--text-color-heading);
   border-radius: 6px;
   line-height: 1;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
+  box-shadow: 0 1px 2px rgba(var(--color-black-rgb), .05);
 }
 
 .back-btn:hover {
-  color: #1671f2;
-  border-color: #1671f2;
-  background: #f5f9ff;
+  color: var(--info-color);
+  border-color: var(--info-color);
+  background: var(--background-color-hover);
 }
 
 .back-btn .txt {

@@ -147,7 +147,7 @@ onMounted(fetchData)
 
 .name-cell { display:flex; flex-direction:column; gap:4px; }
 .file-name { font-weight:600; }
-.meta-line { color:#6b7280; font-size:12px; display:flex; gap:8px; align-items:center; }
+.meta-line { color:var(--text-color-secondary); font-size: var(--font-size-xs); display:flex; gap:8px; align-items:center; }
 .tag-list { display:flex; gap:6px; align-items:center; margin-left:6px; }
-.tag-item { background:#f3f4f6; padding:2px 6px; border-radius:4px; font-size:11px; color:#374151; }
+.tag-item { background:var(--border-color-light); padding:2px 6px; border-radius: var(--border-radius-sm); font-size:11px; color:var(--text-color-primary); }
 </style>

@@ -62,10 +62,10 @@ watch(() => props.fileId, load);
 </script>
 
 <style scoped>
-.doc-viewer { position:relative; width:100%; height:100%; overflow:auto; padding:12px 24px 24px; background:#f5f7fa; }
-.text-wrapper pre { margin:0; font-family:Consolas,monospace; font-size:13px; line-height:1.55; white-space:pre-wrap; word-break:break-word; background:#fff; border:1px solid #ebeef5; border-radius:8px; padding:18px 20px; box-shadow:0 1px 2px rgba(0,0,0,.05); }
+.doc-viewer { position:relative; width:100%; height:100%; overflow:auto; padding:12px 24px 24px; background:var(--background-color-muted); }
+.text-wrapper pre { margin:0; font-family:Consolas,monospace; font-size: var(--font-size-sm); line-height:1.55; white-space:pre-wrap; word-break:break-word; background:var(--background-color); border: var(--border-width-thin) solid var(--border-color-muted); border-radius: var(--border-radius-md); padding:18px 20px; box-shadow:0 1px 2px rgba(var(--color-black-rgb), .05); }
 .media-wrapper { display:flex; align-items:center; justify-content:center; min-height:400px; }
-.media-img { max-width:100%; max-height:82vh; object-fit:contain; border-radius:8px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.08); }
-.pdf-frame { width:100%; height:82vh; border:0; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.08); border-radius:8px; }
+.media-img { max-width:100%; max-height:82vh; object-fit:contain; border-radius: var(--border-radius-md); background:var(--background-color); box-shadow:0 2px 8px rgba(var(--color-black-rgb), .08); }
+.pdf-frame { width:100%; height:82vh; border:0; background:var(--background-color); box-shadow:0 2px 8px rgba(var(--color-black-rgb), .08); border-radius: var(--border-radius-md); }
 .doc-error { padding:40px 0; }
 </style>

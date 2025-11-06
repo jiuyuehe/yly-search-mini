@@ -149,7 +149,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .ot-editor-wrapper { flex:1; width:100%; display:flex; flex-direction:column; position:relative; }
 .ot-editor-host { flex:1; width:100%; min-height:260px; }
-.ot-editor-wrapper:focus-within { outline:2px solid rgba(22,113,242,.25); outline-offset:2px; border-radius:4px; }
+.ot-editor-wrapper:focus-within { outline:2px solid rgba(22,113,242,.25); outline-offset:2px; border-radius: var(--border-radius-sm); }
 /* 适配可能注入的内部主容器类名（猜测常见类） */
 .ot-editor-host :deep(.fluent-editor),
 .ot-editor-host :deep(.tiny-editor),

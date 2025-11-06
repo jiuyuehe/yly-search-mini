@@ -137,7 +137,7 @@ const isText = computed(() => {
 });
 
 // 调试：跟踪文件类型判定
-watch([ext, isOffice, isImage, isText], ([e,o,i,t]) => {
+watch([ext, isOffice, isImage, isText], () => {
   // debug log removed
 });
 
@@ -192,14 +192,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.doc-preview-pane { display:flex; flex-direction:column; height:100%; background:#fff; }
-.doc-body { flex:1; overflow:auto; padding:0; background:#f5f7fa; }
+.doc-preview-pane { display:flex; flex-direction:column; height:100%; background:var(--background-color); }
+.doc-body { flex:1; overflow:auto; padding:0; background:var(--background-color-muted); }
 .state { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; }
 .media-wrapper { display:flex; align-items:center; justify-content:center; min-height:400px; height:100%; }
-.ep-image { max-width:100%; max-height:80vh; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.08); background:#fff; }
-.doc-frame { width:100%; height:100%; border:0; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.08); border-radius:8px; }
-.text-wrapper pre { margin:0; font-family:Consolas,Menlo,monospace; font-size:13px; line-height:1.55; white-space:pre-wrap; word-break:break-word; background:#fff; padding:18px 20px; border:1px solid #ebeef5; border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
-.iframe-loading-tip { position:absolute; top:12px; left:12px; background:rgba(0,0,0,.55); color:#fff; padding:6px 12px; font-size:12px; border-radius:4px; z-index:10; }
+.ep-image { max-width:100%; max-height:80vh; border-radius: var(--border-radius-md); box-shadow:0 2px 8px rgba(var(--color-black-rgb), .08); background:var(--background-color); }
+.doc-frame { width:100%; height:100%; border:0; background:var(--background-color); box-shadow:0 2px 8px rgba(var(--color-black-rgb), .08); border-radius: var(--border-radius-md); }
+.text-wrapper pre { margin:0; font-family:Consolas,Menlo,monospace; font-size: var(--font-size-sm); line-height:1.55; white-space:pre-wrap; word-break:break-word; background:var(--background-color); padding:18px 20px; border: var(--border-width-thin) solid var(--border-color-muted); border-radius: var(--border-radius-md); box-shadow:0 1px 2px rgba(var(--color-black-rgb), .04); }
+.iframe-loading-tip { position:absolute; top:12px; left:12px; background:rgba(var(--color-black-rgb), .55); color:var(--text-color-inverse); padding:6px 12px; font-size: var(--font-size-xs); border-radius: var(--border-radius-sm); z-index:10; }
 .iframe-error { position:absolute; top:16px; left:16px; display:flex; gap:8px; align-items:center; z-index:12; }
-.iframe-debug { position:absolute; bottom:8px; right:8px; font-size:11px; background:rgba(0,0,0,.6); color:#fff; padding:6px 8px; border-radius:4px; line-height:1.3; z-index:15; }
+.iframe-debug { position:absolute; bottom:8px; right:8px; font-size:11px; background:rgba(var(--color-black-rgb), .6); color:var(--text-color-inverse); padding:6px 8px; border-radius: var(--border-radius-sm); line-height:1.3; z-index:15; }
 </style>

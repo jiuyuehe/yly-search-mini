@@ -5,8 +5,8 @@
       <ExportDialog v-model="showExportDialog" :ids="exportIds" />
 
       <!-- Left sidebar with filters (default hidden) -->
-      <div v-if="uiMode === 'search' && searchStore.searchType !== 'qa'" class="filter-sidebar" :class="{ 'collapsed': !showFilters }">
-        <filter-sidebar ref="filterSidebarRef" v-if="showFilters" @tag-click="handleTagClick" />
+      <div v-if="uiMode === 'search' && searchStore.searchType !== 'qa' && showFilters" class="filter-sidebar">
+        <FilterSidebar ref="filterSidebarRef" @tag-click="handleTagClick" />
       </div>
 
       <!-- Right content area -->
@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, onActivated } from 'vue';
+import { ref, computed, onMounted, watch, onActivated } from 'vue';
 import { useRoute } from 'vue-router';
 import { List, Cloudy, Iphone, Loading } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -173,7 +173,7 @@ function filtersHaveActive(filters) {
       if (Array.isArray(v)) return v.length > 0;
       return !!v;
     });
-  } catch (e) { return false; }
+  } catch { return false; }
 }
 
 // Image display controls
@@ -181,7 +181,6 @@ const imageDisplayMode = ref('grid'); // 'grid' or 'list'
 const imageGridCols = ref(5); // 5 or 6
 
 function toggleImageDisplay(){ imageDisplayMode.value = imageDisplayMode.value === 'grid' ? 'list' : 'grid'; }
-function setImageCols(n){ imageGridCols.value = n; }
 
 // Computed properties
 const searchResults = computed(() => {
@@ -232,7 +231,7 @@ function handleToggleFilters(show) {
 }
 
 function handleClearFilters() {
-  try { filterSidebarRef.value?.resetFilters?.(); } catch { /* ignore reset error */ }
+  try { filterSidebarRef.value?.resetFilters?.(); } catch { /* sidebar 未挂载时忽略 */ }
   // 重置 store
   searchStore.resetFilters();
 }
@@ -252,12 +251,12 @@ function handleRemoveFilter(tag) {
   } else if (tag.key === 'fileAiTag' || tag.key === 'tag' || tag.key === 'aiTag') {
     // 移除 AI 标签筛选：同时清空 fileAiTag 与系统 tags
     clearAiTag();
-  try { filterSidebarRef.value?.clearTagSelection?.(); } catch {}
+  try { filterSidebarRef.value?.clearTagSelection?.(); } catch { /* sidebar 可能未就绪，忽略 */ }
   } else if (tag.key === 'tags') {
     // 从系统标签数组移除对应项，若无项则同步清空 fileAiTag
     if (Array.isArray(f.tags)) f.tags = f.tags.filter(v => v !== tag.value);
     if (!f.tags || f.tags.length === 0) f.fileAiTag = '';
-  if (!f.fileAiTag) { try { filterSidebarRef.value?.clearTagSelection?.(); } catch {} }
+  if (!f.fileAiTag) { try { filterSidebarRef.value?.clearTagSelection?.(); } catch { /* sidebar 可能未就绪，忽略 */ } }
   }
   searchStore.updateFilters(f);
 }
@@ -278,7 +277,7 @@ function navigateToPreview(file, evt) {
       filters: searchStore.filters
     };
     sessionStorage.setItem('search_view_state', JSON.stringify(state));
-  } catch (e) { /* ignore storage errors */ }
+  } catch { /* ignore storage errors */ }
   goPreview(norm, { newTab, retureBtn: true });
 }
 
@@ -329,11 +328,6 @@ function exportSelected() {
   searchStore.exportResults(rows);
 }
 
-function getSelectedIds() {
-  // Return array of stable keys for selected items (from store.selectedMap)
-  try { return Object.keys(searchStore.selectedMap || {}); } catch { return []; }
-}
-
 function handleTabChange(tab) {
   activeTab.value = tab;
   searchStore.setActiveTab(tab);
@@ -371,7 +365,7 @@ function toggleSelected(key, item, val) {
       // prefer provided item, fallback to current page or itemsById
       let obj = item || (Array.isArray(searchResults.value) ? searchResults.value.find((it, i) => stableKeyFor(it, i) === key) : null);
       if (!obj) {
-        try { const idPart = key.split('::').pop(); obj = searchStore.itemsById[idPart]; } catch(e){}
+      const idPart = key.split('::').pop(); obj = searchStore.itemsById[idPart];
       }
       if (obj) searchStore.addSelected(key, obj);
     } else {
@@ -379,7 +373,7 @@ function toggleSelected(key, item, val) {
     }
     // keep local selectedItems UI in sync for current page
     // local UI state is derived from store; no need to update separate local map
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 }
 
 function onModeChange(mode){ uiMode.value = mode === 'qa' ? 'qa' : 'search'; }
@@ -456,7 +450,7 @@ async function restoreUIFromSession() {
           if (hasSavedQuery || hasSavedFilter) {
             // trigger a search to repopulate results with restored query/filters
             setTimeout(() => {
-              try { searchStore.search(s.query || '', searchStore.searchType || 'fullText'); } catch (e) {}
+              searchStore.search(s.query || '', searchStore.searchType || 'fullText');
             }, 60);
           }
         }
@@ -465,12 +459,12 @@ async function restoreUIFromSession() {
         return; // restored from explicit session state, skip further checks
       }
     }
-  } catch (e) {
+  } catch {
     // ignore parse/storage errors and continue to other restore paths
   }
 
   // fallback: apply URL params if any
-  try { if (applyUrlParamsIfAny()) return; } catch (e) { /* ignore */ }
+  try { if (applyUrlParamsIfAny()) return; } catch { /* ignore */ }
 
   // If there are explicit user-driven search conditions, switch to list view.
   // Do NOT hide the tag cloud just because background data (e.g. initial load) populated results.
@@ -485,16 +479,16 @@ async function restoreUIFromSession() {
       const hasResults = Array.isArray(searchStore.results) && searchStore.results.length > 0;
       if (!hasResults) {
         setTimeout(() => {
-          try { searchStore.search(searchStore.query || '', searchStore.searchType || 'fullText'); } catch (e) { /* ignore */ }
+          try { searchStore.search(searchStore.query || '', searchStore.searchType || 'fullText'); } catch { /* ignore */ }
         }, 60);
       }
     }
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 }
 // Register lifecycle hooks synchronously during setup
-onActivated(() => { try { restoreUIFromSession(); } catch(e){} });
+onActivated(() => { restoreUIFromSession(); });
 // watch route changes to catch navigation back into this view (non-keep-alive cases)
-watch(() => route.fullPath, (v, old) => { try { restoreUIFromSession(); } catch(e){} });
+watch(() => route.fullPath, () => { restoreUIFromSession(); });
 
 onMounted(async () => {
   // Sync local UI from store so when returning from preview we keep previous state
@@ -540,7 +534,7 @@ function handleTagClick(tag){
       catch { /* ignore */ }
     }
     // fall back to store-driven tag search if TagCloud handler didn't run
-    try { searchStore.searchFilesByTags([tag]); } catch (e) { /* ignore */ }
+  try { searchStore.searchFilesByTags([tag]); } catch { /* ignore */ }
   } finally {
     // hide indicator after short delay to cover async search duration
     setTimeout(() => { tagSearching.value = false; }, 600);
@@ -559,7 +553,7 @@ watch(() => searchStore.filters, (f) => {
   try {
     const hasFilter = !!f && Object.values(f).some(v => Array.isArray(v) ? v.length > 0 : !!v);
     if (hasFilter) showTagCloud.value = false;
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 }, { deep: true });
 watch(() => searchStore.pagination.pageSize, (s) => {
   if (typeof s === 'number' && s !== pageSize.value) pageSize.value = s;
@@ -577,7 +571,7 @@ watch(() => searchStore.pagination.total, (total) => {
     // propagate to store which will trigger a new search for the corrected page
     try {
       searchStore.updateCurrentPage(maxPage);
-    } catch (e) {
+    } catch {
       // fallback: directly set store value
       searchStore.pagination.currentPage = maxPage;
     }
@@ -590,27 +584,23 @@ watch(() => searchStore.pagination.total, (total) => {
   display: flex; 
   flex-direction: column; 
   height: 100vh;
-  background: #F7F8FA;
+  background: var(--background-page);
 }
 
 .search-container { 
   display: flex; 
   flex: 1; 
   overflow: hidden;
-  background: #F7F8FA;
+  background: var(--background-page);
 }
 
 .filter-sidebar { 
-  background-color: #FFFFFF; 
+  background-color: var(--background-color); 
   transition: width 0.3s; 
   position: relative; 
   overflow-y: auto; 
-  border-right: 1px solid #E5E7EB;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
-}
-
-.filter-sidebar.collapsed { 
-  width: 30px; 
+  border-right: var(--border-width-thin) solid var(--border-color);
+  box-shadow: 2px 0 8px rgba(var(--color-black-rgb), 0.04);
 }
 
 .sidebar-toggle { 
@@ -618,14 +608,14 @@ watch(() => searchStore.pagination.total, (total) => {
   top: 20px; 
   right: 10px; 
   cursor: pointer; 
-  background-color: #FFFFFF; 
+  background-color: var(--background-color); 
   border-radius: 50%; 
   width: 24px; 
   height: 24px; 
   display: flex; 
   align-items: center; 
   justify-content: center; 
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); 
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.1); 
 }
 
 .search-content { 
@@ -665,8 +655,8 @@ watch(() => searchStore.pagination.total, (total) => {
   justify-content: space-between; 
   align-items: center; 
   padding: 16px 0;
-  border-top: 1px solid #E5E7EB;
-  background: #FFFFFF;
+  border-top: var(--border-width-thin) solid var(--border-color);
+  background: var(--background-color)FFF;
   margin: 0 -24px;
   padding-left: 24px;
   padding-right: 24px;
@@ -700,12 +690,12 @@ watch(() => searchStore.pagination.total, (total) => {
 
 /* Overlay that covers the results area without affecting its layout */
 .results-wrapper{position:relative;}
-.results-overlay{position:absolute;left:0;top:0;right:0;bottom:60px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.72);z-index:40;border-radius:8px;pointer-events:none;}
+.results-overlay{position:absolute;left:0;top:0;right:0;bottom:60px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.72);z-index:40;border-radius: var(--border-radius-md);pointer-events:none;}
 
 /* Tabs row: tabs on left, response time on right. Wrap on small screens. */
 .tabs-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; margin-bottom:6px; }
 .tabs-row > search-result-tabs{ flex: 1 1 auto; }
-.tabs-response-time{ flex: 0 0 auto; color:var(--el-text-color-secondary,#909399); font-size:12px; padding-left:8px; white-space:nowrap; }
+.tabs-response-time{ flex: 0 0 auto; color:var(--el-text-color-secondary,var(--text-color-placeholder)); font-size: var(--font-size-xs); padding-left:8px; white-space:nowrap; }
 
 @media (max-width: 720px){
   .tabs-row{ flex-direction:column; align-items:flex-start; gap:6px; }
@@ -715,7 +705,7 @@ watch(() => searchStore.pagination.total, (total) => {
 /* Footer layout: pagination left, response time right */
 .footer-main{ display:flex; align-items:center; gap:12px; width:100%; justify-content:space-between; }
 .footer-main > search-pagination{ flex: 1 1 auto; }
-.footer-right{ flex: 0 0 auto; color:var(--el-text-color-secondary,#909399); font-size:12px; white-space:nowrap; margin-left:8px; }
+.footer-right{ flex: 0 0 auto; color:var(--el-text-color-secondary,var(--text-color-placeholder)); font-size: var(--font-size-xs); white-space:nowrap; margin-left:8px; }
 
 @media (max-width:720px){
   .footer-main{ flex-direction:row; align-items:center; }

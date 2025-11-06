@@ -95,7 +95,7 @@
           <el-input v-model="importFileName" placeholder="未选择文件" readonly style="flex:1"/>
           <el-button size="small" type="primary" @click="triggerFileSelect">选择文件</el-button>
         </div>
-        <div style="color:#909399;font-size:12px">导入将调用后台接口并更新/新增条目，建议先下载模板并按模板填写。</div>
+  <div class="import-tip">导入将调用后台接口并更新/新增条目，建议先下载模板并按模板填写。</div>
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -338,9 +338,10 @@ defineExpose({ open, close });
 </script>
 
 <style scoped>
-.terminology-toolbar { display:flex; gap:8px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #e5e7eb; flex-wrap:wrap; }
+.terminology-toolbar { display:flex; gap:8px; margin-bottom:16px; padding-bottom:12px; border-bottom: var(--border-width-thin) solid var(--border-color); flex-wrap:wrap; }
 .op-btns { display:flex; align-items:center; justify-content:center; gap:4px; }
 .op-btns .el-button { padding:0 4px; margin:0 !important; line-height:1; }
 .operation-col .cell { padding:0 4px !important; }
 .glossary-pagination { margin-top:12px; display:flex; justify-content:flex-end; }
+.import-tip { color: var(--text-color-placeholder); font-size: var(--font-size-xs); }
 </style>

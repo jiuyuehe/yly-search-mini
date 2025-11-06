@@ -131,9 +131,7 @@ export const useFormsStore = defineStore('forms', {
     },
 
     async updateFormStatus(id, enabled) {
-      try {
-        // In a real implementation, this would call an API
-        // await formsService.updateFormStatus(id, enabled);
+  
         
         // Update local state
         const index = this.forms.findIndex(f => f.id === parseInt(id));
@@ -142,9 +140,7 @@ export const useFormsStore = defineStore('forms', {
           this.filteredForms = [...this.forms];
         }
         return true;
-      } catch (error) {
-        throw error;
-      }
+     
     },
 
     async searchForms(keyword) {

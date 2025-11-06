@@ -110,12 +110,12 @@ function updateFieldValue(fieldName, value) {
 
 .form-title {
   margin: 0 0 20px 0;
-  color: #303133;
-  font-size: 18px;
+  color: var(--text-color-heading);
+  font-size: var(--font-size-xl);
   font-weight: 600;
   text-align: center;
   padding-bottom: 15px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: var(--border-width-thin) solid var(--border-color-muted);
 }
 
 .preview-field {
@@ -131,7 +131,7 @@ function updateFieldValue(fieldName, value) {
 
 .el-form :deep(.el-form-item__label) {
   font-weight: 600;
-  color: #606266;
+  color: var(--text-color-regular);
 }
 
 .el-form :deep(.el-form-item) {

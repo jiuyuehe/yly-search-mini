@@ -297,18 +297,18 @@ function moveNestedFieldDown(nestedIndex) {
 
 <style scoped>
 .field-designer {
-  border: 1px solid #dcdfe6;
+  border: var(--border-width-thin) solid var(--border-color-soft);
   transition: all 0.3s;
 }
 
 .field-designer:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(var(--primary-color-rgb), 0.2);
 }
 
 .field-designer.nested-field {
   margin: 10px 0;
-  background-color: #f8f9fa;
+  background-color: var(--background-color-light);
 }
 
 .field-header {
@@ -319,7 +319,7 @@ function moveNestedFieldDown(nestedIndex) {
 
 .field-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--text-color-heading);
 }
 
 .field-actions {
@@ -330,9 +330,9 @@ function moveNestedFieldDown(nestedIndex) {
 .nested-fields {
   margin-top: 15px;
   padding: 15px;
-  background-color: #f5f7fa;
+  background-color: var(--background-color-muted);
   border-radius: 6px;
-  border: 1px dashed #c0c4cc;
+  border: var(--border-width-thin) dashed #c0c4cc;
 }
 
 .nested-header {
@@ -344,8 +344,8 @@ function moveNestedFieldDown(nestedIndex) {
 
 .nested-header h4 {
   margin: 0;
-  color: #606266;
-  font-size: 14px;
+  color: var(--text-color-regular);
+  font-size: var(--font-size-md);
 }
 
 .nested-container {

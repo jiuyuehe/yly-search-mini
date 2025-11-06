@@ -1490,9 +1490,9 @@ function normalizeCe() {
 .file-chat-root {
   display: flex;
   height: 100%;
-  background: #fff;
-  color: #303133;
-  font-size: 14px;
+  background: var(--background-color);
+  color: var(--text-color-heading);
+  font-size: var(--font-size-md);
 }
 
 .file-chat-root.sessions-collapsed .sessions-pane {
@@ -1517,10 +1517,10 @@ function normalizeCe() {
 
 .sessions-pane {
   width: 230px;
-  border-right: 1px solid #e5e7eb;
+  border-right: var(--border-width-thin) solid var(--border-color);
   display: flex;
   flex-direction: column;
-  background: #fafafa;
+  background: var(--background-color-ghost);
 }
 
 .sessions-header {
@@ -1528,14 +1528,14 @@ function normalizeCe() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: var(--border-width-thin) solid var(--border-color);
   height: 50px;
   line-height: 50px;
 }
 
 .sessions-header .title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .sessions-header .actions {
@@ -1558,12 +1558,12 @@ function normalizeCe() {
   transition: background .15s;
 }
 
-session-item:hover {
-  background: #f0f2f5;
+.session-item:hover {
+  background: var(--background-color-contrast);
 }
 
 .session-item.active {
-  background: #e7f3ff;
+  background: var(--background-info-soft);
 }
 
 .session-item .name {
@@ -1571,7 +1571,7 @@ session-item:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .session-item .ops .el-button {
@@ -1590,8 +1590,8 @@ session-item:hover {
 
 .sessions-list .empty {
   padding: 20px 12px;
-  color: #909399;
-  font-size: 13px;
+  color: var(--text-color-placeholder);
+  font-size: var(--font-size-sm);
 }
 
 .chat-main {
@@ -1604,11 +1604,11 @@ session-item:hover {
 .chat-header {
   height: 50px;
   padding: 0 16px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: var(--border-width-thin) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fafafa;
+  background: var(--background-color-ghost);
 }
 
 .chat-title {
@@ -1644,27 +1644,27 @@ session-item:hover {
 }
 
 .chat-header-actions .btn-clear-current {
-  color: #606266;
-  border-color: #dcdfe6;
-  background: #fff;
+  color: var(--text-color-regular);
+  border-color: var(--border-color-soft);
+  background: var(--background-color);
 }
 
 .chat-header-actions .btn-clear-current:hover {
-  background: #f5f7fa;
-  color: #303133;
+  background: var(--background-color-muted);
+  color: var(--text-color-heading);
 }
 
 .chat-header-actions .btn-return {
-  background: #409eff;
-  border-color: #409eff;
-  color: #fff;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--background-color);
   padding: 6px 12px;
   border-radius: 16px;
 }
 
 .chat-header-actions .btn-return:hover {
-  background: #337ecc;
-  border-color: #337ecc;
+  background: var(--primary-color-hover);
+  border-color: var(--primary-color-hover);
 }
 
 .config-form :deep(.el-input), .config-form :deep(.el-select), .config-form :deep(.el-textarea) {
@@ -1672,12 +1672,12 @@ session-item:hover {
 }
 
 .input-area {
-  border-top: 1px solid #e5e7eb;
+  border-top: var(--border-width-thin) solid var(--border-color);
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: #fff;
+  background: var(--background-color);
 }
 
 .input-overlay {
@@ -1717,8 +1717,8 @@ session-item:hover {
   min-height: 88px;
   max-height: 260px;
   overflow: auto;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
+  border: var(--border-width-thin) solid var(--border-color-soft);
+  border-radius: var(--border-radius-md);
   padding: 10px 12px 40px;
   line-height: 1.6;
   outline: none;
@@ -1726,38 +1726,38 @@ session-item:hover {
 
 .ce-input:empty:before {
   content: attr(data-placeholder);
-  color: #999;
+  color: var(--text-color-placeholder);
 }
 
 .ce-input :deep(.mark) {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  background: #EEF2FF;
-  color: #3F5BF6;
-  border: 1px solid rgba(63, 91, 246, 0.18);
+  background: var(--background-purple-soft);
+  color: var(--tag-info-text);
+  border: var(--border-width-thin) solid var(--tag-info-border);
   box-shadow: none;
   line-height: 1.4;
 }
 
 .ce-input :deep(.mark.kw) {
-  background: #FFF7E6;
-  color: #AD6800;
-  border-color: rgba(173, 104, 0, 0.2);
+  background: var(--tag-warning-bg);
+  color: var(--tag-warning-text);
+  border-color: var(--tag-warning-border);
 }
 
 .ce-input :deep(.mark.kc) {
-  background: #EEF2FF;
-  color: #3F5BF6;
-  border-color: rgba(63, 91, 246, 0.18);
+  background: var(--background-purple-soft);
+  color: var(--tag-info-text);
+  border-color: var(--tag-info-border);
 }
 
 .ce-input :deep(.mark:hover) {
-  border-color: rgba(63, 91, 246, 0.28);
+  border-color: rgba(var(--accent-indigo-rgb), 0.28);
 }
 
 .tag-tools-sep {
-  color: #c0c4cc;
+  color: var(--text-color-disabled);
 }
 
 .tag-btn .dot {
@@ -1769,11 +1769,11 @@ session-item:hover {
 }
 
 .tag-btn .dot.kw {
-  background: #faad14;
+  background: var(--accent-orange-strong);
 }
 
 .tag-btn .dot.kc {
-  background: #40a9ff;
+  background: var(--accent-blue-bright);
 }
 
 .header-new-session {
@@ -1782,11 +1782,11 @@ session-item:hover {
 
 .starter-container {
   padding: 32px 40px 12px;
-  color: #606266;
+  color: var(--text-color-regular);
 }
 
 .starter-title {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   font-weight: 600;
   margin-bottom: 12px;
 }
@@ -1800,19 +1800,19 @@ session-item:hover {
 .starter-item {
   cursor: pointer;
   padding: 10px 14px;
-  border: 1px solid #dcdfe6;
+  border: var(--border-width-thin) solid var(--border-color-soft);
   border-radius: 10px;
-  background: #f8f9fa;
-  font-size: 13px;
+  background: var(--background-color-light);
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   transition: all .15s;
   max-width: 220px;
 }
 
 .starter-item:hover {
-  background: #edf5ff;
-  border-color: #c0d4f5;
-  color: #409eff;
+  background: var(--background-info-muted);
+  border-color: var(--status-info-border);
+  color: var(--primary-color);
 }
 
 @keyframes blink {
@@ -1850,7 +1850,7 @@ session-item:hover {
 
   .session-item {
     min-width: 160px;
-    border-right: 1px solid #e5e7eb;
+    border-right: var(--border-width-thin) solid var(--border-color);
   }
 }
 
@@ -1862,11 +1862,11 @@ session-item:hover {
   padding: 6px 10px;
   border-radius: 20px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   box-shadow: 0 6px 12px rgba(0, 0, 0, .08);
   z-index: 1200;
   background: transparent;
   color: inherit;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: var(--border-width-thin) solid rgba(0, 0, 0, 0.06);
 }
 </style>

@@ -56,16 +56,16 @@ onMounted(() => {
 
 <style scoped>
 .milkdown-wrapper { position:relative; width:100%; height:100%; display:flex; flex-direction:column; }
-.editor-root { flex:1; overflow:auto; border:1px solid #e4e7ed; border-radius:8px; background:#fff; padding:12px 16px; }
+.editor-root { flex:1; overflow:auto; border: var(--border-width-thin) solid #e4e7ed; border-radius: var(--border-radius-md); background:var(--background-color); padding:12px 16px; }
 .editor-root:focus-within { box-shadow:0 0 0 2px rgba(22,113,242,.25); border-color:#1671f2; }
 .milkdown-wrapper.readonly .editor-root { background:#fafafa; }
 .editor-loading-overlay { position:absolute; inset:0; background:rgba(255,255,255,.7); display:flex; align-items:flex-start; padding:12px; }
 .editor-root::-webkit-scrollbar { width:8px; }
-.editor-root::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius:4px; }
+.editor-root::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius: var(--border-radius-sm); }
 .editor-root:focus-within { box-shadow:0 0 0 2px rgba(22,113,242,.25); border-color:#1671f2; }
 .milkdown-wrapper.readonly .editor-root { background:#fafafa; }
 .editor-loading-overlay { position:absolute; inset:0; background:rgba(255,255,255,.7); display:flex; align-items:flex-start; padding:12px; }
 .editor-root::-webkit-scrollbar { width:8px; }
-.editor-root::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius:4px; }
+.editor-root::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius: var(--border-radius-sm); }
 </style>
 

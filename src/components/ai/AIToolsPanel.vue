@@ -168,14 +168,14 @@ export default {
 </script>
 
 <style scoped>
-.ai-side { width:100%; height:100%; display:flex; flex-direction:column; background:#fff; border-left:1px solid #ebeef5; }
+.ai-side { width:100%; height:100%; display:flex; flex-direction:column; background:var(--background-color); border-left: var(--border-width-thin) solid var(--border-color-muted); }
 .ai-tools-panel { display:flex; flex-direction:column; height:100%; }
 .tools-list {
   padding:12px 16px 8px;
   display:flex;
   flex-wrap:wrap;
   gap:8px;
-  border-bottom:1px solid #f0f2f5;
+  border-bottom: var(--border-width-thin) solid #f0f2f5;
 }
 .tool-item { 
   display:flex;
@@ -183,10 +183,10 @@ export default {
   align-items:center;
   gap:4px;
   padding:12px 8px;
-  border-radius:8px;
+  border-radius: var(--border-radius-md);
   cursor:pointer;
-  font-size:12px;
-  color:#606266;
+  font-size: var(--font-size-xs);
+  color:var(--text-color-regular);
   transition:.15s;
   text-align:center;
   min-height:60px;
@@ -196,12 +196,12 @@ export default {
   max-width:calc(25% - 8px);
   min-width:100px;
 }
-.tool-item:hover { background:#f5f7fa; color:var(--el-color-primary); }
-.tool-item.active { background:var(--el-color-primary); color:#fff; box-shadow:0 4px 10px -2px rgba(22,113,242,.35); }
-.tool-label { flex:none; font-size:12px; }
+.tool-item:hover { background:var(--background-color-muted); color:var(--el-color-primary); }
+.tool-item.active { background:var(--el-color-primary); color:var(--background-color); box-shadow:0 4px 10px -2px rgba(22,113,242,.35); }
+.tool-label { flex:none; font-size: var(--font-size-xs); }
 .tool-content { flex:1; overflow:auto; padding:14px 16px 22px; }
 .tool-placeholder { flex:1; display:flex; align-items:center; justify-content:center; padding:20px; }
-.single-panel { background:#fff; border:1px solid #ebeef5; border-radius:8px; padding:12px; height:100%; }
+.single-panel { background:var(--background-color); border: var(--border-width-thin) solid var(--border-color-muted); border-radius: var(--border-radius-md); padding:12px; height:100%; }
 .tool-content::-webkit-scrollbar { width:8px; }
-.tool-content::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius:4px; }
+.tool-content::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius: var(--border-radius-sm); }
 </style>
