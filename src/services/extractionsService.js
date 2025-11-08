@@ -231,6 +231,31 @@ class ExtractionsService {
       { id: 'claude-3', name: 'Claude-3', provider: 'Anthropic', available: true }
     ];
   }
+
+  /**
+   * 更新单条抽取记录的抽取数据。
+   * 期望后端接口：POST /admin-api/rag/ai/text/extract/form/history/update
+   * 请求体：{ id, extractedData, fields? }
+   */
+  async updateExtraction(id, payload = {}) {
+    if (!id) throw new Error('缺少 id');
+    const extractedData = payload.extracted_data || payload.extractedData || {};
+    // 同步构造 fields 以兼容不同后端实现
+    const fields = Object.keys(extractedData || {}).map((name) => ({ name, value: extractedData[name] }));
+    const body = { id, extractedData, fields };
+    try {
+      const res = await api.post('/admin-api/rag/ai/text/extract/form/history/update', body, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 20000
+      });
+      const root = res?.data ? res : { data: res };
+      const data = root.data?.data || root.data || {};
+      return normalizeHistoryItem(data);
+    } catch (e) {
+      console.warn('[ExtractionsService] updateExtraction failed', e);
+      throw e;
+    }
+  }
 }
 
 export const extractionsService = new ExtractionsService();
@@ -258,7 +283,7 @@ ExtractionsService.prototype.exportByForm = async function(params = {}) {
         const m = /filename\*=UTF-8''(.+)$/.exec(disposition) || /filename="?([^";]+)"?/.exec(disposition);
         if (m && m[1]) filenameBase = decodeURIComponent(m[1]);
       }
-    } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 
     // If filenameBase already contains an extension, use it. Otherwise infer from blob.type or headers
     let filename = filenameBase;

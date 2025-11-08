@@ -36,7 +36,7 @@ import { computed } from 'vue';
 import { Filter } from '@element-plus/icons-vue';
 import { useSearchStore } from '../../stores/search';
 
-const _props = defineProps({ show: { type: Boolean, default: true } });
+const _props = defineProps({ show: { type: Boolean, default: false } });
 const emit = defineEmits(['toggle', 'clear', 'remove']);
 const store = useSearchStore();
 

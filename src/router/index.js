@@ -73,6 +73,12 @@ const routes = [
     name: 'extractions',
     component: () => import('../views/ExtractionsView.vue')
   },
+  {
+    path: '/extractions/form/:id',
+    name: 'extractions-form-detail',
+    component: () => import('../views/FormExtractionsDetailView.vue'),
+    props: true
+  },
   // Data extraction statistics
   {
     path: '/stats',

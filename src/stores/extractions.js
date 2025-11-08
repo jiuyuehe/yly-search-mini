@@ -136,9 +136,24 @@ export const useExtractionsStore = defineStore('extractions', {
             throw new Error('不支持手动创建抽取记录');
         },
 
-        // 更新数据抽取记录（目前未实现）
-        async updateExtraction() {
-            throw new Error('暂不支持编辑历史记录');
+        // 更新数据抽取记录（调用服务端接口）
+        async updateExtraction(id, payload = {}) {
+            this.loading.update = true;
+            this.error = null;
+            try {
+                const updated = await extractionsService.updateExtraction(id, payload);
+                // 更新列表中的对应项
+                const idx = this.extractions.findIndex(e => String(e.id) === String(id));
+                if (idx > -1) {
+                    this.extractions[idx] = { ...this.extractions[idx], ...updated };
+                }
+                return updated;
+            } catch (error) {
+                this.error = error.message || error;
+                throw error;
+            } finally {
+                this.loading.update = false;
+            }
         },
 
         // 删除单个数据抽取记录

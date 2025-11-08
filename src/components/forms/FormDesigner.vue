@@ -7,7 +7,17 @@
         </el-col>
         <el-col :span="12" class="text-right">
           <el-button @click="previewForm">预览</el-button>
-          <el-button @click="loadSample">加载示例</el-button>
+          <el-button @click="openJsonDialog">查看JSON</el-button>
+          <el-dropdown split-button @click="loadSample" @command="onSampleCommand">
+            加载示例
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="A">Sample A（平铺）</el-dropdown-item>
+                <el-dropdown-item command="B">Sample B（对象+子字段）</el-dropdown-item>
+                <el-dropdown-item command="C">Sample C（对象+数组元素为对象）</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button type="primary" @click="saveForm" :loading="loading.save">
             {{ isEdit ? '更新' : '保存' }}
           </el-button>
@@ -32,10 +42,16 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="数据提取模式" required>
+                <el-form-item label="数据提取数量" required>
                   <el-radio-group v-model="formData.extractionMode">
-                    <el-radio value="single">单数据提取</el-radio>
-                    <el-radio value="multiple">多数据提取</el-radio>
+                    <el-radio value="single">单条数据</el-radio>
+                    <el-radio value="multiple">多条数据</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+                <el-form-item label="可见性" required>
+                  <el-radio-group v-model="formData.visibility">
+                    <el-radio value="public">公开</el-radio>
+                    <el-radio value="personal">个人</el-radio>
                   </el-radio-group>
                 </el-form-item>
               </el-col>
@@ -130,13 +146,18 @@
                       size="small"
                       @change="updateField($index, row)"
                     />
-                    <el-tag v-else-if="row.type === 'object'" type="info" size="small">对象类型</el-tag>
+                    <div v-else-if="row.type === 'object'" class="object-field-hint">
+                      <el-tag type="info" size="small">对象类型</el-tag>
+                      <el-tag v-if="row.fields" type="info" size="small" effect="plain">
+                        {{ (row.fields && row.fields.length) || 0 }} 个子字段
+                      </el-tag>
+                    </div>
                     <el-tag v-else-if="row.type === 'array'" type="info" size="small">数组类型</el-tag>
                   </template>
                 </el-table-column>
 
-                <el-table-column label="操作" width="180" align="center" fixed="right">
-                  <template #default="{ $index }">
+                <el-table-column label="操作" width="220" align="center" fixed="right">
+                  <template #default="{ row, $index }">
                     <el-button
                       size="small"
                       :icon="ArrowUp"
@@ -149,6 +170,14 @@
                       :icon="ArrowDown"
                       @click="moveFieldDown($index)"
                       :disabled="$index === formData.structure.fields.length - 1"
+                      circle
+                    />
+                    <el-button
+                      v-if="row.type === 'object'"
+                      size="small"
+                      :icon="Setting"
+                      @click.stop="openSubFieldDialog($index, row)"
+                      title="管理子字段"
                       circle
                     />
                     <el-button
@@ -176,11 +205,7 @@
           <FormPreview :structure="formData.structure" />
         </el-card>
 
-        <el-card header="JSON结构" class="json-card">
-          <div class="json-container">
-            <pre>{{ JSON.stringify(formData.structure, null, 2) }}</pre>
-          </div>
-        </el-card>
+        
       </el-col>
     </el-row>
 
@@ -196,17 +221,149 @@
         <el-button @click="closePreview">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 子字段编辑对话框 -->
+    <el-dialog
+      v-model="subFieldDialog.visible"
+      :title="`管理子字段：${subFieldDialog.parentField?.name || ''}`"
+      :width="dialogWidth"
+      :close-on-click-modal="false"
+      @close="closeSubFieldDialog"
+    >
+      <div class="sub-field-dialog-content">
+        <div class="sub-field-toolbar">
+          <el-button type="primary" icon="Plus" @click="addSubField">添加子字段</el-button>
+          <div class="field-count">
+            共 {{ subFieldDialog.parentField?.fields?.length || 0 }} 个子字段
+          </div>
+        </div>
+
+        <el-table
+          :data="subFieldDialog.parentField?.fields || []"
+          border
+          stripe
+          class="sub-field-table"
+          empty-text="暂无子字段，点击上方按钮添加"
+        >
+          <el-table-column type="index" label="序号" width="60" align="center" />
+
+          <el-table-column label="字段名称" min-width="150">
+            <template #default="{ row, $index }">
+              <el-input
+                v-model="row.name"
+                placeholder="字段名称"
+                size="small"
+                @input="updateSubField($index, row)"
+              />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="字段类型" width="140">
+            <template #default="{ row, $index }">
+              <el-select
+                v-model="row.type"
+                placeholder="类型"
+                size="small"
+                @change="updateSubField($index, row)"
+              >
+                <el-option v-for="t in allowedSubFieldTypes" :key="t.value" :label="t.label" :value="t.value" />
+              </el-select>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="必填" width="80" align="center">
+            <template #default="{ row, $index }">
+              <el-switch
+                v-model="row.required"
+                size="small"
+                @change="updateSubField($index, row)"
+              />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="示例值" min-width="180">
+            <template #default="{ row, $index }">
+              <el-input
+                v-if="row.type === 'text'"
+                v-model="row.example"
+                placeholder="示例文本"
+                size="small"
+                @input="updateSubField($index, row)"
+              />
+              <el-input-number
+                v-else-if="row.type === 'number'"
+                v-model="row.example"
+                placeholder="示例数字"
+                size="small"
+                @change="updateSubField($index, row)"
+                style="width: 100%"
+              />
+              <el-date-picker
+                v-else-if="row.type === 'date'"
+                v-model="row.example"
+                type="date"
+                placeholder="选择日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                size="small"
+                @change="updateSubField($index, row)"
+                style="width: 100%"
+              />
+              <el-switch
+                v-else-if="row.type === 'boolean'"
+                v-model="row.example"
+                size="small"
+                @change="updateSubField($index, row)"
+              />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="操作" width="140" align="center" fixed="right">
+            <template #default="{ $index }">
+              <el-button size="small" :icon="ArrowUp" @click="moveSubFieldUp($index)" :disabled="$index === 0" circle />
+              <el-button size="small" :icon="ArrowDown" @click="moveSubFieldDown($index)" :disabled="$index >= (subFieldDialog.parentField?.fields?.length || 0) - 1" circle />
+              <el-button size="small" type="danger" :icon="Delete" @click="deleteSubField($index)" circle />
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <el-alert class="sub-field-tip" type="info" :closable="false" show-icon>
+          <template #title>
+            提示：对象的子字段仅支持简单类型（文本、数字、日期、布尔值），不支持嵌套对象或数组。
+          </template>
+        </el-alert>
+      </div>
+
+      <template #footer>
+        <el-button @click="closeSubFieldDialog">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- JSON 预览对话框 -->
+    <el-dialog
+      v-model="showJson"
+      title="表单结构 JSON"
+      width="65%"
+    >
+      <div class="json-container">
+        <pre>{{ JSON.stringify(formData.structure, null, 2) }}</pre>
+      </div>
+      <template #footer>
+        <el-button @click="showJson = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowUp, ArrowDown, Delete } from '@element-plus/icons-vue';
+import { ArrowUp, ArrowDown, Delete, Setting } from '@element-plus/icons-vue';
 import { useFormsStore } from '../../stores/forms';
 import { formsService } from '../../services/formsService';
 import FormPreview from './FormPreview.vue';
+import { getUserInfo } from '../../services/api';
 
 const router = useRouter();
 const route = useRoute();
@@ -214,10 +371,14 @@ const formsStore = useFormsStore();
 
 const isEdit = computed(() => !!route.params.id);
 const showPreview = ref(false);
+const showJson = ref(false);
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
+const dialogWidth = computed(() => (viewportWidth.value < 768 ? '95%' : '70%'));
 
 const formData = reactive({
   name: '',
   extractionMode: 'single', // 'single' or 'multiple'
+  visibility: 'public', // 'public' or 'personal'
   structure: {
     formName: '',
     fields: []
@@ -238,12 +399,44 @@ let fieldIdCounter = 1;
 
 const generateFieldId = () => `field_${fieldIdCounter++}`;
 
+// Sub-field ID generator
+let subFieldIdCounter = 1;
+const generateSubFieldId = () => `sub_${Date.now()}_${subFieldIdCounter++}`;
+
+// 子字段可选类型（过滤掉 object/array）
+const allowedSubFieldTypes = [
+  { label: '文本', value: 'text' },
+  { label: '数字', value: 'number' },
+  { label: '日期', value: 'date' },
+  { label: '布尔值', value: 'boolean' }
+];
+
+// 子字段编辑对话框状态
+const subFieldDialog = reactive({
+  visible: false,
+  parentIndex: -1,
+  parentField: null
+});
+
 // Initialize form data
 onMounted(async () => {
   if (isEdit.value) {
     await loadForm();
   } else {
     resetForm();
+  }
+  // listen viewport resize for responsive dialog width
+  const onResize = () => { viewportWidth.value = window.innerWidth; };
+  window.addEventListener('resize', onResize);
+  // store for cleanup
+  resizeHandler.value = onResize;
+});
+
+const resizeHandler = ref(null);
+
+onUnmounted(() => {
+  if (resizeHandler.value) {
+    window.removeEventListener('resize', resizeHandler.value);
   }
 });
 
@@ -288,6 +481,8 @@ function resetForm() {
     formName: '',
     fields: []
   };
+  formData.extractionMode = 'single';
+  formData.visibility = 'public';
   Object.keys(errors).forEach(key => {
     errors[key] = '';
   });
@@ -357,6 +552,83 @@ function onTypeChange(index, field) {
   updateField(index, field);
 }
 
+// ---- 子字段管理逻辑 ----
+/**
+ * 打开对象字段的子字段管理对话框
+ * 将对话框与父字段建立引用关系，所有更改实时写入父字段的 fields 数组
+ * @param {number} index 顶层字段索引
+ * @param {Object} field 顶层对象字段
+ */
+function openSubFieldDialog(index, field) {
+  subFieldDialog.parentIndex = index;
+  subFieldDialog.parentField = field;
+  if (!field.fields) field.fields = [];
+  subFieldDialog.visible = true;
+}
+
+function closeSubFieldDialog() {
+  subFieldDialog.visible = false;
+  // 提示保存结果
+  if (subFieldDialog.parentField?.fields) {
+    ElMessage.success(`已保存 ${subFieldDialog.parentField.fields.length} 个子字段`);
+  }
+  subFieldDialog.parentIndex = -1;
+  subFieldDialog.parentField = null;
+}
+
+function addSubField() {
+  if (!subFieldDialog.parentField) return;
+  const newField = {
+    id: generateSubFieldId(),
+    name: `子字段${(subFieldDialog.parentField.fields?.length || 0) + 1}`,
+    type: 'text',
+    example: '',
+    required: false
+  };
+  if (!Array.isArray(subFieldDialog.parentField.fields)) {
+    subFieldDialog.parentField.fields = [];
+  }
+  subFieldDialog.parentField.fields.push(newField);
+}
+
+function updateSubField(index, updatedField) {
+  const list = subFieldDialog.parentField?.fields;
+  if (!list || index < 0 || index >= list.length) return;
+  list[index] = { ...updatedField };
+}
+
+async function deleteSubField(index) {
+  const list = subFieldDialog.parentField?.fields;
+  if (!list || index < 0 || index >= list.length) return;
+  try {
+    await ElMessageBox.confirm('确定删除该子字段吗？此操作无法撤销。', '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+    list.splice(index, 1);
+    ElMessage.success('子字段已删除');
+  } catch {
+    // user cancelled deletion
+  }
+}
+
+function moveSubFieldUp(index) {
+  const list = subFieldDialog.parentField?.fields;
+  if (!list || index <= 0) return;
+  const tmp = list[index];
+  list[index] = list[index - 1];
+  list[index - 1] = tmp;
+}
+
+function moveSubFieldDown(index) {
+  const list = subFieldDialog.parentField?.fields;
+  if (!list || index >= list.length - 1) return;
+  const tmp = list[index];
+  list[index] = list[index + 1];
+  list[index + 1] = tmp;
+}
+
 function validateForm() {
   const validationErrors = formsStore.validateFormStructure(formData.structure);
   
@@ -392,6 +664,12 @@ async function saveForm() {
       name: formData.name,
       structure: formData.structure
     };
+    // 个人可见：携带 userId；公开：不带 userId
+    if (formData.visibility === 'personal') {
+      const me = getUserInfo() || {};
+      const uid = me.id || me.userId || me.uid || me.userID;
+      if (uid != null && uid !== '') payload.userId = uid;
+    }
 
     if (isEdit.value) {
       await formsService.updateForm(route.params.id, payload);
@@ -423,6 +701,11 @@ function closePreview() {
 }
 
 function loadSample() {
+  // 默认加载 Sample B
+  onSampleCommand('B');
+}
+
+function onSampleCommand(cmd) {
   ElMessageBox.confirm(
     '加载示例将覆盖当前设计，是否继续？',
     '确认',
@@ -432,14 +715,27 @@ function loadSample() {
       type: 'warning'
     }
   ).then(() => {
-    const sample = formsStore.generateSampleForm();
+    let sample;
+    if (cmd === 'A' && typeof formsStore.generateSampleFormA === 'function') {
+      sample = formsStore.generateSampleFormA();
+    } else if (cmd === 'C' && typeof formsStore.generateSampleFormC === 'function') {
+      sample = formsStore.generateSampleFormC();
+    } else if (typeof formsStore.generateSampleFormB === 'function') {
+      sample = formsStore.generateSampleFormB();
+    } else {
+      sample = formsStore.generateSampleForm();
+    }
     formData.name = sample.formName;
     formData.structure = { ...sample };
     addFieldIds(formData.structure.fields);
-    ElMessage.success('示例表单已加载');
+    ElMessage.success(`示例表单已加载（${cmd || 'B'}）`);
   }).catch(() => {
     // User cancelled
   });
+}
+
+function openJsonDialog() {
+  showJson.value = true;
 }
 </script>
 
@@ -567,6 +863,37 @@ function loadSample() {
 .preview-card :deep(.el-card__body) {
   max-height: 400px;
   overflow-y: auto;
+}
+
+/* 子字段对话框样式 */
+.sub-field-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sub-field-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.field-count {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
+  font-weight: 500;
+}
+
+.sub-field-table {
+  border-radius: var(--border-radius-md);
+}
+
+.object-field-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 :deep(.el-button--primary) {

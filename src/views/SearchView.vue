@@ -148,9 +148,9 @@ import { navigateToPreview as goPreview } from '../services/navigation';
 const searchStore = useSearchStore();
 
 // UI state
-    const showExportDialog = ref(false);
-    const exportIds = ref([]);
-const showFilters = ref(false); // 默认隐藏
+const showExportDialog = ref(false);
+const exportIds = ref([]);
+const showFilters = ref(false); // 默认隐藏筛选侧栏，只有点击"高级筛选"按钮才显示
 const showTagCloud = ref(true); // 默认显示标签云（无搜索条件）
 const activeTab = ref('all');
 const uiMode = ref('search'); // 'search' | 'qa'
@@ -495,7 +495,8 @@ onMounted(async () => {
   currentPage.value = searchStore.pagination.currentPage || currentPage.value;
   pageSize.value = searchStore.pagination.pageSize || pageSize.value;
   activeTab.value = searchStore.activeTab || activeTab.value;
-  showFilters.value = !!searchStore.filters && Object.values(searchStore.filters).some(v => Array.isArray(v)? v.length>0 : !!v);
+  // Keep filters hidden by default on initial page load (only show when user clicks toggle)
+  // showFilters.value remains false unless explicitly toggled
 
   
 

@@ -56,6 +56,10 @@ class FormsService {
 
   async createForm(formData) {
     const body={ name: formData.name, description: formData.description||'', structure: this._serializeStructure(formData.structure) }; // backend expects JSON string
+    // visibility: include userId only when provided (personal)
+    if (formData && formData.userId != null && formData.userId !== '') {
+      body.userId = formData.userId;
+    }
     try { const res = await api.post('/admin-api/rag/ai/form/create', body, { headers:{'Content-Type':'application/json'}, timeout:20000 }); const root=this._normalize(res); const raw = root.data || { id: root.id, ...body }; return this._deserializeForm(raw); }
     catch(e){ console.warn('[FormsService] createForm failed', e); throw e; }
   }
@@ -63,6 +67,9 @@ class FormsService {
   async updateForm(id, formData) {
     if(!id) throw new Error('缺少表单 id');
     const body={ id, name: formData.name, description: formData.description, structure: formData.structure && this._serializeStructure(formData.structure) };
+    if (formData && formData.userId != null && formData.userId !== '') {
+      body.userId = formData.userId;
+    }
     Object.keys(body).forEach(k=> body[k]===undefined && delete body[k]);
     try { const res = await api.post('/admin-api/rag/ai/form/update', body, { headers:{'Content-Type':'application/json'}, timeout:20000 }); const root=this._normalize(res); const raw = root.data || body; return this._deserializeForm(raw); }
     catch(e){ console.warn('[FormsService] updateForm failed', e); throw e; }

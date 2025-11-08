@@ -43,6 +43,12 @@
           </template>
         </el-table-column>
         
+        <el-table-column label="可见性" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.userId ? 'warning' : 'success'">{{ row.userId ? '个人' : '公开' }}</el-tag>
+          </template>
+        </el-table-column>
+        
         <el-table-column label="关联数据结果" width="140" align="center">
           <template #default="{ row }">
             <el-link 
@@ -206,8 +212,8 @@ function formatDate(dateString) {
 }
 
 function viewFormData(formId) {
-  // Navigate to extractions view filtered by this form
-  router.push(`/extractions?form_id=${formId}`);
+  // Navigate directly to virtual table detail for this form
+  router.push(`/extractions/form/${formId}`);
 }
 
 async function toggleFormStatus(form) {

@@ -9,14 +9,14 @@
     </div>
     
     <div class="view-content">
-      <ExtractionsManager />
+      <FormsCards />
     </div>
   </div>
 </template>
 
 <script setup>
 import AppHeader from '../components/common/AppHeader.vue';
-import ExtractionsManager from '../components/extractions/ExtractionsManager.vue';
+import FormsCards from '../components/extractions/FormsCards.vue';
 </script>
 
 <style scoped>

@@ -10,7 +10,7 @@
     "deploy:test": "npm run build:test && node deploy.js --skip-build",
     "deploy": "node deploy.js",
     "preview": "vite preview",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix",
     "why:ep": "npm ls element-plus",
     "clean:modules": "rm -rf node_modules package-lock.json pnpm-lock.yaml yarn.lock && pnpm install"
   },
