@@ -1,5 +1,1 @@
-# Capability: Navigation Link
-
-## ADDED Requirements
-- Requirement: Include esId column with clickable link per row.
-  - Scenario: Clicking esId navigates to `/preview/doc/<esId>?retureBtn=true` in SPA hash routing.
+> Archived: See `openspec/changes/archive/rewrite-extractions-virtual-table/specs/navigation-link/spec.md`.
