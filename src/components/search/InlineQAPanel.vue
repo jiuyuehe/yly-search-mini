@@ -110,8 +110,6 @@ function preview(file) {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px 8px;
-  background: linear-gradient(135deg, rgba(109,93,252,0.08) 0%, rgba(95,139,255,0.10) 40%, rgba(255,95,183,0.10) 100%);
-  backdrop-filter: blur(2px);
 }
 .qa-icon { color: #6d5dfc; }
 .qa-title-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
