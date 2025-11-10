@@ -35,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue';
+import { reactive, watch } from 'vue';
 import PreviewField from './PreviewField.vue';
 
 const props = defineProps({
@@ -46,32 +46,45 @@ const props = defineProps({
   showExamples: {
     type: Boolean,
     default: false
+  },
+  initialData: {
+    type: Object,
+    default: null
   }
 });
 
 const formData = reactive({});
 
 // Initialize form data
-watch(() => props.structure, (newStructure) => {
+watch(() => [props.structure, props.initialData], ([newStructure, newInitialData]) => {
   if (newStructure && newStructure.fields) {
-    initializeFormData(newStructure.fields);
+    initializeFormData(newStructure.fields, newInitialData);
   }
 }, { immediate: true, deep: true });
 
-function initializeFormData(fields) {
+function initializeFormData(fields, initialData) {
   fields.forEach(field => {
+    // Use initialData if provided, otherwise use default/example values
+    const initialValue = initialData?.[field.name]
+    
     if (field.type === 'object' && field.fields) {
-      formData[field.name] = {};
+      formData[field.name] = initialValue || {};
       field.fields.forEach(subField => {
-        formData[field.name][subField.name] = getDefaultValue(subField);
+        if (!formData[field.name][subField.name]) {
+          formData[field.name][subField.name] = getDefaultValue(subField);
+        }
       });
     } else if (field.type === 'array' && field.fields) {
-      formData[field.name] = [{}];
-      field.fields.forEach(subField => {
-        formData[field.name][0][subField.name] = getDefaultValue(subField);
-      });
+      formData[field.name] = initialValue || [{}];
+      if (Array.isArray(formData[field.name]) && formData[field.name].length > 0) {
+        field.fields.forEach(subField => {
+          if (!formData[field.name][0][subField.name]) {
+            formData[field.name][0][subField.name] = getDefaultValue(subField);
+          }
+        });
+      }
     } else {
-      formData[field.name] = getDefaultValue(field);
+      formData[field.name] = initialValue !== undefined ? initialValue : getDefaultValue(field);
     }
   });
 }
