@@ -85,7 +85,8 @@ function removeTag(tag) { emit('remove', tag); }
   display:flex; 
   flex-direction:column; 
   gap:8px; 
-  margin-bottom:16px; 
+  margin: 8px;
+  padding: 8px; 
 }
 
 .top-row { 

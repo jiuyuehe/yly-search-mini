@@ -179,6 +179,8 @@
   --border-radius-sm: 4px;
   --border-radius-md: 8px;
   --border-radius-lg: 12px;
+  --border-radius-xl: 24px;
+  --border-radius-xxl: 36px;
 
   --border-width-thin: 1px;
   --border-width-medium: 2px;
@@ -186,6 +188,7 @@
 
   /* 排版 */
   --font-family-base: 'Helvetica Neue', Arial, sans-serif;
+  --font-size-xxs: 10px;
   --font-size-xs: 12px;
   --font-size-sm: 13px;
   --font-size-md: 14px;
@@ -210,7 +213,6 @@
   --el-color-primary-light-5: rgba(var(--primary-color-rgb), 0.5);
   --el-color-primary-light-7: rgba(var(--primary-color-rgb), 0.7);
   --el-color-primary-light-8: rgba(var(--primary-color-rgb), 0.8);
-  --el-color-primary-light-9: rgba(var(--primary-color-rgb), 0.9);
   --el-color-primary-dark-2: var(--primary-color-dark);
   --el-border-radius-base: 8px;
   --el-border-radius-small: 6px;

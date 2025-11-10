@@ -8,6 +8,25 @@
   </div>
     
   <div class="filter-sections">
+      <!-- 搜索模式（精度/策略） -->
+      <div class="filter-section">
+        <div class="section-title" @click="toggleSection('searchMode')">
+          <span>搜索模式</span>
+          <el-icon class="toggle-icon" :class="{ expanded: expandedSections.searchMode }">
+            <ArrowDown />
+          </el-icon>
+        </div>
+        <div v-show="expandedSections.searchMode" class="section-content">
+          <el-radio-group v-model="precisionModeLocal" class="file-category-group" size="small">
+            <el-radio :label="1">快速</el-radio>
+            <el-radio :label="2">精准</el-radio>
+            <el-radio :label="3">模糊</el-radio>
+          </el-radio-group>
+          <div class="mode-hint" v-if="precisionModeLocal === 2">精准模式：更强调相关性，可能牺牲部分召回</div>
+          <div class="mode-hint" v-else-if="precisionModeLocal === 1">快速模式：更快返回结果，适合初步探索</div>
+          <div class="mode-hint" v-else-if="precisionModeLocal === 3">模糊模式：扩大召回范围，适合发现潜在关联</div>
+        </div>
+      </div>
       <!-- 文件空间 -->
       <div class="filter-section">
         <div class="section-title" @click="toggleSection('fileCategory')">
@@ -212,6 +231,7 @@ const searchStore = useSearchStore();
 const emit = defineEmits(['tag-click']);
 
 const expandedSections = reactive({
+  searchMode: true,
   fileCategory: false,
   creators: false,
   timeRange: false,
@@ -220,6 +240,9 @@ const expandedSections = reactive({
   tags: false,
   formats: false
 });
+
+// 本地绑定的搜索模式（迁移自 SearchBox）
+const precisionModeLocal = ref(Number(searchStore.precisionMode || 3));
 
 const filters = reactive({
   fileCategory: '',
@@ -398,6 +421,19 @@ function resetFilters() {
     formats: ''
   });
 }
+
+// 当本地模式变化时同步到 store 并触发重新搜索（保留当前查询）
+watch(precisionModeLocal, (v) => {
+  const val = Number(v);
+  if(isNaN(val)) return;
+  searchStore.precisionMode = val;
+  // 若已有查询则自动重新搜索以应用新模式
+  const q = (searchStore.query||'').trim();
+  if(q || val){
+    // 使用当前 searchType 与现有图片状态（由 SearchBox 控制）
+    try { searchStore.search(q, searchStore.searchType || 'fullText', null, { precisionMode: val }); } catch { /* ignore */ }
+  }
+});
 function clearTagSelection() {
   filters.tag = '';
   tagPage.value = 1;
@@ -559,14 +595,20 @@ watch(() => filters.timeRange, (val) => {
   align-items: center;
   padding: var(--spacing-md) var(--spacing-lg);
   cursor: pointer;
-  font-weight: 500;
   color: var(--text-color-primary);
   background-color: var(--background-color);
   transition: background-color 0.2s ease;
+  font-size: var(--font-size-sm);
 }
 
 .section-title:hover {
   background-color: var(--background-color-light);
+}
+
+.mode-hint {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-xxs);
+  color: var(--text-color-secondary);
 }
 
 .toggle-icon {

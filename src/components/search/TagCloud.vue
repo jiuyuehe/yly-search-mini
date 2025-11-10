@@ -72,13 +72,14 @@ function handleWordClick(text, _weight) {
 async function onRefresh() {
   loading.value = true;
   try {
-    await store.refreshTagCloud();
+      await store.fetchTagCloud(true);
   } catch (e) {
     console.warn('刷新标签云失败', e);
   } finally {
     loading.value = false;
   }
 }
+  
 
 function onProgress(value) {
   progress.value = value;
@@ -112,9 +113,8 @@ onMounted(() => {
 
 <style scoped>
 .tag-cloud-wrapper {
-  padding: 8px 10px 18px;
-  border: var(--border-width-thin) solid var(--border-color-muted);
-  border-radius: var(--border-radius-md);
+  padding: 20px;
+  border-radius: var(--border-radius-xxl);
   background: var(--el-bg-color, var(--background-color));
   position: relative;
 }

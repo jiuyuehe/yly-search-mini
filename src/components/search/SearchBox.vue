@@ -3,9 +3,37 @@
     <!-- Main search container (支持拖拽) -->
     <div class="search-container" @dragover.prevent @dragenter.prevent @drop.prevent="handleDrop">
       <div class="search-input-wrapper">
-        <el-input ref="inputRef" v-model="searchQuery" type="textarea" rows=3 placeholder="输入搜索关键词或问题（图片可拖入/上传，选择模式可调整策略）..."
-          class="search-textarea" @keydown.ctrl.enter="handleSearch" @keydown.meta.enter="handleSearch"
-          @keydown.enter.exact.prevent="enterQuickSearch" />
+        <div class="search-row">
+          <el-input
+            ref="inputRef"
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search"
+            class="search-pill"
+            @keydown.enter.exact.prevent="enterQuickSearch"
+          >
+            <template #prefix>
+              <el-icon class="prefix-icon"><Search /></el-icon>
+            </template>
+            <template #suffix>
+              <div class="suffix-actions">
+                <el-tooltip content="上传图片（也可拖入）" placement="bottom">
+                  <el-button link class="img-suffix-btn" :disabled="uploading" @click.stop="triggerImageSelect">
+                    <el-icon><Picture /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-button type="primary" size="small" circle class="search-btn" @click.stop="handleSearch">
+                  <el-icon><Search /></el-icon>
+                </el-button>
+                <el-tooltip content="AI 问答" placement="bottom">
+                  <el-button link class="ai-suffix-btn" @click.stop="handleAskAI">
+                    <el-icon><MagicStick /></el-icon>
+                  </el-button>
+                </el-tooltip>
+              </div>
+            </template>
+          </el-input>
+        </div>
 
         <!-- 已选择图片预览 -->
         <transition name="fade">
@@ -21,44 +49,6 @@
           </div>
         </transition>
 
-        <div class="search-footer">
-         <div class="left-controls">
-           <div class="search-type-selector">
-            <el-select v-model="searchType" size="small" class="search-type-select">
-              <el-option label="全文搜索" value="fullText" />
-              <el-option label="图片搜索" value="image" />
-              <el-option label="通用问答" value="qa" />
-            </el-select>
-          </div>
-
-          <!-- 模式选择：全文(1)/段落(2)/精准(3) 仅文本相关显示 -->
-          <div class="mode-select" v-if="!['image','qa'].includes(searchType)">
-            <el-select v-model="textSearchMode" size="small" class="mode-select-inner" @change="handleModeChange">
-              <el-option label="快速" :value="1" />
-              <el-option label="精准" :value="2" />
-              <el-option label="模糊" :value="3" />
-            </el-select>
-          </div>
-
-          <!-- 图片上传按钮（仅图片/问答模式显示） -->
-          <div class="extra-actions">
-            <el-button v-if="['image'].includes(searchType)" size="small" class="image-upload-btn"
-              :disabled="uploading" @click="triggerImageSelect">
-              <el-icon class="btn-icon">
-                <Upload />
-              </el-icon>
-              <span>{{ imageFile ? '重新选择' : '上传图片' }}</span>
-            </el-button>
-          </div>
-         </div>
-
-          <el-button type="primary" size="small" :disabled="!canSearch" @click="handleSearch" class="search-btn">
-            <el-icon>
-              <Search />
-            </el-icon>
-          </el-button>
-        </div>
-
         <!-- 隐藏文件输入 -->
         <input ref="fileInput" type="file" accept="image/*" hidden @change="handleImageSelect" />
       </div>
@@ -68,19 +58,18 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { Search, Upload, Close } from '@element-plus/icons-vue';
+import { Search, Picture, Close, MagicStick } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { useSearchStore } from '../../stores/search';
 
-const emit = defineEmits(['search']);
+const emit = defineEmits(['search','qa-request']);
 
 const props = defineProps({ initialQuery: { type: String, default: '' } });
 
 const searchQuery = ref(props.initialQuery || '');
 // sync to store for other components (FilterSidebar) to read
 const searchStore = useSearchStore();
-const searchType = ref(searchStore.searchType || 'fullText');
-const textSearchMode = ref(3); // 
+// 精简后不在本组件内提供模式与类型选择
 
 // 图片相关
 const fileInput = ref(null);
@@ -98,38 +87,22 @@ const prettySize = computed(() => {
 });
 
 const canSearch = computed(() => {
-  if (['image'].includes(searchType.value)) {
-    return !!imageFile.value || !!searchQuery.value.trim();
-  }
-  // allow clicking search even when input is empty for text search
+  // 允许空查询触发默认搜索；如选择了图片则将进行图片搜索
   return true;
 });
 
-watch(textSearchMode, (v) => { try { searchStore.precisionMode = Number(v); } catch { /* store 可能尚未初始化，忽略 */ } }, { immediate: true });
-// keep local select in sync with store (e.g., when returning from preview)
-watch(() => searchStore.searchType, (v) => { try { if (v && v !== searchType.value) searchType.value = v; } catch { /* store 还未 ready 时忽略 */ } });
-// when user changes select, sync back to store
-watch(searchType, (v) => { try { if (v && v !== searchStore.searchType) searchStore.setSearchType && searchStore.setSearchType(v); } catch { /* store 无接口时忽略 */ } });
-
-function buildEmitPayload() {
-  return { query: searchQuery.value.trim(), searchType: searchType.value, imageFile: imageFile.value, precisionMode: textSearchMode.value };
-}
-
 function handleSearch() {
   if (!canSearch.value) return;
-  const payload = buildEmitPayload();
-  emit('search', payload.query, payload.searchType, payload.imageFile, { precisionMode: payload.precisionMode });
+  const query = searchQuery.value.trim();
+  const type = imageFile.value ? 'image' : 'fullText';
+  const precisionMode = Number(searchStore.precisionMode || 3);
+  emit('search', query, type, imageFile.value, { precisionMode });
 }
 
 // keep internal searchQuery in sync if parent provides initialQuery
 watch(() => props.initialQuery, (v) => {
   if (typeof v === 'string' && v !== searchQuery.value) searchQuery.value = v;
 });
-
-function handleModeChange() {
-  // 选择即搜
-  if (canSearch.value) handleSearch();
-}
 
 function enterQuickSearch(e) { if (!e.shiftKey) handleSearch(); }
 function triggerImageSelect() { fileInput.value && fileInput.value.click(); }
@@ -145,23 +118,19 @@ function processImageFile(file) {
   reader.onload = ev => { imagePreview.value = ev.target.result; };
   reader.readAsDataURL(file);
   // focus input after selecting image so user can press Enter to search
-  setTimeout(()=>{ try{ inputRef.value && inputRef.value.focus && inputRef.value.focus(); }catch(e){} }, 50);
+  setTimeout(()=>{ try{ inputRef.value && inputRef.value.focus && inputRef.value.focus(); }catch{ /* 输入框可能不存在，忽略 */ } }, 50);
 }
 function handleDrop(e) { const file = e.dataTransfer.files && e.dataTransfer.files[0]; if (file) processImageFile(file); }
 function removeImage() { imageFile.value = null; imagePreview.value = '';
   // return focus to input so user can press Enter
-  setTimeout(()=>{ try{ inputRef.value && inputRef.value.focus && inputRef.value.focus(); }catch(e){} }, 50);
+  setTimeout(()=>{ try{ inputRef.value && inputRef.value.focus && inputRef.value.focus(); }catch{ /* 输入框可能不存在，忽略 */ } }, 50);
 }
 
-// Listen for global requests to change the search type (e.g., returning from QA)
-if (typeof window !== 'undefined') {
-  const onSetSearchType = (e) => {
-    const t = e && e.detail;
-    if (t && ['fullText','image','qa'].includes(t)) {
-      searchType.value = t;
-    }
-  };
-  window.addEventListener('set-search-type', onSetSearchType);
+// AI 问答入口：向父级发出 qa-request 事件
+function handleAskAI(){
+  const q = (searchQuery.value || '').trim();
+  if(!q){ ElMessage.warning('请输入问题'); return; }
+  emit('qa-request', q);
 }
 </script>
 
@@ -175,27 +144,32 @@ if (typeof window !== 'undefined') {
 
 .search-container {
   flex: 1;
-  background: var(--background-color);
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
-  transition: all 0.3s ease;
-}
-
-.search-container:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.15);
-}
-
-.search-container:focus-within {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px rgba(var(--primary-color-rgb), 0.1);
+  /* 外框视觉去掉，改由内部 input 胶囊承载 */
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
 }
 
 .search-input-wrapper {
   width: 100%;
 }
+
+.search-row{ display:flex; align-items:center; }
+
+:deep(.search-pill .el-input__wrapper){
+  border-radius: 9999px;
+  padding-left: 12px;
+  padding-right: 10px;
+  height: 50px;
+}
+
+.prefix-icon{ color: var(--text-color-secondary); }
+.suffix-actions{ display:flex; align-items:center; gap:8px; }
+.img-suffix-btn{ color: var(--text-color-secondary); }
+.img-suffix-btn:hover{ color: var(--primary-color); }
+.ai-suffix-btn{ color: var(--text-color-secondary); }
+.ai-suffix-btn:hover{ color: var(--primary-color); }
 
 :deep(.search-textarea .el-textarea__inner) {
   box-shadow: none;
@@ -219,6 +193,23 @@ if (typeof window !== 'undefined') {
   font-size: var(--font-size-md);
 }
 
+/* === 胶囊输入框承载原外框效果 === */
+:deep(.search-pill .el-input__wrapper){
+  border: 2px solid var(--border-color);
+  background: var(--background-color);
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.06);
+  transition: all .25s ease;
+}
+:deep(.search-pill .el-input__wrapper:hover){
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.18);
+}
+:deep(.search-pill .el-input__wrapper.is-focus),
+:deep(.search-pill .el-input__wrapper.is-focus:hover){
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px rgba(var(--primary-color-rgb), 0.12), 0 4px 14px rgba(var(--primary-color-rgb),0.18);
+}
+
 .search-footer {
   display: flex;
   justify-content: space-between;
@@ -228,7 +219,6 @@ if (typeof window !== 'undefined') {
   flex-wrap: wrap;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: var(--border-width-thin) solid var(--border-color-light);
 }
 
 .left-controls{
@@ -237,55 +227,23 @@ if (typeof window !== 'undefined') {
   gap: 8px;
 }
 
-.search-type-selector {
-  flex: 0 0 auto;
+.icon-actions{ display:flex; align-items:center; gap:8px; }
+.img-btn{ color: var(--text-color-secondary); border-color: var(--border-color); }
+.img-btn:hover{ color: var(--primary-color); border-color: var(--primary-color); }
+.ai-ask-btn{ display:flex; align-items:center; gap:6px; border-radius: 18px; padding:6px 10px; color:#fff; border:none;
+  background: linear-gradient(120deg,#6d5dfc 0%, #5f8bff 38%, #ff5fb7 100%);
 }
+.ai-ask-btn:disabled{ filter: grayscale(0.4); opacity: 0.7; }
+.ai-icon{ color: #fff; }
 
-.search-type-select {
-  width: 130px;
-}
-
-:deep(.search-type-select .el-input__wrapper) {
-  border-radius: var(--border-radius-md);
-  border-color: var(--border-color);
-  background: var(--background-color-light);
-  transition: all 0.2s;
-}
-
-:deep(.search-type-select .el-input__wrapper:hover) {
-  border-color: var(--primary-color);
-  background: var(--background-color);
-}
-
-.search-btn {
+.search-btn{
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
   border-color: var(--primary-color);
-  border-radius: var(--border-radius-md);
-  padding: 8px 24px;
-  height: 36px;
-  font-weight: 500;
   box-shadow: 0 2px 4px rgba(var(--primary-color-rgb), 0.2);
-  transition: all 0.3s;
 }
-
-.search-btn:hover {
-  background: linear-gradient(135deg, var(--primary-color-dark) 0%, var(--primary-color-darker) 100%);
-  border-color: var(--primary-color-dark);
-  box-shadow: 0 4px 8px rgba(var(--primary-color-rgb), 0.3);
-  transform: translateY(-1px);
-}
-
-.search-btn:active {
-  transform: translateY(0);
-}
-
-.search-btn:disabled {
-  background: var(--border-color);
-  border-color: var(--border-color);
-  color: var(--text-color-placeholder);
-  box-shadow: none;
-  transform: none;
-}
+.search-btn:hover{ background: linear-gradient(135deg, var(--primary-color-dark) 0%, var(--primary-color-darker) 100%); border-color: var(--primary-color-dark); box-shadow: 0 4px 8px rgba(var(--primary-color-rgb), 0.3); }
+.search-btn.el-button.is-circle{ width:34px; height:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+.search-btn:disabled{ background: var(--border-color); border-color: var(--border-color); box-shadow:none; }
 
 .extra-actions {
   display: flex;
@@ -310,26 +268,7 @@ if (typeof window !== 'undefined') {
   margin-right: 4px;
 }
 
-.mode-select {
-  display: flex;
-  align-items: center;
-}
-
-.mode-select-inner {
-  width: 100px;
-}
-
-:deep(.mode-select-inner .el-input__wrapper) {
-  border-radius: var(--border-radius-md);
-  border-color: var(--border-color);
-  background: var(--background-color-light);
-  transition: all 0.2s;
-}
-
-:deep(.mode-select-inner .el-input__wrapper:hover) {
-  border-color: var(--primary-color);
-  background: var(--background-color);
-}
+/* removed mode select styles after refactor */
 
 .image-preview-chip {
   margin-top: 8px;
@@ -399,13 +338,6 @@ if (typeof window !== 'undefined') {
   opacity: 0;
 }
 
-.mode-select {
-  display: flex;
-  align-items: center;
-}
-
-.mode-select-inner {
-  width: 110px;
-}
+/* removed legacy duplicates */
 </style>
 

@@ -13,7 +13,9 @@
       <div class="search-content">
         <!-- Search mode -->
         <div class="search-content-inner" v-if="uiMode === 'search'">
-          <search-box :initial-query="searchStore.query" @search="handleSearch" @mode-change="onModeChange" />
+          <search-box :initial-query="searchStore.query" @search="handleSearch" @mode-change="onModeChange" @qa-request="handleQaRequest" />
+
+          <InlineQAPanel :visible="showQAPanel" :question="qaQuestion" @close="showQAPanel=false" />
 
           <div class="summary-row">
             <FilterToggleSummary v-if="searchStore.searchType !== 'qa'"
@@ -25,7 +27,7 @@
             <div class="extra-actions" v-if="searchStore.searchType !== 'qa'">
                       <template v-if="!searchStore.isImageSearch">
                         <el-tooltip :content="showTagCloud ? '显示列表' : '显示标签云'" placement="bottom">
-                          <el-button size="small" circle @click.stop="toggleCloud">
+                          <el-button  circle @click.stop="toggleCloud">
                             <el-icon><component :is="showTagCloud ? List : Cloudy" /></el-icon>
                           </el-button>
                         </el-tooltip>
@@ -33,16 +35,16 @@
                       <!-- Image mode controls: grid/list toggle and column count -->
                       <template v-if="searchStore.isImageSearch">
                         <el-tooltip content="切换展示: 网格/列表" placement="bottom">
-                          <el-button size="small" circle @click.stop="toggleImageDisplay">
+                          <el-button  circle @click.stop="toggleImageDisplay">
                             <el-icon><component :is="imageDisplayMode === 'grid' ? List : Iphone" /></el-icon>
                           </el-button>
                         </el-tooltip>
                         <el-popover placement="bottom" width="80" trigger="click">
                           <div style="padding:8px 12px; display:flex;align-items:center;">
-                            <el-slider v-model="imageGridCols" :min="2" :max="6" :step="1" vertical size="small" height="120px" />
+                            <el-slider v-model="imageGridCols" :min="2" :max="6" :step="1" vertical  height="120px" />
                           </div>
                           <template #reference>
-                            <el-button size="small" type="text" icon>
+                            <el-button  type="text" icon>
                               列数: {{ imageGridCols }}
                             </el-button>
                           </template>
@@ -136,6 +138,7 @@ import AppHeader from '../components/common/AppHeader.vue';
 import FilterSidebar from '../components/search/FilterSidebar.vue';
     import ExportDialog from '../components/search/ExportDialog.vue';
 import SearchBox from '../components/search/SearchBox.vue';
+import InlineQAPanel from '../components/search/InlineQAPanel.vue';
 import SearchResultTabs from '../components/search/SearchResultTabs.vue';
 import TagCloud from '../components/search/TagCloud.vue';
 import SearchResultItem from '../components/search/SearchResultItem.vue';
@@ -155,6 +158,9 @@ const showTagCloud = ref(true); // 默认显示标签云（无搜索条件）
 const activeTab = ref('all');
 const uiMode = ref('search'); // 'search' | 'qa'
 const chatPanelRef = ref(null);
+// Inline QA state
+const showQAPanel = ref(false);
+const qaQuestion = ref('');
 // local pagination mirrors store.pagination so state survives route changes
 const currentPage = ref(searchStore.pagination.currentPage || 1);
 const pageSize = ref(searchStore.pagination.pageSize || 10);
@@ -210,6 +216,8 @@ function handleSearch(query, searchType, imageFile, options) {
   waitForChatRef(2000).then(() => { try { chatPanelRef.value?.askQuestion?.(query); } catch { /* ignore */ } }).catch(()=>{});
     return;
   }
+  // 触发常规搜索时收起内联 QA 面板
+  showQAPanel.value = false;
   // If image search is requested, clear previous UI artifacts before issuing request
   if (searchType === 'image' || imageFile) {
   // clear selected items and hide tag cloud to avoid showing prior list remnants
@@ -259,6 +267,15 @@ function handleRemoveFilter(tag) {
   if (!f.fileAiTag) { try { filterSidebarRef.value?.clearTagSelection?.(); } catch { /* sidebar 可能未就绪，忽略 */ } }
   }
   searchStore.updateFilters(f);
+}
+
+function handleQaRequest(q){
+  const t = (q||'').trim();
+  if(!t) return;
+  qaQuestion.value = t;
+  showQAPanel.value = true;
+  // 切换到列表视图，避免标签云遮挡
+  showTagCloud.value = false;
 }
 
 function navigateToPreview(file, evt) {
@@ -627,9 +644,9 @@ watch(() => searchStore.pagination.total, (total) => {
 }
 
 .search-content-inner { 
-  width: 900px; 
+  width: 1080px; 
   max-width: 100%; 
-  margin: 20px auto; 
+  margin: 16px auto 0; 
   display: flex; 
   flex-direction: column; 
   flex: 1; 
@@ -655,12 +672,7 @@ watch(() => searchStore.pagination.total, (total) => {
   display: flex; 
   justify-content: space-between; 
   align-items: center; 
-  padding: 16px 0;
-  border-top: var(--border-width-thin) solid var(--border-color);
-  background: var(--background-color)FFF;
-  margin: 0 -24px;
-  padding-left: 24px;
-  padding-right: 24px;
+  padding: 0 16px;
 }
 
 .summary-row{
@@ -676,6 +688,8 @@ watch(() => searchStore.pagination.total, (total) => {
   display:flex;
   align-items:center;
   gap:8px;
+  padding: 4px;
+  margin-right: 16px;
 }
 
 .summary-row:empty { 

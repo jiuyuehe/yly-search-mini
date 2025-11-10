@@ -82,7 +82,7 @@ function getTabLabel(tab) {
 
 <style scoped>
 .search-result-tabs { 
-  margin-bottom: 16px; 
+
 }
 
 .search-result-tabs :deep(.el-tabs__header) { 
