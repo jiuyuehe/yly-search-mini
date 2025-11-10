@@ -36,7 +36,6 @@ import { useRouter } from 'vue-router'
 import { useFormsStore } from '../../stores/forms'
 import { onMounted } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { getUserInfo } from '../../services/api'
 
 const router = useRouter()
 const formsStore = useFormsStore()

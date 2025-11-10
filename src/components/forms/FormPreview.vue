@@ -35,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue';
+import { reactive, watch } from 'vue';
 import PreviewField from './PreviewField.vue';
 
 const props = defineProps({
