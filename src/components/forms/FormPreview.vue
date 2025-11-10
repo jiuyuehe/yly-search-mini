@@ -17,6 +17,7 @@
             :field="field" 
             :model-value="formData[field.name]"
             :show-examples="showExamples"
+            :editable="editable"
             @update:model-value="updateFieldValue(field.name, $event)"
           />
         </div>
@@ -50,8 +51,14 @@ const props = defineProps({
   initialData: {
     type: Object,
     default: null
+  },
+  editable: {
+    type: Boolean,
+    default: false
   }
 });
+
+const emit = defineEmits(['update:modelValue'])
 
 const formData = reactive({});
 
@@ -108,6 +115,8 @@ function getDefaultValue(field) {
 
 function updateFieldValue(fieldName, value) {
   formData[fieldName] = value;
+  // Emit the updated formData
+  emit('update:modelValue', { ...formData })
 }
 </script>
 

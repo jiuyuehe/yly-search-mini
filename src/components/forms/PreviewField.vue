@@ -12,7 +12,7 @@
       :model-value="modelValue"
       @update:model-value="$emit('update:modelValue', $event)"
       :placeholder="field.example || '请输入' + field.name"
-      readonly
+      :readonly="!editable"
     />
     
     <!-- Number Field -->
@@ -22,7 +22,7 @@
       @update:model-value="$emit('update:modelValue', $event)"
       :placeholder="field.example || '请输入数字'"
       style="width: 100%"
-      readonly
+      :readonly="!editable"
     />
     
     <!-- Date Field -->
@@ -35,7 +35,7 @@
       format="YYYY-MM-DD"
       value-format="YYYY-MM-DD"
       style="width: 100%"
-      readonly
+      :readonly="!editable"
     />
     
     <!-- Boolean Field -->
@@ -43,7 +43,7 @@
       v-else-if="field.type === 'boolean'"
       :model-value="modelValue"
       @update:model-value="$emit('update:modelValue', $event)"
-      disabled
+      :disabled="!editable"
     />
     
     <!-- Object Field -->
@@ -58,6 +58,7 @@
             :field="subField"
             :model-value="modelValue && modelValue[subField.name]"
             :show-examples="showExamples"
+            :editable="editable"
             @update:model-value="updateObjectField(subField.name, $event)"
           />
         </div>
@@ -68,7 +69,7 @@
     <div v-else-if="field.type === 'array'" class="array-field">
       <div class="array-header">
         <span class="array-label">{{ field.name }} 列表</span>
-        <el-button size="small" disabled>添加项目</el-button>
+        <el-button size="small" :disabled="!editable" @click="addArrayItem">添加项目</el-button>
       </div>
       
       <div class="array-container">
@@ -79,7 +80,7 @@
         >
           <div class="array-item-header">
             <span>项目 {{ itemIndex + 1 }}</span>
-            <el-button size="small" type="danger" disabled>删除</el-button>
+            <el-button size="small" type="danger" :disabled="!editable" @click="removeArrayItem(itemIndex)">删除</el-button>
           </div>
           
           <div v-if="field.itemType === 'object' && field.fields" class="array-item-content">
@@ -92,6 +93,7 @@
                 :field="subField"
                 :model-value="item && item[subField.name]"
                 :show-examples="showExamples"
+                :editable="editable"
                 @update:model-value="updateArrayField(itemIndex, subField.name, $event)"
               />
             </div>
@@ -101,7 +103,8 @@
             <el-input 
               :model-value="item"
               :placeholder="'请输入' + field.name"
-              readonly
+              :readonly="!editable"
+              @update:model-value="updateSimpleArrayField(itemIndex, $event)"
             />
           </div>
         </div>
@@ -134,6 +137,10 @@ const props = defineProps({
   showExamples: {
     type: Boolean,
     default: false
+  },
+  editable: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -164,6 +171,32 @@ function updateArrayField(itemIndex, subFieldName, value) {
   }
   newArray[itemIndex] = { ...newArray[itemIndex] };
   newArray[itemIndex][subFieldName] = value;
+  emit('update:modelValue', newArray);
+}
+
+function updateSimpleArrayField(itemIndex, value) {
+  const newArray = [...(props.modelValue || [])];
+  newArray[itemIndex] = value;
+  emit('update:modelValue', newArray);
+}
+
+function addArrayItem() {
+  const newArray = [...(props.modelValue || [])];
+  if (props.field.itemType === 'object' && props.field.fields) {
+    const newItem = {};
+    props.field.fields.forEach(subField => {
+      newItem[subField.name] = '';
+    });
+    newArray.push(newItem);
+  } else {
+    newArray.push('');
+  }
+  emit('update:modelValue', newArray);
+}
+
+function removeArrayItem(itemIndex) {
+  const newArray = [...(props.modelValue || [])];
+  newArray.splice(itemIndex, 1);
   emit('update:modelValue', newArray);
 }
 </script>
