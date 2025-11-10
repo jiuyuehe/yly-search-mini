@@ -133,7 +133,6 @@ function updateFieldValue(fieldName, value) {
 
 .preview-field {
   margin-bottom: 20px;
-  padding: 15px;
   background-color: #fafafa;
   border-radius: 6px;
 }

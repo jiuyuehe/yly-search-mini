@@ -3,23 +3,33 @@
     <div class="designer-header">
       <el-row :gutter="20" align="middle">
         <el-col :span="12">
-          <h2>{{ isEdit ? '编辑表单' : '新建表单' }}</h2>
+          <h2>{{ isEdit ? "编辑表单" : "新建表单" }}</h2>
         </el-col>
         <el-col :span="12" class="text-right">
           <el-button @click="previewForm">预览</el-button>
           <el-button @click="openJsonDialog">查看JSON</el-button>
-          <el-dropdown split-button @click="loadSample" @command="onSampleCommand">
+          <el-dropdown
+            split-button
+            @click="loadSample"
+            @command="onSampleCommand"
+          >
             加载示例
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="A">Sample A（平铺）</el-dropdown-item>
-                <el-dropdown-item command="B">Sample B（对象+子字段）</el-dropdown-item>
-                <el-dropdown-item command="C">Sample C（对象+数组元素为对象）</el-dropdown-item>
+                <el-dropdown-item command="A"
+                  >Sample A（平铺）</el-dropdown-item
+                >
+                <el-dropdown-item command="B"
+                  >Sample B（对象+子字段）</el-dropdown-item
+                >
+                <el-dropdown-item command="C"
+                  >Sample C（对象+数组元素为对象）</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>
           <el-button type="primary" @click="saveForm" :loading="loading.save">
-            {{ isEdit ? '更新' : '保存' }}
+            {{ isEdit ? "更新" : "保存" }}
           </el-button>
         </el-col>
       </el-row>
@@ -31,23 +41,27 @@
         <el-card header="表单设计" class="designer-card">
           <el-form :model="formData" label-width="120px">
             <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="表单名称" required>
+              <el-col :span="8">
+                <el-form-item label="表单名" required>
                   <el-input
                     v-model="formData.name"
                     placeholder="请输入表单名称"
-                    :class="{ 'error': errors.name }"
+                    :class="{ error: errors.name }"
                   />
-                  <div v-if="errors.name" class="error-text">{{ errors.name }}</div>
+                  <div v-if="errors.name" class="error-text">
+                    {{ errors.name }}
+                  </div>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
-                <el-form-item label="数据提取数量" required>
+              <el-col :span="8">
+                <el-form-item label="提取数量" required>
                   <el-radio-group v-model="formData.extractionMode">
-                    <el-radio value="single">单条数据</el-radio>
-                    <el-radio value="multiple">多条数据</el-radio>
+                    <el-radio value="single">单条</el-radio>
+                    <el-radio value="multiple">多条</el-radio>
                   </el-radio-group>
                 </el-form-item>
+              </el-col>
+              <el-col :span="8">
                 <el-form-item label="可见性" required>
                   <el-radio-group v-model="formData.visibility">
                     <el-radio value="public">公开</el-radio>
@@ -61,7 +75,9 @@
           <div class="fields-section">
             <div class="section-header">
               <h3>字段设计</h3>
-              <el-button type="primary" icon="Plus" @click="addField">添加字段</el-button>
+              <el-button type="primary" icon="Plus" @click="addField"
+                >添加字段</el-button
+              >
             </div>
 
             <div class="fields-table-container">
@@ -72,7 +88,12 @@
                 style="width: 100%"
                 class="fields-table"
               >
-                <el-table-column type="index" label="序号" width="60" align="center" />
+                <el-table-column
+                  type="index"
+                  label="序号"
+                  width="60"
+                  align="center"
+                />
                 <el-table-column label="字段名称" min-width="150">
                   <template #default="{ row, $index }">
                     <el-input
@@ -146,17 +167,35 @@
                       size="small"
                       @change="updateField($index, row)"
                     />
-                    <div v-else-if="row.type === 'object'" class="object-field-hint">
+                    <div
+                      v-else-if="row.type === 'object'"
+                      class="object-field-hint"
+                    >
                       <el-tag type="info" size="small">对象类型</el-tag>
-                      <el-tag v-if="row.fields" type="info" size="small" effect="plain">
+                      <el-tag
+                        v-if="row.fields"
+                        type="info"
+                        size="small"
+                        effect="plain"
+                      >
                         {{ (row.fields && row.fields.length) || 0 }} 个子字段
                       </el-tag>
                     </div>
-                    <el-tag v-else-if="row.type === 'array'" type="info" size="small">数组类型</el-tag>
+                    <el-tag
+                      v-else-if="row.type === 'array'"
+                      type="info"
+                      size="small"
+                      >数组类型</el-tag
+                    >
                   </template>
                 </el-table-column>
 
-                <el-table-column label="操作" width="220" align="center" fixed="right">
+                <el-table-column
+                  label="操作"
+                  width="220"
+                  align="center"
+                  fixed="right"
+                >
                   <template #default="{ row, $index }">
                     <el-button
                       size="small"
@@ -169,7 +208,9 @@
                       size="small"
                       :icon="ArrowDown"
                       @click="moveFieldDown($index)"
-                      :disabled="$index === formData.structure.fields.length - 1"
+                      :disabled="
+                        $index === formData.structure.fields.length - 1
+                      "
                       circle
                     />
                     <el-button
@@ -191,7 +232,10 @@
                 </el-table-column>
               </el-table>
 
-              <div v-if="formData.structure.fields.length === 0" class="empty-fields">
+              <div
+                v-if="formData.structure.fields.length === 0"
+                class="empty-fields"
+              >
                 <el-empty description="暂无字段，点击上方按钮添加字段" />
               </div>
             </div>
@@ -204,8 +248,6 @@
         <el-card header="实时预览" class="preview-card">
           <FormPreview :structure="formData.structure" />
         </el-card>
-
-        
       </el-col>
     </el-row>
 
@@ -232,7 +274,9 @@
     >
       <div class="sub-field-dialog-content">
         <div class="sub-field-toolbar">
-          <el-button type="primary" icon="Plus" @click="addSubField">添加子字段</el-button>
+          <el-button type="primary" icon="Plus" @click="addSubField"
+            >添加子字段</el-button
+          >
           <div class="field-count">
             共 {{ subFieldDialog.parentField?.fields?.length || 0 }} 个子字段
           </div>
@@ -245,7 +289,12 @@
           class="sub-field-table"
           empty-text="暂无子字段，点击上方按钮添加"
         >
-          <el-table-column type="index" label="序号" width="60" align="center" />
+          <el-table-column
+            type="index"
+            label="序号"
+            width="60"
+            align="center"
+          />
 
           <el-table-column label="字段名称" min-width="150">
             <template #default="{ row, $index }">
@@ -266,7 +315,12 @@
                 size="small"
                 @change="updateSubField($index, row)"
               >
-                <el-option v-for="t in allowedSubFieldTypes" :key="t.value" :label="t.label" :value="t.value" />
+                <el-option
+                  v-for="t in allowedSubFieldTypes"
+                  :key="t.value"
+                  :label="t.label"
+                  :value="t.value"
+                />
               </el-select>
             </template>
           </el-table-column>
@@ -318,11 +372,37 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="140" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="140"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ $index }">
-              <el-button size="small" :icon="ArrowUp" @click="moveSubFieldUp($index)" :disabled="$index === 0" circle />
-              <el-button size="small" :icon="ArrowDown" @click="moveSubFieldDown($index)" :disabled="$index >= (subFieldDialog.parentField?.fields?.length || 0) - 1" circle />
-              <el-button size="small" type="danger" :icon="Delete" @click="deleteSubField($index)" circle />
+              <el-button
+                size="small"
+                :icon="ArrowUp"
+                @click="moveSubFieldUp($index)"
+                :disabled="$index === 0"
+                circle
+              />
+              <el-button
+                size="small"
+                :icon="ArrowDown"
+                @click="moveSubFieldDown($index)"
+                :disabled="
+                  $index >=
+                  (subFieldDialog.parentField?.fields?.length || 0) - 1
+                "
+                circle
+              />
+              <el-button
+                size="small"
+                type="danger"
+                :icon="Delete"
+                @click="deleteSubField($index)"
+                circle
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -340,11 +420,7 @@
     </el-dialog>
 
     <!-- JSON 预览对话框 -->
-    <el-dialog
-      v-model="showJson"
-      title="表单结构 JSON"
-      width="65%"
-    >
+    <el-dialog v-model="showJson" title="表单结构 JSON" width="65%">
       <div class="json-container">
         <pre>{{ JSON.stringify(formData.structure, null, 2) }}</pre>
       </div>
@@ -356,14 +432,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowUp, ArrowDown, Delete, Setting } from '@element-plus/icons-vue';
-import { useFormsStore } from '../../stores/forms';
-import { formsService } from '../../services/formsService';
-import FormPreview from './FormPreview.vue';
-import { getUserInfo } from '../../services/api';
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { ArrowUp, ArrowDown, Delete, Setting } from "@element-plus/icons-vue";
+import { useFormsStore } from "../../stores/forms";
+import { formsService } from "../../services/formsService";
+import FormPreview from "./FormPreview.vue";
+import { getUserInfo } from "../../services/api";
 
 const router = useRouter();
 const route = useRoute();
@@ -372,26 +448,28 @@ const formsStore = useFormsStore();
 const isEdit = computed(() => !!route.params.id);
 const showPreview = ref(false);
 const showJson = ref(false);
-const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
-const dialogWidth = computed(() => (viewportWidth.value < 768 ? '95%' : '70%'));
+const viewportWidth = ref(
+  typeof window !== "undefined" ? window.innerWidth : 1024
+);
+const dialogWidth = computed(() => (viewportWidth.value < 768 ? "95%" : "70%"));
 
 const formData = reactive({
-  name: '',
-  extractionMode: 'single', // 'single' or 'multiple'
-  visibility: 'public', // 'public' or 'personal'
+  name: "",
+  extractionMode: "single", // 'single' or 'multiple'
+  visibility: "public", // 'public' or 'personal'
   structure: {
-    formName: '',
-    fields: []
-  }
+    formName: "",
+    fields: [],
+  },
 });
 
 const errors = reactive({
-  name: ''
+  name: "",
 });
 
 const loading = reactive({
   save: false,
-  load: false
+  load: false,
 });
 
 // Field ID generator
@@ -405,17 +483,17 @@ const generateSubFieldId = () => `sub_${Date.now()}_${subFieldIdCounter++}`;
 
 // 子字段可选类型（过滤掉 object/array）
 const allowedSubFieldTypes = [
-  { label: '文本', value: 'text' },
-  { label: '数字', value: 'number' },
-  { label: '日期', value: 'date' },
-  { label: '布尔值', value: 'boolean' }
+  { label: "文本", value: "text" },
+  { label: "数字", value: "number" },
+  { label: "日期", value: "date" },
+  { label: "布尔值", value: "boolean" },
 ];
 
 // 子字段编辑对话框状态
 const subFieldDialog = reactive({
   visible: false,
   parentIndex: -1,
-  parentField: null
+  parentField: null,
 });
 
 // Initialize form data
@@ -426,8 +504,10 @@ onMounted(async () => {
     resetForm();
   }
   // listen viewport resize for responsive dialog width
-  const onResize = () => { viewportWidth.value = window.innerWidth; };
-  window.addEventListener('resize', onResize);
+  const onResize = () => {
+    viewportWidth.value = window.innerWidth;
+  };
+  window.addEventListener("resize", onResize);
   // store for cleanup
   resizeHandler.value = onResize;
 });
@@ -436,36 +516,39 @@ const resizeHandler = ref(null);
 
 onUnmounted(() => {
   if (resizeHandler.value) {
-    window.removeEventListener('resize', resizeHandler.value);
+    window.removeEventListener("resize", resizeHandler.value);
   }
 });
 
-watch(() => formData.name, (newName) => {
-  formData.structure.formName = newName;
-  errors.name = '';
-});
+watch(
+  () => formData.name,
+  (newName) => {
+    formData.structure.formName = newName;
+    errors.name = "";
+  }
+);
 
 async function loadForm() {
   if (!route.params.id) return;
-  
+
   loading.load = true;
   try {
     const form = await formsStore.loadForm(route.params.id);
     formData.name = form.name;
     formData.structure = { ...form.structure };
-    
+
     // Add IDs to fields for reactivity
     addFieldIds(formData.structure.fields);
   } catch (error) {
-    ElMessage.error('加载表单失败: ' + error.message);
-    router.push('/forms');
+    ElMessage.error("加载表单失败: " + error.message);
+    router.push("/forms");
   } finally {
     loading.load = false;
   }
 }
 
 function addFieldIds(fields) {
-  fields.forEach(field => {
+  fields.forEach((field) => {
     if (!field.id) {
       field.id = generateFieldId();
     }
@@ -476,15 +559,15 @@ function addFieldIds(fields) {
 }
 
 function resetForm() {
-  formData.name = '';
+  formData.name = "";
   formData.structure = {
-    formName: '',
-    fields: []
+    formName: "",
+    fields: [],
   };
-  formData.extractionMode = 'single';
-  formData.visibility = 'public';
-  Object.keys(errors).forEach(key => {
-    errors[key] = '';
+  formData.extractionMode = "single";
+  formData.visibility = "public";
+  Object.keys(errors).forEach((key) => {
+    errors[key] = "";
   });
 }
 
@@ -492,9 +575,9 @@ function addField() {
   const newField = {
     id: generateFieldId(),
     name: `字段${formData.structure.fields.length + 1}`,
-    type: 'text',
-    example: '',
-    required: false
+    type: "text",
+    example: "",
+    required: false,
   };
   formData.structure.fields.push(newField);
 }
@@ -529,7 +612,7 @@ function moveFieldDown(index) {
 
 function onTypeChange(index, field) {
   // Reset type-specific properties
-  if (field.type === 'object' || field.type === 'array') {
+  if (field.type === "object" || field.type === "array") {
     if (!field.fields) {
       field.fields = [];
     }
@@ -537,18 +620,18 @@ function onTypeChange(index, field) {
     delete field.fields;
     delete field.itemType;
   }
-  
+
   // Reset example value
-  if (field.type === 'number') {
+  if (field.type === "number") {
     field.example = 0;
-  } else if (field.type === 'boolean') {
+  } else if (field.type === "boolean") {
     field.example = false;
-  } else if (field.type === 'date') {
-    field.example = '';
+  } else if (field.type === "date") {
+    field.example = "";
   } else {
-    field.example = '';
+    field.example = "";
   }
-  
+
   updateField(index, field);
 }
 
@@ -570,7 +653,9 @@ function closeSubFieldDialog() {
   subFieldDialog.visible = false;
   // 提示保存结果
   if (subFieldDialog.parentField?.fields) {
-    ElMessage.success(`已保存 ${subFieldDialog.parentField.fields.length} 个子字段`);
+    ElMessage.success(
+      `已保存 ${subFieldDialog.parentField.fields.length} 个子字段`
+    );
   }
   subFieldDialog.parentIndex = -1;
   subFieldDialog.parentField = null;
@@ -581,9 +666,9 @@ function addSubField() {
   const newField = {
     id: generateSubFieldId(),
     name: `子字段${(subFieldDialog.parentField.fields?.length || 0) + 1}`,
-    type: 'text',
-    example: '',
-    required: false
+    type: "text",
+    example: "",
+    required: false,
   };
   if (!Array.isArray(subFieldDialog.parentField.fields)) {
     subFieldDialog.parentField.fields = [];
@@ -601,13 +686,17 @@ async function deleteSubField(index) {
   const list = subFieldDialog.parentField?.fields;
   if (!list || index < 0 || index >= list.length) return;
   try {
-    await ElMessageBox.confirm('确定删除该子字段吗？此操作无法撤销。', '确认删除', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
+    await ElMessageBox.confirm(
+      "确定删除该子字段吗？此操作无法撤销。",
+      "确认删除",
+      {
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
     list.splice(index, 1);
-    ElMessage.success('子字段已删除');
+    ElMessage.success("子字段已删除");
   } catch {
     // user cancelled deletion
   }
@@ -631,27 +720,27 @@ function moveSubFieldDown(index) {
 
 function validateForm() {
   const validationErrors = formsStore.validateFormStructure(formData.structure);
-  
+
   // Clear previous errors
-  Object.keys(errors).forEach(key => {
-    errors[key] = '';
+  Object.keys(errors).forEach((key) => {
+    errors[key] = "";
   });
-  
+
   // Set new errors
   if (!formData.name.trim()) {
-    errors.name = '表单名称不能为空';
+    errors.name = "表单名称不能为空";
   }
-  
+
   if (validationErrors.length > 0) {
-    ElMessage.error('表单验证失败：' + validationErrors.join('，'));
+    ElMessage.error("表单验证失败：" + validationErrors.join("，"));
     return false;
   }
-  
+
   if (errors.name) {
-    ElMessage.error('请修正表单错误');
+    ElMessage.error("请修正表单错误");
     return false;
   }
-  
+
   return true;
 }
 
@@ -662,27 +751,27 @@ async function saveForm() {
   try {
     const payload = {
       name: formData.name,
-      structure: formData.structure
+      structure: formData.structure,
     };
     // 个人可见：携带 userId；公开：不带 userId
-    if (formData.visibility === 'personal') {
+    if (formData.visibility === "personal") {
       const me = getUserInfo() || {};
       const uid = me.id || me.userId || me.uid || me.userID;
-      if (uid != null && uid !== '') payload.userId = uid;
+      if (uid != null && uid !== "") payload.userId = uid;
     }
 
     if (isEdit.value) {
       await formsService.updateForm(route.params.id, payload);
-      ElMessage.success('表单更新成功');
+      ElMessage.success("表单更新成功");
     } else {
       await formsService.createForm(payload);
-      ElMessage.success('表单创建成功');
+      ElMessage.success("表单创建成功");
     }
     // refresh store list to sync local cache
     await formsStore.loadForms();
-    router.push('/forms');
+    router.push("/forms");
   } catch (error) {
-    ElMessage.error('保存失败: ' + (error.message || error));
+    ElMessage.error("保存失败: " + (error.message || error));
   } finally {
     loading.save = false;
   }
@@ -690,7 +779,7 @@ async function saveForm() {
 
 function previewForm() {
   if (formData.structure.fields.length === 0) {
-    ElMessage.warning('请先添加字段');
+    ElMessage.warning("请先添加字段");
     return;
   }
   showPreview.value = true;
@@ -702,36 +791,37 @@ function closePreview() {
 
 function loadSample() {
   // 默认加载 Sample B
-  onSampleCommand('B');
+  onSampleCommand("B");
 }
 
 function onSampleCommand(cmd) {
-  ElMessageBox.confirm(
-    '加载示例将覆盖当前设计，是否继续？',
-    '确认',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    let sample;
-    if (cmd === 'A' && typeof formsStore.generateSampleFormA === 'function') {
-      sample = formsStore.generateSampleFormA();
-    } else if (cmd === 'C' && typeof formsStore.generateSampleFormC === 'function') {
-      sample = formsStore.generateSampleFormC();
-    } else if (typeof formsStore.generateSampleFormB === 'function') {
-      sample = formsStore.generateSampleFormB();
-    } else {
-      sample = formsStore.generateSampleForm();
-    }
-    formData.name = sample.formName;
-    formData.structure = { ...sample };
-    addFieldIds(formData.structure.fields);
-    ElMessage.success(`示例表单已加载（${cmd || 'B'}）`);
-  }).catch(() => {
-    // User cancelled
-  });
+  ElMessageBox.confirm("加载示例将覆盖当前设计，是否继续？", "确认", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(() => {
+      let sample;
+      if (cmd === "A" && typeof formsStore.generateSampleFormA === "function") {
+        sample = formsStore.generateSampleFormA();
+      } else if (
+        cmd === "C" &&
+        typeof formsStore.generateSampleFormC === "function"
+      ) {
+        sample = formsStore.generateSampleFormC();
+      } else if (typeof formsStore.generateSampleFormB === "function") {
+        sample = formsStore.generateSampleFormB();
+      } else {
+        sample = formsStore.generateSampleForm();
+      }
+      formData.name = sample.formName;
+      formData.structure = { ...sample };
+      addFieldIds(formData.structure.fields);
+      ElMessage.success(`示例表单已加载（${cmd || "B"}）`);
+    })
+    .catch(() => {
+      // User cancelled
+    });
 }
 
 function openJsonDialog() {
@@ -844,7 +934,7 @@ function openJsonDialog() {
   background-color: var(--background-color-light);
   padding: 16px;
   border-radius: var(--border-radius-md);
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: var(--font-size-xs);
   line-height: 1.5;
   border: var(--border-width-thin) solid var(--border-color);
@@ -897,12 +987,20 @@ function openJsonDialog() {
 }
 
 :deep(.el-button--primary) {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--primary-color-dark) 100%
+  );
   border-color: var(--primary-color);
 }
 
 :deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, var(--primary-color-dark) 0%, var(--primary-color-darker) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color-dark) 0%,
+    var(--primary-color-darker) 100%
+  );
   border-color: var(--primary-color-dark);
 }
 
