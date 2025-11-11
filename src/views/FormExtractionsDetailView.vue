@@ -360,6 +360,12 @@ function handleCurrentChange() {
 }
 
 function getNestedValue(row, path) {
+  // First try direct access with the flattened key (e.g., "field.subfield")
+  if (path in row) {
+    return row[path]
+  }
+  
+  // Fallback to nested property access for non-flattened data
   const keys = path.split('.')
   let value = row
   for (const key of keys) {
