@@ -151,8 +151,8 @@
       :close-on-click-modal="false"
     >
       <FormPreview 
-        v-if="currentRow && form" 
-        :structure="form.structure" 
+        v-if="currentRow && effectiveStructure" 
+        :structure="effectiveStructure" 
         :initial-data="currentRowData"
         :show-examples="false"
         :editable="isEditing"
@@ -169,17 +169,16 @@
 
 <script setup>
 import AppHeader from '../components/common/AppHeader.vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useFormsStore } from '../stores/forms'
 import { useExtractionsStore } from '../stores/extractions'
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { flatten as flatUtil, unflatten as unflatUtil } from '@/utils/flatten'
+// removed unused unflatUtil after simplifying detail logic
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Download } from '@element-plus/icons-vue'
 import FormPreview from '../components/forms/FormPreview.vue'
 
 const route = useRoute()
-const router = useRouter()
 const formsStore = useFormsStore()
 const extractionsStore = useExtractionsStore()
 
@@ -190,7 +189,12 @@ const saving = ref(false)
 const exporting = ref(false)
 
 const form = computed(() => formsStore.formById(formId))
-const formName = computed(() => form.value?.name || `表单 ${formId}`)
+// 统一结构获取，兼容不同存储字段
+const effectiveStructure = computed(() => {
+  const f = form.value || {}
+  return f.structure || f.structureResult || f.structure_result || { fields: [] }
+})
+const formName = computed(() => form.value?.name || effectiveStructure.value?.formName || `表单 ${formId}`)
 
 // Data states
 const rawData = ref([])
@@ -218,48 +222,57 @@ const currentRowData = ref(null)
 const isEditing = ref(false)
 const editedData = ref(null)
 
-// Table columns configuration
+// Table columns configuration：将 fields 拆解为两级表头
+// 规则：
+// - 若某顶层字段为对象：父列=字段名，子列=对象键（prop: fields.<顶层>.<子键>）
+// - 若为对象数组：父列=字段名，子列=对象键（prop: fields.<顶层>.0.<子键>，展示第一项）
+// - 其它（字符串/数字等）：直接作为普通列（prop: fields.<顶层>）
 const tableColumns = computed(() => {
-  const structure = form.value?.structure || form.value?.structureResult || form.value?.structure_result
-  if (!structure || !Array.isArray(structure.fields)) return []
-  
-  const columns = []
-  
-  structure.fields.forEach(field => {
-    if (field.type === 'object' && Array.isArray(field.fields) && field.fields.length > 0) {
-      // Multi-level header for object fields
-      const children = field.fields.map(subField => ({
-        prop: `${field.name}.${subField.name}`,
-        label: subField.name,
-        width: 160,
-        type: subField.type
-      }))
-      columns.push({
-        prop: field.name,
-        label: field.name,
-        children
-      })
-    } else if (field.type === 'array' && field.itemType === 'object' && Array.isArray(field.fields)) {
-      // Array of objects - show as flattened columns
-      field.fields.forEach(subField => {
-        columns.push({
-          prop: `${field.name}.${subField.name}`,
-          label: `${field.name}.${subField.name}`,
-          width: 160,
-          type: subField.type
-        })
-      })
-    } else {
-      // Regular field
-      columns.push({
-        prop: field.name,
-        label: field.name,
-        width: 160,
-        type: field.type
-      })
-    }
+  const schema = new Map()
+
+  const ensureEntry = (key) => {
+    if (!schema.has(key)) schema.set(key, { kind: 'primitive', children: new Set() })
+    return schema.get(key)
+  }
+
+  rawData.value.forEach(r => {
+    const f = (r && typeof r === 'object') ? (r.fields || {}) : {}
+    Object.entries(f).forEach(([k, v]) => {
+      const entry = ensureEntry(k)
+      if (Array.isArray(v)) {
+        // 尝试找出数组中的第一个对象项
+        const firstObj = v.find(x => x && typeof x === 'object' && !Array.isArray(x))
+        if (firstObj) {
+          entry.kind = 'arrayObject'
+          Object.keys(firstObj).forEach(sub => entry.children.add(sub))
+        } else {
+          // 数组但不是对象数组，当做普通值（渲染时会 join）
+          if (entry.kind === 'primitive') entry.kind = 'primitive'
+        }
+      } else if (v && typeof v === 'object') {
+        entry.kind = 'object'
+        Object.keys(v).forEach(sub => entry.children.add(sub))
+      } else {
+        // 基本类型
+        if (entry.kind === 'primitive') entry.kind = 'primitive'
+      }
+    })
   })
-  
+
+  const columns = []
+  for (const [k, entry] of schema.entries()) {
+    if ((entry.kind === 'object' || entry.kind === 'arrayObject') && entry.children.size > 0) {
+      const children = Array.from(entry.children).map(sub => ({
+        prop: entry.kind === 'arrayObject' ? `fields.${k}.0.${sub}` : `fields.${k}.${sub}`,
+        label: sub,
+        width: 160,
+        type: 'auto'
+      }))
+      columns.push({ prop: k, label: k, children })
+    } else {
+      columns.push({ prop: `fields.${k}`, label: k, width: 160, type: 'auto' })
+    }
+  }
   return columns
 })
 
@@ -299,17 +312,18 @@ function calcTableHeight() {
 
 async function loadData() {
   await extractionsStore.loadExtractions({ form_id: formId, page: 1, pageSize: 1000 })
-  rawData.value = extractionsStore.extractions.map(e => normalizeRow(e))
+  rawData.value = (extractionsStore.extractions || []).map(e => normalizeRow(e))
   applyFiltersAndSort()
 }
 
+// 去除其他属性
 function normalizeRow(item) {
-  const flatData = flatUtil(item.extracted_data || {})
+  console.log('normalizing item', item)
   return {
     id: item.id,
-    esId: item.esId || item.esid || item.esID || '',
-    createTime: item.createTime || item.created_at || item.updated_at || '',
-    ...flatData,
+    esId: item.esId,
+    createTime: item.createTime,
+    fields: item.fields || {},
     _raw: item
   }
 }
@@ -321,10 +335,15 @@ function applyFiltersAndSort() {
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.toLowerCase()
     data = data.filter(row => {
-      return Object.entries(row).some(([key, value]) => {
-        if (['id', 'esId', 'createTime', '_raw'].includes(key)) return false
-        return String(value || '').toLowerCase().includes(keyword)
-      })
+      // 将行内所有值（含 fields 嵌套对象/数组）合并为字符串后匹配
+      const visit = (val) => {
+        if (val === null || val === undefined) return ''
+        if (Array.isArray(val)) return val.map(visit).join(' ')
+        if (typeof val === 'object') return Object.values(val).map(visit).join(' ')
+        return String(val)
+      }
+      const merged = visit({ ...row, _raw: undefined })
+      return String(merged).toLowerCase().includes(keyword)
     })
   }
   
@@ -366,7 +385,11 @@ function getNestedValue(row, path) {
   }
   
   // Fallback to nested property access for non-flattened data
-  const keys = path.split('.')
+  let keys = path.split('.')
+  // 如果行本身就是 fields 对象（没有 fields 根），且路径以 'fields.' 开头，则从根去取
+  if (!(row && typeof row === 'object' && 'fields' in row) && keys[0] === 'fields') {
+    keys = keys.slice(1)
+  }
   let value = row
   for (const key of keys) {
     if (value && typeof value === 'object') {
@@ -389,8 +412,26 @@ function formatValue(value, type) {
     case 'number':
       return String(value)
     default:
-      return String(value)
+      return prettyCell(value)
   }
+}
+
+// 对象/数组的友好展示
+function prettyCell(val) {
+  if (val === null || val === undefined) return ''
+  if (Array.isArray(val)) {
+    if (val.length === 0) return ''
+    if (val.every(v => v && typeof v === 'object' && !Array.isArray(v))) {
+      return val
+        .map(v => Object.entries(v).map(([k, v2]) => `${k}:${v2 ?? ''}`).join('，'))
+        .join(' | ')
+    }
+    return val.map(v => String(v ?? '')).join('，')
+  }
+  if (typeof val === 'object') {
+    return Object.entries(val).map(([k, v]) => `${k}:${v ?? ''}`).join('，')
+  }
+  return String(val)
 }
 
 function formatDate(dateVal) {
@@ -411,13 +452,8 @@ function handlePreview(esId) {
 
 function handleDetail(row) {
   currentRow.value = row
-  const flatData = {}
-  Object.entries(row).forEach(([key, value]) => {
-    if (!['id', 'esId', 'createTime', '_raw'].includes(key)) {
-      flatData[key] = value
-    }
-  })
-  currentRowData.value = unflatUtil(flatData)
+  // 简单明确：详情就是展示 row.fields
+  currentRowData.value = JSON.parse(JSON.stringify(row?.fields || {}))
   isEditing.value = false
   editedData.value = null
   showDetailDialog.value = true

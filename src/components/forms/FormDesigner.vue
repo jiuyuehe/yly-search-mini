@@ -763,13 +763,16 @@ async function saveForm() {
     if (isEdit.value) {
       await formsService.updateForm(route.params.id, payload);
       ElMessage.success("表单更新成功");
+      // 编辑模式保持原有跳转逻辑
+      await formsStore.loadForms();
+      router.push("/extractions");
     } else {
       await formsService.createForm(payload);
       ElMessage.success("表单创建成功");
+      // 创建成功后跳转到提取结果页面 /extractions
+      await formsStore.loadForms();
+      router.push("/extractions");
     }
-    // refresh store list to sync local cache
-    await formsStore.loadForms();
-    router.push("/forms");
   } catch (error) {
     ElMessage.error("保存失败: " + (error.message || error));
   } finally {

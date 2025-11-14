@@ -20,10 +20,7 @@
             <span>文档搜索</span>
           </el-menu-item>
           
-          <el-menu-item index="/forms">
-            <el-icon><Document /></el-icon>
-            <span>表单管理</span>
-          </el-menu-item>
+  
           
           <el-menu-item index="/extractions">
             <el-icon><DataAnalysis /></el-icon>
@@ -37,7 +34,7 @@
 
           <el-menu-item index="/labeling">
             <el-icon><CollectionTag /></el-icon>
-            <span>标签管理</span>
+            <span>分类分级</span>
           </el-menu-item>
 
           <el-menu-item index="/diff">

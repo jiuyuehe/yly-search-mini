@@ -62,7 +62,13 @@ const emit = defineEmits(['update:modelValue'])
 
 const formData = reactive({});
 
-// Initialize form data
+// 初始化表单预览数据
+// 注意：
+// 1）props.structure.fields 描述的是字段定义，是一个数组，每一项包含字段名称/类型/子字段列表。（来自表单模板）
+// 2）props.initialData 是实际填充的 JSON 对象，key->value 的扁平结构（来自提取结果）。
+// 因此需要在初始赋值时把字段定义和实际值进行映射：普通字段直接取 initialData 字段值；
+// 对象类型字段需要用 defs（数组）来遍历子字段，而 initialData 里对应的值可能是对象也可能是数组（对象数组情形），
+// 所以会将 initialData 中的子对象扁平化到 defs 指定的顺序里去，确保表单预览里的子字段与 API 返回保持一致。
 watch(() => [props.structure, props.initialData], ([newStructure, newInitialData]) => {
   if (newStructure && newStructure.fields) {
     initializeFormData(newStructure.fields, newInitialData);
@@ -71,29 +77,42 @@ watch(() => [props.structure, props.initialData], ([newStructure, newInitialData
 
 function initializeFormData(fields, initialData) {
   fields.forEach(field => {
-    // Use initialData if provided, otherwise use default/example values
     const initialValue = initialData?.[field.name]
-    
+
     if (field.type === 'object' && field.fields) {
-      formData[field.name] = initialValue || {};
-      field.fields.forEach(subField => {
-        if (!formData[field.name][subField.name]) {
-          formData[field.name][subField.name] = getDefaultValue(subField);
-        }
-      });
+      formData[field.name] = buildObjectValue(field.fields, initialValue)
     } else if (field.type === 'array' && field.fields) {
-      formData[field.name] = initialValue || [{}];
-      if (Array.isArray(formData[field.name]) && formData[field.name].length > 0) {
-        field.fields.forEach(subField => {
-          if (!formData[field.name][0][subField.name]) {
-            formData[field.name][0][subField.name] = getDefaultValue(subField);
-          }
-        });
-      }
+      formData[field.name] = buildArrayValue(field.fields, initialValue)
     } else {
-      formData[field.name] = initialValue !== undefined ? initialValue : getDefaultValue(field);
+      formData[field.name] = initialValue !== undefined ? initialValue : getDefaultValue(field)
     }
-  });
+  })
+}
+
+function buildObjectValue(defs, sourceValue) {
+  const baseValue = Array.isArray(sourceValue) ? sourceValue[0] || {} : (sourceValue || {})
+  const result = {}
+  defs.forEach(subField => {
+    const nestedValue = baseValue?.[subField.name]
+    result[subField.name] = nestedValue !== undefined ? nestedValue : getDefaultValue(subField)
+  })
+  return result
+}
+
+function buildArrayValue(defs, sourceValue) {
+  const arraySource = Array.isArray(sourceValue) && sourceValue.length ? sourceValue : [{}]
+  const result = arraySource.map(item => ({ ...item }))
+  result.forEach(item => {
+    defs.forEach(subField => {
+      const nestedValue = item?.[subField.name]
+      if (nestedValue !== undefined) {
+        item[subField.name] = nestedValue
+      } else if (item[subField.name] === undefined) {
+        item[subField.name] = getDefaultValue(subField)
+      }
+    })
+  })
+  return result
 }
 
 function getDefaultValue(field) {
