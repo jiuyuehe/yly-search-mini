@@ -70,9 +70,8 @@ class PreviewService {
 
   /** 创建 NAS 在线预览任务 */
   async createNasPreviewTask({ nascode, nasFilePath, serverCode = 'yliyunviewer', mode = 'view' }) {
-    if (!nasId) throw new Error('缺少 nasId');
     if (!nasFilePath) throw new Error('缺少 nasFilePath');
-    const body = { mode, serverCode, nasCode: String(nasId), nasFilePath, fileCategory: 'nas' };
+    const body = { mode, serverCode, nasCode: String(nascode), nasFilePath, fileCategory: 'nas' };
   const res = await appsApi.post('/pub/file-online/url/task', body, { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
   // 不在此处抛出异常，让上层统一根据返回的 status 做判断（减少前端对 error.message 的脆弱解析）  
   return res; // 可能为 { status: 'ok', data: { taskId, token } } 或 { status: 'err_no_permission', msg: '...' }

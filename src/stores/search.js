@@ -14,13 +14,13 @@ function parseAiKeywords(aiTag) {
     }
     let txt = String(aiTag).trim();
     if (!txt) return [];
-    try {
+   
       const obj = JSON.parse(txt);
       if (obj && Array.isArray(obj.keywords)) {
         return obj.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
       }
-    } catch {}
-    try {
+
+  
       const unwrapped = JSON.parse(txt);
       if (unwrapped && typeof unwrapped === 'string') {
         const obj2 = JSON.parse(unwrapped);
@@ -30,17 +30,17 @@ function parseAiKeywords(aiTag) {
       } else if (unwrapped && typeof unwrapped === 'object' && Array.isArray(unwrapped.keywords)) {
         return unwrapped.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
       }
-    } catch {}
-    try {
+
+   
       const stripped = txt.replace(/^"|"$/g, '');
       const normalized = stripped.replace(/\\"/g, '"').replace(/\\n/g, '');
       const obj3 = JSON.parse(normalized);
       if (obj3 && Array.isArray(obj3.keywords)) {
         return obj3.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
       }
-    } catch {}
+ 
     const matches = [];
-    const re = /"keyword"\s*:\s*"([^\"]+)"/g;
+    const re = /"keyword"\s*:\s*"([^\\"]+)"/g;
     let m;
     while ((m = re.exec(txt)) && matches.length < 10) { matches.push(m[1]); }
     return matches;
@@ -239,14 +239,14 @@ export const useSearchStore = defineStore('search', {
             let txt = String(aiTag).trim();
             if (!txt) return [];
             // Try direct JSON parse
-            try {
+          
               const obj = JSON.parse(txt);
               if (obj && Array.isArray(obj.keywords)) {
                 return obj.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
               }
-            } catch {}
+           
             // Try double-JSON (quoted JSON string), e.g. "{\"keywords\":...}"
-            try {
+         
               const unwrapped = JSON.parse(txt);
               if (unwrapped && typeof unwrapped === 'string') {
                 const obj2 = JSON.parse(unwrapped);
@@ -256,16 +256,16 @@ export const useSearchStore = defineStore('search', {
               } else if (unwrapped && typeof unwrapped === 'object' && Array.isArray(unwrapped.keywords)) {
                 return unwrapped.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
               }
-            } catch {}
+           
             // Try unescape common patterns and parse again
-            try {
+         
               const stripped = txt.replace(/^"|"$/g, '');
               const normalized = stripped.replace(/\\"/g, '"').replace(/\\n/g, '');
               const obj3 = JSON.parse(normalized);
               if (obj3 && Array.isArray(obj3.keywords)) {
                 return obj3.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
               }
-            } catch {}
+          
             // Regex fallback: extract "keyword":"..." pairs
             const matches = [];
             const re = /"keyword"\s*:\s*"([^"]+)"/g;
@@ -483,10 +483,10 @@ export const useSearchStore = defineStore('search', {
   ,
   // selection persistence
   addSelected(key, obj) {
-    try { this.selectedMap = { ...this.selectedMap, [key]: { ...obj } }; } catch (e) {}
+   this.selectedMap = { ...this.selectedMap, [key]: { ...obj } }; 
   },
   removeSelected(key) {
-    try { const m = { ...this.selectedMap }; delete m[key]; this.selectedMap = m; } catch (e) {}
+  const m = { ...this.selectedMap }; delete m[key]; this.selectedMap = m; 
   },
   clearSelected() {
     this.selectedMap = {};
