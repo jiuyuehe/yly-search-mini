@@ -22,7 +22,7 @@ class PreviewService {
         const isNas = (data.fileCategory || params.fc) === 'nas' || data.nasId || params.nsi;
         if (isNas) {
           const nasId = data.nasId || params.nsi;
-            // nasFileId 后端可能命名 nasFileId 或 nasFileID；若缺失尝试从 params.nfi
+          // nasFileId 后端可能命名 nasFileId 或 nasFileID；若缺失尝试从 params.nfi
           const nasFileId = data.nasFileId || data.nasfileId || params.nfi || null;
           if (nasId && nasFileId) {
             data.esId = `${nasId}-${nasFileId}`;
@@ -49,7 +49,7 @@ class PreviewService {
     return root.data || {};
   }
 
-   async getDetailByEsId(esid) {
+  async getDetailByEsId(esid) {
     if (!esid) throw new Error('缺少 esid');
     const body = { esid: esid };
     const root = await api.post('/admin-api/rag/documents/detail', body, { headers: { 'Content-Type': 'application/json' } });
@@ -73,17 +73,17 @@ class PreviewService {
     if (!nascode) throw new Error('缺少 nascode');
     if (!nasFilePath) throw new Error('缺少 nasFilePath');
     const body = { mode, serverCode, nasCode: String(nascode), nasFilePath, fileCategory: 'nas' };
-  const res = await appsApi.post('/pub/file-online/url/task', body, { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
-  // 不在此处抛出异常，让上层统一根据返回的 status 做判断（减少前端对 error.message 的脆弱解析）  
-  return res; // 可能为 { status: 'ok', data: { taskId, token } } 或 { status: 'err_no_permission', msg: '...' }
+    const res = await appsApi.post('/pub/file-online/url/task', body, { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
+    // 不在此处抛出异常，让上层统一根据返回的 status 做判断（减少前端对 error.message 的脆弱解析）  
+    return res; // 可能为 { status: 'ok', data: { taskId, token } } 或 { status: 'err_no_permission', msg: '...' }
   }
 
   /** 查询 NAS 在线预览任务状态 */
   async fetchNasPreviewTask({ taskId, token }) {
     if (!taskId || !token) throw new Error('缺少 taskId/token');
-  // 返回原始响应体，交由调用方按 status 做更细粒度判断
-  const res = await appsApi.get('/pub/file-online/url/task', { params: { task_id: taskId, token } });
-  return res; // 可能结构: { status: 'ok', result: { link, fileName } } 或 { status: 'err_no_permission', msg: '...' }
+    // 返回原始响应体，交由调用方按 status 做更细粒度判断
+    const res = await appsApi.get('/pub/file-online/url/task', { params: { task_id: taskId, token } });
+    return res; // 可能结构: { status: 'ok', result: { link, fileName } } 或 { status: 'err_no_permission', msg: '...' }
   }
 
   /** 等待 NAS 预览链接 (轮询) */
@@ -103,17 +103,17 @@ class PreviewService {
         throw new Error('NAS 预览生成超时');
       }
       const data = await this.fetchNasPreviewTask({ taskId, token });
-      
+
       // 若后端明确返回无权限，直接把结构返回给调用方，避免上层去解析 error.message
       if (data && data.status === 'err_no_permission') {
         return data;
       }
       if (data && data.status === 'ok' && data.result?.link) {
-        return { status:data.status, link: data.result.link, fileName: data.result.fileName || '' };
+        return { status: data.status, link: data.result.link, fileName: data.result.fileName || '' };
       }
 
-     if (data && data.status === 'ok' && data?.data?.result?.link) {
-        return {status:data.status, link: data.data.result.link, fileName: data.data.result.fileName || '' };
+      if (data && data.status === 'ok' && data?.data?.result?.link) {
+        return { status: data.status, link: data.data.result.link, fileName: data.data.result.fileName || '' };
       }
 
       if (data && (data.status === 'fail' || data.errorMsg)) {

@@ -7,14 +7,14 @@ export const useFilePreviewStore = defineStore('filePreview', {
     loading: false,
     error: null
   }),
-  
+
   actions: {
     async loadFile(fileId) {
       this.loading = true;
-      
+
       try {
         const file = await fileService.getFilePreview(fileId);
-  // debug removed
+        // debug removed
         this.currentFile = file;
         this.error = null;
         return file;
@@ -25,7 +25,7 @@ export const useFilePreviewStore = defineStore('filePreview', {
         this.loading = false;
       }
     },
-    
+
     async downloadFile(fileId) {
       try {
         await fileService.downloadFile(fileId);
@@ -33,7 +33,7 @@ export const useFilePreviewStore = defineStore('filePreview', {
         this.error = error.message;
       }
     },
-    
+
     async requestAccess(fileId, requestType, reason) {
       try {
         await fileService.requestAccess(fileId, requestType, reason);

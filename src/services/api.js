@@ -6,21 +6,21 @@ const USER_INFO_KEY = 'userInfo';
 
 function getCtFromCookie() {
   const match = document.cookie.match(/(?:^|; )ct=([^;]+)/);
-  return match ? decodeURIComponent(match[1]):"";
+  return match ? decodeURIComponent(match[1]) : "";
 }
 
 export function getCT() {
-  let ct =  getCtFromCookie() || localStorage.getItem(CT_KEY) || localStorage.getItem("ngStorage-ct");
+  let ct = getCtFromCookie() || localStorage.getItem(CT_KEY) || localStorage.getItem("ngStorage-ct");
   return ct && ct.replace(/^['"]|['"]$/g, '')
 }
 export function clearCT() {
   try { localStorage.removeItem(CT_KEY); } catch { /* ignore */ }
 }
 export function setUserInfo(u) {
-  try { localStorage.setItem(USER_INFO_KEY, JSON.stringify(u||{})); } catch { /* ignore */ }
+  try { localStorage.setItem(USER_INFO_KEY, JSON.stringify(u || {})); } catch { /* ignore */ }
 }
 export function getUserInfo() {
-  try { return JSON.parse(localStorage.getItem(USER_INFO_KEY)||'null'); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(USER_INFO_KEY) || 'null'); } catch { return null; }
 }
 
 // 基础搜索后端实例（保持原 /rag 前缀）
@@ -77,7 +77,7 @@ function attachCt(config) {
         return {
           httpStatus: 0,
           code: 'NETWORK_ERROR',
-            message: err?.message || '网络异常',
+          message: err?.message || '网络异常',
           data: null,
           response: null,
           original: err
@@ -91,8 +91,8 @@ function attachCt(config) {
 let _authInited = false;
 export async function fetchUserInfo() {
   try {
-  // apps 前缀接口使用 appsApi，避免重复 /apps/apps；直接请求 /user
-  const res = await appsApi.get('/user');
+    // apps 前缀接口使用 appsApi，避免重复 /apps/apps；直接请求 /user
+    const res = await appsApi.get('/user');
     if (res && res.status === 'ok') {
       setUserInfo(res.data || {});
       return res.data;
@@ -120,14 +120,14 @@ export async function initAuth(force = false) {
   _authInited = true;
   const ct = getCT();
   if (!ct) {
-  // debug log removed
+    // debug log removed
     return null;
   }
   const user = await fetchUserInfo();
   if (!user) {
     // 已在 fetch 内部提示
   } else {
-  // debug log removed
+    // debug log removed
   }
   return user;
 }

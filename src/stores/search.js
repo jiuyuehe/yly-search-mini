@@ -19,7 +19,7 @@ function parseAiKeywords(aiTag) {
       if (obj && Array.isArray(obj.keywords)) {
         return obj.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
       }
-    } catch {}
+    } catch { }
     try {
       const unwrapped = JSON.parse(txt);
       if (unwrapped && typeof unwrapped === 'string') {
@@ -30,7 +30,7 @@ function parseAiKeywords(aiTag) {
       } else if (unwrapped && typeof unwrapped === 'object' && Array.isArray(unwrapped.keywords)) {
         return unwrapped.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
       }
-    } catch {}
+    } catch { }
     try {
       const stripped = txt.replace(/^"|"$/g, '');
       const normalized = stripped.replace(/\\"/g, '"').replace(/\\n/g, '');
@@ -38,7 +38,7 @@ function parseAiKeywords(aiTag) {
       if (obj3 && Array.isArray(obj3.keywords)) {
         return obj3.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
       }
-    } catch {}
+    } catch { }
     const matches = [];
     const re = /"keyword"\s*:\s*"([^\"]+)"/g;
     let m;
@@ -53,10 +53,10 @@ export const useSearchStore = defineStore('search', {
   state: () => ({
     query: '',
     searchType: 'fullText',
-  // cache search results per type so switching away/back restores UI without extra network
-  resultsCache: {},
+    // cache search results per type so switching away/back restores UI without extra network
+    resultsCache: {},
     precision: 0.9, // 固定默认精准度（UI 已移除滑块）
-  precisionMode: 3, // 1:全文 2:精准 3:混合 (默认改为 3，并由 SearchBox 同步)
+    precisionMode: 3, // 1:全文 2:精准 3:混合 (默认改为 3，并由 SearchBox 同步)
     filters: {
       fileCategory: [],
       fileSpace: [],
@@ -72,25 +72,25 @@ export const useSearchStore = defineStore('search', {
       fileSysTag: '',
       extname: ''
     },
-  results: [], loading: false, error: null,
-  // persistent map of stableKey -> full file object for selections across pages
-  selectedMap: {},
+    results: [], loading: false, error: null,
+    // persistent map of stableKey -> full file object for selections across pages
+    selectedMap: {},
     pagination: { currentPage: 1, pageSize: 10, total: 0 },
     tabCounts: { all: 0, document: 0, image: 0, multimedia: 0, archive: 0, other: 0 },
     filterOptions: { fileSpaces: [], creators: [], tags: [], formats: [] },
-  // last search response time in milliseconds (from backend)
-  searchTime: 0,
+    // last search response time in milliseconds (from backend)
+    searchTime: 0,
     activeTab: 'all',
-  // Tag cloud
-  tagCloud: [],
-  tagSearchActive: false,
-  tagSearchTags: [],
+    // Tag cloud
+    tagCloud: [],
+    tagSearchActive: false,
+    tagSearchTags: [],
     _reqSeq: 0 // 并发请求序列号
   }),
   getters: {
     getFilteredResults: (state) => (tab) => { if (tab === 'all') return state.results; return state.results.filter(i => i.type === tab); },
-  getSelectedObjects: (s) => Object.keys(s.selectedMap || {}).map(k => s.selectedMap[k]),
-  getSelectedCount: (s) => Object.keys(s.selectedMap || {}).length,
+    getSelectedObjects: (s) => Object.keys(s.selectedMap || {}).map(k => s.selectedMap[k]),
+    getSelectedCount: (s) => Object.keys(s.selectedMap || {}).length,
     getTotalCount: (s) => s.pagination.total,
     getTabCounts: (s) => s.tabCounts,
     getFilterOptions: (s) => s.filterOptions,
@@ -103,21 +103,21 @@ export const useSearchStore = defineStore('search', {
     }
   },
   actions: {
-  // loadInitialData: fetch filter options and optionally run an initial (empty) search.
-  // runSearch: boolean (default true) — when false, only fetches filter options.
-  async loadInitialData(runSearch = true) {
-    try {
-      const fo = await searchService.getFilterOptions();
-      this.filterOptions = fo; // preserve current searchType if set (e.g., returning from preview)
-      const initialType = this.searchType || 'fullText';
-      if (runSearch) {
-        await this.search('', initialType);
-      }
-    } catch (e) { this.error = e.message; }
-  },
-  async fetchTagCloud(force=false){ if(!force && this.tagCloud && this.tagCloud.length) return this.tagCloud; const { tagCloudService } = await import('../services/tagCloud'); this.tagCloud = await tagCloudService.getKeywordsCloud(); return this.tagCloud; },
-  async refreshTagCloud(){ const { tagCloudService } = await import('../services/tagCloud'); await tagCloudService.updateKeywordsCloud(); this.tagCloud = await tagCloudService.getKeywordsCloud(); },
-  buildParams(query, searchType) {
+    // loadInitialData: fetch filter options and optionally run an initial (empty) search.
+    // runSearch: boolean (default true) — when false, only fetches filter options.
+    async loadInitialData(runSearch = true) {
+      try {
+        const fo = await searchService.getFilterOptions();
+        this.filterOptions = fo; // preserve current searchType if set (e.g., returning from preview)
+        const initialType = this.searchType || 'fullText';
+        if (runSearch) {
+          await this.search('', initialType);
+        }
+      } catch (e) { this.error = e.message; }
+    },
+    async fetchTagCloud(force = false) { if (!force && this.tagCloud && this.tagCloud.length) return this.tagCloud; const { tagCloudService } = await import('../services/tagCloud'); this.tagCloud = await tagCloudService.getKeywordsCloud(); return this.tagCloud; },
+    async refreshTagCloud() { const { tagCloudService } = await import('../services/tagCloud'); await tagCloudService.updateKeywordsCloud(); this.tagCloud = await tagCloudService.getKeywordsCloud(); },
+    buildParams(query, searchType) {
       const f = this.filters; const page = this.pagination.currentPage; const pageSize = this.pagination.pageSize; const offset = (page - 1) * pageSize;
       // 时间
       let timeDis, startDate, endDate;
@@ -130,12 +130,12 @@ export const useSearchStore = defineStore('search', {
         fileSizeStr = f.fileSize[0];
         const m = fileSizeStr.split('-');
         if (m.length === 2) {
-          const toBytes = (v) => { if (v === '0' || v === '' || v == null) return 0; const num = parseFloat(v.replace(/([MG])$/i,'')); if (/M$/i.test(v)) return num * 1024 * 1024; if (/G$/i.test(v)) return num * 1024 * 1024 * 1024; return num; };
+          const toBytes = (v) => { if (v === '0' || v === '' || v == null) return 0; const num = parseFloat(v.replace(/([MG])$/i, '')); if (/M$/i.test(v)) return num * 1024 * 1024; if (/G$/i.test(v)) return num * 1024 * 1024 * 1024; return num; };
           const rawMin = m[0]; const rawMax = m[1];
-            const minBytes = rawMin === '0' ? 0 : toBytes(rawMin);
-            const maxBytes = rawMax === '0' ? undefined : toBytes(rawMax);
-            if (minBytes) minSize = Math.round(minBytes);
-            if (maxBytes) maxSize = Math.round(maxBytes);
+          const minBytes = rawMin === '0' ? 0 : toBytes(rawMin);
+          const maxBytes = rawMax === '0' ? undefined : toBytes(rawMax);
+          if (minBytes) minSize = Math.round(minBytes);
+          if (maxBytes) maxSize = Math.round(maxBytes);
         }
       }
       const extname = f.formats?.length ? f.formats.join(',') : '';
@@ -151,10 +151,10 @@ export const useSearchStore = defineStore('search', {
         case 'precision': searchMode = 'precision'; break; // 仍保留后端精准模式，仅通过 checkbox 触发
         default: searchMode = 'keyword';
       }
-    const aiTagLabel = f.fileAiTag || '';
-    const base = { offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, tag: (aiTagLabel || fileSysTag), searchType: searchMode, searchMode };
-  // 如果筛选中携带了 fileAiTag（标签名），同时传递给后端
-  if (query && String(query).trim()) base.keyword = String(query).trim();
+      const aiTagLabel = f.fileAiTag || '';
+      const base = { offset, limit: pageSize, createrId, timeDis, startDate, endDate, minSize, maxSize, hasHistory, folder, extname, tag: (aiTagLabel || fileSysTag), searchType: searchMode, searchMode };
+      // 如果筛选中携带了 fileAiTag（标签名），同时传递给后端
+      if (query && String(query).trim()) base.keyword = String(query).trim();
       if (fileCategory) base.fileCategory = fileCategory;
       if (fileSizeStr) base.fileSize = fileSizeStr;
       const docTypeParam = tabToDocTypeParam(this.activeTab); if (docTypeParam) base.docType = docTypeParam;
@@ -168,12 +168,12 @@ export const useSearchStore = defineStore('search', {
       }
       return base;
     },
-  async search(query, searchType = 'fullText', imageFile = null, options = null) {
+    async search(query, searchType = 'fullText', imageFile = null, options = null) {
       const seq = ++this._reqSeq; // 本次请求序
       // 不要直接修改传入的 searchType（这是 UI 的选择），使用局部变量作为请求时的类型
       let reqType = searchType;
       // 根据前端下拉: 1全文 2段落 3精准 — 仅用于构建请求，不写回 store.searchType
-      if (options && typeof options.precisionMode !== 'undefined' && !['image','qa'].includes(searchType)) {
+      if (options && typeof options.precisionMode !== 'undefined' && !['image', 'qa'].includes(searchType)) {
         const mode = Number(options.precisionMode);
         if (mode === 3) reqType = 'precision';
         else reqType = 'fullText'; // 1/2 都归为全文类型，后端可用附加字段区分
@@ -202,13 +202,13 @@ export const useSearchStore = defineStore('search', {
       }
 
       try {
-  const params = this.buildParams(query, reqType);
+        const params = this.buildParams(query, reqType);
         if (options && typeof options.precisionMode !== 'undefined') {
           // 使用后端约定的参数名 precisionMode（数值 1/2/3）
           params.precisionMode = Number(options.precisionMode);
         }
-    let searchResp, aggCounts;
-    let gotAgg = false;
+        let searchResp, aggCounts;
+        let gotAgg = false;
         if (reqType === 'image') {
           searchResp = await imageSearchService.searchByVisual(params, imageFile);
           aggCounts = {};
@@ -225,7 +225,7 @@ export const useSearchStore = defineStore('search', {
             aggCounts = {};
           }
         }
-  if (seq !== this._reqSeq) return; // 只应用最新
+        if (seq !== this._reqSeq) return; // 只应用最新
         const { results, pagination, tabCounts } = searchResp;
         // robustly parse AI tags from fileAiTag and populate fileSysTag/tags
         function parseAiKeywords(aiTag) {
@@ -239,33 +239,33 @@ export const useSearchStore = defineStore('search', {
             let txt = String(aiTag).trim();
             if (!txt) return [];
             // Try direct JSON parse
-            try {
-              const obj = JSON.parse(txt);
-              if (obj && Array.isArray(obj.keywords)) {
-                return obj.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
-              }
-            } catch {}
+
+            const obj = JSON.parse(txt);
+            if (obj && Array.isArray(obj.keywords)) {
+              return obj.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+            }
+
             // Try double-JSON (quoted JSON string), e.g. "{\"keywords\":...}"
-            try {
-              const unwrapped = JSON.parse(txt);
-              if (unwrapped && typeof unwrapped === 'string') {
-                const obj2 = JSON.parse(unwrapped);
-                if (obj2 && Array.isArray(obj2.keywords)) {
-                  return obj2.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
-                }
-              } else if (unwrapped && typeof unwrapped === 'object' && Array.isArray(unwrapped.keywords)) {
-                return unwrapped.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+
+            const unwrapped = JSON.parse(txt);
+            if (unwrapped && typeof unwrapped === 'string') {
+              const obj2 = JSON.parse(unwrapped);
+              if (obj2 && Array.isArray(obj2.keywords)) {
+                return obj2.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
               }
-            } catch {}
+            } else if (unwrapped && typeof unwrapped === 'object' && Array.isArray(unwrapped.keywords)) {
+              return unwrapped.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+            }
+
             // Try unescape common patterns and parse again
-            try {
-              const stripped = txt.replace(/^"|"$/g, '');
-              const normalized = stripped.replace(/\\"/g, '"').replace(/\\n/g, '');
-              const obj3 = JSON.parse(normalized);
-              if (obj3 && Array.isArray(obj3.keywords)) {
-                return obj3.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
-              }
-            } catch {}
+
+            const stripped = txt.replace(/^"|"$/g, '');
+            const normalized = stripped.replace(/\\"/g, '"').replace(/\\n/g, '');
+            const obj3 = JSON.parse(normalized);
+            if (obj3 && Array.isArray(obj3.keywords)) {
+              return obj3.keywords.map(k => (typeof k === 'string' ? k : (k && k.keyword))).filter(Boolean).slice(0, 10);
+            }
+
             // Regex fallback: extract "keyword":"..." pairs
             const matches = [];
             const re = /"keyword"\s*:\s*"([^"]+)"/g;
@@ -293,36 +293,36 @@ export const useSearchStore = defineStore('search', {
             }
           });
         }
-  this.results = results;
-  // expose latest results for other modules (e.g., download mapping)
-  try { window.__SEARCH_RESULTS__ = Array.isArray(results) ? [...results] : []; } catch (e) { /* ignore */ }
+        this.results = results;
+        // expose latest results for other modules (e.g., download mapping)
+        try { window.__SEARCH_RESULTS__ = Array.isArray(results) ? [...results] : []; } catch (e) { /* ignore */ }
         // cache results for this request type so switching away/back can restore
-        try {
-          this.resultsCache[reqType] = {
-            results: Array.isArray(results) ? [...results] : [],
-            pagination: { ...this.pagination },
-            tabCounts: { ...this.tabCounts },
-            searchTime: this.searchTime
-          };
-        } catch (e) { /* ignore */ }
+
+        this.resultsCache[reqType] = {
+          results: Array.isArray(results) ? [...results] : [],
+          pagination: { ...this.pagination },
+          tabCounts: { ...this.tabCounts },
+          searchTime: this.searchTime
+        };
+
         this.pagination.total = pagination.total;
         // After updating total, ensure currentPage is within valid range.
         // If options contains internal flag _skipPageFix, do not attempt correction to avoid loop.
-        try {
-          const sz = this.pagination.pageSize || 10;
-          const tot = Number(this.pagination.total) || 0;
-          const maxPage = Math.max(1, Math.ceil(tot / sz));
-          if (!options || !options._skipPageFix) {
-            if (this.pagination.currentPage > maxPage) {
-              // set to maxPage and re-run search once (with skip flag)
-              this.pagination.currentPage = maxPage;
-              // re-run search but mark to skip further correction
-              this.search(this.query, this.searchType, null, { ...options, _skipPageFix: true }).catch(()=>{});
-            }
+
+        const sz = this.pagination.pageSize || 10;
+        const tot = Number(this.pagination.total) || 0;
+        const maxPage = Math.max(1, Math.ceil(tot / sz));
+        if (!options || !options._skipPageFix) {
+          if (this.pagination.currentPage > maxPage) {
+            // set to maxPage and re-run search once (with skip flag)
+            this.pagination.currentPage = maxPage;
+            // re-run search but mark to skip further correction
+            this.search(this.query, this.searchType, null, { ...options, _skipPageFix: true }).catch(() => { });
           }
-        } catch (e) { /* ignore */ }
-  // 如果后端返回 searchTime，则保存到 store，单位毫秒
-  if (searchResp.searchTime != null) this.searchTime = Number(searchResp.searchTime) || 0;
+        }
+
+        // 如果后端返回 searchTime，则保存到 store，单位毫秒
+        if (searchResp.searchTime != null) this.searchTime = Number(searchResp.searchTime) || 0;
         // only replace tabCounts when we actually fetched aggregation stats
         if (gotAgg) {
           const merged = { ...tabCounts, ...aggCounts };
@@ -341,37 +341,37 @@ export const useSearchStore = defineStore('search', {
         if (seq === this._reqSeq) this.loading = false;
       }
     },
-    async searchFilesByTags(tags){
-      if(!Array.isArray(tags) || !tags.length) return;
+    async searchFilesByTags(tags) {
+      if (!Array.isArray(tags) || !tags.length) return;
       const { tagCloudService } = await import('../services/tagCloud');
-      this.loading=true; this.tagSearchActive=true; this.tagSearchTags=[...tags]; this.query='';
+      this.loading = true; this.tagSearchActive = true; this.tagSearchTags = [...tags]; this.query = '';
       try {
-        const page=this.pagination.currentPage; const pageSize=this.pagination.pageSize;
+        const page = this.pagination.currentPage; const pageSize = this.pagination.pageSize;
         const resp = await tagCloudService.filesByTags({ tags, page, pageSize });
         const { normalizeFile } = await import('../constants/fileModel');
         const { mapDocTypeCodeToTab, mapExtToTab } = await import('../constants/fileTypes');
-        let norm = resp.list.map(r=>{ const f=normalizeFile(r); const tab = f.docType!=null? mapDocTypeCodeToTab(Number(f.docType)) : mapExtToTab(f.fileType); return { ...f, type: tab }; });
-          // ensure AI tags are parsed and mapped to fileSysTag/tags as in regular search
-          if (Array.isArray(norm)) {
-            norm.forEach(r => {
-              const rawAi = r ? (r.fileAiTag != null ? r.fileAiTag : (r._raw && r._raw.fileAiTag)) : null;
-              const kws = parseAiKeywords(rawAi);
-              if (kws && kws.length) {
-                r.fileSysTag = kws.join(',');
-                r.tags = kws.slice(0, 10);
-              }
-              if (r && r.fileAiTag == null && rawAi != null) r.fileAiTag = rawAi;
-            });
-          }
-          this.results=norm; this.pagination.total=resp.total;
-        const counter={ document:0,image:0,multimedia:0,archive:0,other:0 };
-        norm.forEach(r=>{ if(counter[r.type]!=null) counter[r.type]++; else counter.other++; });
+        let norm = resp.list.map(r => { const f = normalizeFile(r); const tab = f.docType != null ? mapDocTypeCodeToTab(Number(f.docType)) : mapExtToTab(f.fileType); return { ...f, type: tab }; });
+        // ensure AI tags are parsed and mapped to fileSysTag/tags as in regular search
+        if (Array.isArray(norm)) {
+          norm.forEach(r => {
+            const rawAi = r ? (r.fileAiTag != null ? r.fileAiTag : (r._raw && r._raw.fileAiTag)) : null;
+            const kws = parseAiKeywords(rawAi);
+            if (kws && kws.length) {
+              r.fileSysTag = kws.join(',');
+              r.tags = kws.slice(0, 10);
+            }
+            if (r && r.fileAiTag == null && rawAi != null) r.fileAiTag = rawAi;
+          });
+        }
+        this.results = norm; this.pagination.total = resp.total;
+        const counter = { document: 0, image: 0, multimedia: 0, archive: 0, other: 0 };
+        norm.forEach(r => { if (counter[r.type] != null) counter[r.type]++; else counter.other++; });
         this.tabCounts = { all: resp.total, ...counter };
-        this.error=null;
-      } catch(e){ this.error=e.message||'标签搜索失败'; }
-      finally { this.loading=false; }
+        this.error = null;
+      } catch (e) { this.error = e.message || '标签搜索失败'; }
+      finally { this.loading = false; }
     },
-  setActiveTab(tab) { this.activeTab = tab; this.pagination.currentPage = 1; if(this.tagSearchActive){ this.searchFilesByTags(this.tagSearchTags); } else { this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); } },
+    setActiveTab(tab) { this.activeTab = tab; this.pagination.currentPage = 1; if (this.tagSearchActive) { this.searchFilesByTags(this.tagSearchTags); } else { this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); } },
     // setSearchType: switch mode and clear previous results to avoid stale UI
     setSearchType(type) {
       const newType = type || 'fullText';
@@ -407,9 +407,9 @@ export const useSearchStore = defineStore('search', {
         this.tagSearchActive = false;
       }
     },
-  updateFilters(filters) { const cloned = { ...filters }; ['fileCategory','fileSpace','creators','tags','formats','fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1;  this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
-  updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
-  updatePageSize(s) { this.pagination.pageSize = s; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
+    updateFilters(filters) { const cloned = { ...filters };['fileCategory', 'fileSpace', 'creators', 'tags', 'formats', 'fileSize'].forEach(k => { if (Array.isArray(cloned[k])) cloned[k] = [...cloned[k]]; }); this.filters = { ...this.filters, ...cloned }; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
+    updateCurrentPage(p) { this.pagination.currentPage = p; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
+    updatePageSize(s) { this.pagination.pageSize = s; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); },
     async downloadFiles(ids) { try { await searchService.downloadFiles(ids); } catch (e) { this.error = e.message; } },
     async exportResults(ids) {
       try {
@@ -438,40 +438,40 @@ export const useSearchStore = defineStore('search', {
         }
         if (!rows.length) { ElMessage.warning('没有可导出的数据'); return; }
         // 构建 CSV
-        const headers = ['文件名称','文件大小','文件路径','创建人','上传时间','更新人','更新时间','空间','中文摘要','译文摘要','AI标签','系统标签','文件实体','文本翻译','属性','文件内容'];
-        const escapeCsv = (str) => { if (str == null) return '""'; const s = String(str).replace(/"/g,'""'); return '"' + s + '"'; };
-        const formatSize = (sz) => { if (!sz && sz!==0) return ''; const units=['B','KB','MB','GB','TB']; let v=Number(sz); let i=0; while(v>=1024 && i<units.length-1){ v/=1024; i++; } return (v.toFixed(i?2:0)) + units[i]; };
-        let csv = headers.map(h=>escapeCsv(h)).join(',') + '\n';
+        const headers = ['文件名称', '文件大小', '文件路径', '创建人', '上传时间', '更新人', '更新时间', '空间', '中文摘要', '译文摘要', 'AI标签', '系统标签', '文件实体', '文本翻译', '属性', '文件内容'];
+        const escapeCsv = (str) => { if (str == null) return '""'; const s = String(str).replace(/"/g, '""'); return '"' + s + '"'; };
+        const formatSize = (sz) => { if (!sz && sz !== 0) return ''; const units = ['B', 'KB', 'MB', 'GB', 'TB']; let v = Number(sz); let i = 0; while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; } return (v.toFixed(i ? 2 : 0)) + units[i]; };
+        let csv = headers.map(h => escapeCsv(h)).join(',') + '\n';
         rows.forEach(r => {
           // 兼容导出时 AI 标签位于 r._raw.fileAiTag
           const aiTagVal = r && r.fileAiTag != null ? r.fileAiTag : (r && r._raw ? r._raw.fileAiTag : undefined);
           const aiTagStr = aiTagVal == null ? '' : (typeof aiTagVal === 'string' ? aiTagVal : JSON.stringify(aiTagVal));
           csv += [
-            escapeCsv(r.fileName||r.name||''),
+            escapeCsv(r.fileName || r.name || ''),
             escapeCsv(formatSize(r.fileSize)),
-            escapeCsv(r.filePath||''),
-            escapeCsv(r.createrName||''),
-            escapeCsv(r.createTime||''),
-            escapeCsv(r.updateUserName||''),
-            escapeCsv(r.updateTime||''),
-            escapeCsv(r.fileCategory||''),
-            escapeCsv(r.fileSummary||''),
-            escapeCsv(r.fileSummaryTranslate||''),
+            escapeCsv(r.filePath || ''),
+            escapeCsv(r.createrName || ''),
+            escapeCsv(r.createTime || ''),
+            escapeCsv(r.updateUserName || ''),
+            escapeCsv(r.updateTime || ''),
+            escapeCsv(r.fileCategory || ''),
+            escapeCsv(r.fileSummary || ''),
+            escapeCsv(r.fileSummaryTranslate || ''),
             escapeCsv(aiTagStr),
-            escapeCsv(r.fileSysTag||''),
-            escapeCsv(r.fileEntities||''),
-            escapeCsv(r.fileTranslate||''),
-            escapeCsv(r.userCustomAttributes||''),
-            escapeCsv(r.fileContents||'')
+            escapeCsv(r.fileSysTag || ''),
+            escapeCsv(r.fileEntities || ''),
+            escapeCsv(r.fileTranslate || ''),
+            escapeCsv(r.userCustomAttributes || ''),
+            escapeCsv(r.fileContents || '')
           ].join(',') + '\n';
         });
-        const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = '文件导出_' + new Date().toLocaleDateString() + '.csv';
         document.body.appendChild(link);
         link.click();
-        setTimeout(()=>{ URL.revokeObjectURL(link.href); document.body.removeChild(link); }, 120);
+        setTimeout(() => { URL.revokeObjectURL(link.href); document.body.removeChild(link); }, 120);
         ElMessage.success('导出完成');
       } catch (e) {
         console.warn('前端导出失败', e);
@@ -479,17 +479,17 @@ export const useSearchStore = defineStore('search', {
         ElMessage.error(this.error);
       }
     },
-  resetFilters() { this.filters = { fileCategory: [], fileSpace: [], creators: [], tags: [], formats: [], timeRange: 'all', customTimeRange: null, fileSize: [], hasHistory: false, folder: false, fileAiTag: '', fileSysTag: '', extname: '' }; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); }
-  ,
-  // selection persistence
-  addSelected(key, obj) {
-    try { this.selectedMap = { ...this.selectedMap, [key]: { ...obj } }; } catch (e) {}
-  },
-  removeSelected(key) {
-    try { const m = { ...this.selectedMap }; delete m[key]; this.selectedMap = m; } catch (e) {}
-  },
-  clearSelected() {
-    this.selectedMap = {};
-  }
+    resetFilters() { this.filters = { fileCategory: [], fileSpace: [], creators: [], tags: [], formats: [], timeRange: 'all', customTimeRange: null, fileSize: [], hasHistory: false, folder: false, fileAiTag: '', fileSysTag: '', extname: '' }; this.pagination.currentPage = 1; this.search(this.query, this.searchType, null, { precisionMode: this.precisionMode }); }
+    ,
+    // selection persistence
+    addSelected(key, obj) {
+      this.selectedMap = { ...this.selectedMap, [key]: { ...obj } };
+    },
+    removeSelected(key) {
+      const m = { ...this.selectedMap }; delete m[key]; this.selectedMap = m;
+    },
+    clearSelected() {
+      this.selectedMap = {};
+    }
   }
 });

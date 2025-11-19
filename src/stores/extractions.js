@@ -1,5 +1,5 @@
-import {defineStore} from 'pinia';
-import {extractionsService} from '../services/extractionsService';
+import { defineStore } from 'pinia';
+import { extractionsService } from '../services/extractionsService';
 
 // 定义一个名为"extractions"的Pinia store，用于管理数据抽取相关的状态
 export const useExtractionsStore = defineStore('extractions', {
@@ -63,7 +63,7 @@ export const useExtractionsStore = defineStore('extractions', {
 
         // 统计不同状态的数据抽取记录数量
         statusCounts: (state) => {
-            const counts = {completed: 0, pending: 0, error: 0};
+            const counts = { completed: 0, pending: 0, error: 0 };
             state.extractions.forEach(extraction => {
                 counts[extraction.status] = (counts[extraction.status] || 0) + 1;
             });
@@ -97,7 +97,7 @@ export const useExtractionsStore = defineStore('extractions', {
                 });
 
                 // 解构响应数据，提供默认值防止undefined错误
-                const {list = [], total = 0, page, pageSize} = resp || {};
+                const { list = [], total = 0, page, pageSize } = resp || {};
                 this.extractions = list;  // 更新数据列表
 
                 // 如果后端返回了分页信息，则更新本地分页状态
@@ -224,7 +224,7 @@ export const useExtractionsStore = defineStore('extractions', {
                 }
 
                 // 解构新版本响应数据
-                const {list = [], total = 0, page, pageSize} = res || {};
+                const { list = [], total = 0, page, pageSize } = res || {};
                 this.extractions = list;
                 if (page !== undefined) this.pagination.page = Number(page) || this.pagination.page;
                 if (pageSize !== undefined) this.pagination.pageSize = Number(pageSize) || this.pagination.pageSize;
@@ -308,7 +308,7 @@ export const useExtractionsStore = defineStore('extractions', {
 
         // 设置过滤条件
         setFilters(newFilters) {
-            this.filters = {...this.filters, ...newFilters};
+            this.filters = { ...this.filters, ...newFilters };
         },
 
         // 清除所有过滤条件

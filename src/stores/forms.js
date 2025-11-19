@@ -21,7 +21,7 @@ export const useFormsStore = defineStore('forms', {
     formById: (state) => (id) => {
       return state.forms.find(form => form.id === parseInt(id));
     },
-    
+
     formOptions: (state) => {
       return state.forms.map(form => ({
         label: form.name,
@@ -35,7 +35,7 @@ export const useFormsStore = defineStore('forms', {
     async loadForms() {
       this.loading.list = true;
       this.error = null;
-      
+
       try {
         const forms = await formsService.getForms();
         // Initialize enabled and dataCount if not present
@@ -57,7 +57,7 @@ export const useFormsStore = defineStore('forms', {
     async loadForm(id) {
       this.loading.list = true;
       this.error = null;
-      
+
       try {
         const form = await formsService.getForm(id);
         this.currentForm = form;
@@ -73,7 +73,7 @@ export const useFormsStore = defineStore('forms', {
     async createForm(formData) {
       this.loading.create = true;
       this.error = null;
-      
+
       try {
         const newForm = await formsService.createForm(formData);
         this.forms.push(newForm);
@@ -90,7 +90,7 @@ export const useFormsStore = defineStore('forms', {
     async updateForm(id, formData) {
       this.loading.update = true;
       this.error = null;
-      
+
       try {
         const updatedForm = await formsService.updateForm(id, formData);
         const index = this.forms.findIndex(f => f.id === parseInt(id));
@@ -113,7 +113,7 @@ export const useFormsStore = defineStore('forms', {
     async deleteForm(id) {
       this.loading.delete = true;
       this.error = null;
-      
+
       try {
         await formsService.deleteForm(id);
         this.forms = this.forms.filter(f => f.id !== parseInt(id));
@@ -131,23 +131,23 @@ export const useFormsStore = defineStore('forms', {
     },
 
     async updateFormStatus(id, enabled) {
-  
-        
-        // Update local state
-        const index = this.forms.findIndex(f => f.id === parseInt(id));
-        if (index !== -1) {
-          this.forms[index].enabled = enabled;
-          this.filteredForms = [...this.forms];
-        }
-        return true;
-     
+
+
+      // Update local state
+      const index = this.forms.findIndex(f => f.id === parseInt(id));
+      if (index !== -1) {
+        this.forms[index].enabled = enabled;
+        this.filteredForms = [...this.forms];
+      }
+      return true;
+
     },
 
     async searchForms(keyword) {
       this.loading.search = true;
       this.error = null;
       this.searchKeyword = keyword;
-      
+
       try {
         const results = await formsService.searchForms(keyword);
         this.filteredForms = results;

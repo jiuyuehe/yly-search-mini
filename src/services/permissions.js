@@ -44,24 +44,24 @@ export function mapPermission(code) {
     update: '编辑',
     download: '下载',
     dl: '下载',
-  down: '下载',
-  upload: '上传',
-  up: '上传',
+    down: '下载',
+    upload: '上传',
+    up: '上传',
     share: '分享',
-  分享: '分享',
+    分享: '分享',
     delete: '删除',
     remove: '删除',
-  del: '删除',
+    del: '删除',
     manage: '管理',
     admin: '管理'
-  ,sync: '同步'
-  ,per: '权限'
-  ,import: '导入'
-  ,fav: '收藏'
-  ,favorite: '收藏'
-  ,collect: '收藏'
-  ,list: '列表'
-  ,编辑: '编辑'
+    , sync: '同步'
+    , per: '权限'
+    , import: '导入'
+    , fav: '收藏'
+    , favorite: '收藏'
+    , collect: '收藏'
+    , list: '列表'
+    , 编辑: '编辑'
   };
   return PERM_MAP[code] || code;
 }
