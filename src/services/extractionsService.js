@@ -305,18 +305,21 @@ class ExtractionsService {
 
   /**
    * 更新单条抽取记录的抽取数据。
-   * 期望后端接口：POST /admin-api/rag/ai/text/extract/form/history/update
-   * 请求体：{ id, extractedData, fields? }
+   * 期望后端接口：POST /admin-api/rag/ai/form/history/update
+   * 请求体：{ formId, formName, esId, fields, userId, esIndexName, documentId }
    */
   async updateExtraction(id, payload = {}) {
     if (!id) throw new Error("缺少 id");
-    const extractedData = payload.extracted_data || payload.extractedData || {};
-    // 同步构造 fields 以兼容不同后端实现
-    const fields = Object.keys(extractedData || {}).map((name) => ({
-      name,
-      value: extractedData[name],
-    }));
-    const body = { id, extractedData, fields };
+    const body = {
+      id,
+      formId: payload.formId ?? payload.form_id ?? "",
+      formName: payload.formName ?? payload.form_name ?? "",
+      esId: payload.esId ?? payload.es_id ?? "",
+      fields: payload.fields ?? payload.extracted_data ?? payload.extractedData ?? {},
+      userId: payload.userId ?? payload.user_id ?? "",
+      esIndexName: payload.esIndexName ?? payload.es_index_name ?? "",
+      documentId: payload.documentId ?? payload.document_id ?? "",
+    };
     try {
       const res = await api.post(
         "/admin-api/rag/ai/form/history/update",
