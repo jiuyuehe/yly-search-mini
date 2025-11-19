@@ -126,10 +126,11 @@ class FormsService {
    */
   async saveExtractionHistory({ esId, formId, fields, raw, timeout = 30000 }) {
     if (!esId || !formId) throw new Error('缺少 esId 或 formId');
+    console.log('[raw ===========] ', raw);
     const body = { esId, formId, fields };
     if (raw) body.raw = raw; // 允许透传原始结果 (便于后端调试)
     try {
-      const res = await api.post('/admin-api/rag/ai/text/extract/form/history/save', body, { headers: { 'Content-Type': 'application/json' }, timeout });
+      const res = await api.post('/admin-api/rag/ai/form/history/save', body, { headers: { 'Content-Type': 'application/json' }, timeout });
       if (res.code === 500) {
         throw new Error(res.msg || '保存抽取历史失败');
       }

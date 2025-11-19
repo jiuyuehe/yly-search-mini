@@ -324,6 +324,11 @@ function normalizeRow(item) {
     esId: item.esId,
     createTime: item.createTime,
     fields: item.fields || {},
+    formId: item.formId || item.form_id,
+    formName: item.formName || item.form_name,
+    userId: item.userId || item.user_id || item.creatorId || item.createdBy,
+    documentId: item.documentId || item.document_id,
+    esIndexName: item.esIndexName || item.es_index_name || item.esIndex || (item._raw && item._raw.fields && item._raw.fields.esIndexName),
     _raw: item
   }
 }
@@ -474,7 +479,13 @@ async function saveChanges() {
   saving.value = true
   try {
     await extractionsStore.updateExtraction(currentRow.value.id, {
-      extracted_data: editedData.value
+      formId: currentRow.value.formId,
+      formName: currentRow.value.formName,
+      esId: currentRow.value.esId,
+      fields: editedData.value || {},
+      userId: currentRow.value.userId,
+      esIndexName: currentRow.value.esIndexName,
+      documentId: currentRow.value.documentId
     })
     
     // Update local data
