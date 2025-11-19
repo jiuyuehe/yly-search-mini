@@ -162,20 +162,9 @@ const loadPrompt = async () => {
 
 // 获取自定义提示词
 const getCustomPrompt = async (formId) => {
-  // 从本地存储或API获取
-  if (props.storageMode === 'api' && appConfig.api.enabled) {
-    try {
-      // TODO: 调用后端API获取自定义提示词
-      // const response = await apiService.getFormPrompt(formId)
-      // return response.prompt
-    } catch (error) {
-      console.error('API获取提示词失败:', error)
-    }
-  }
-  
-  // 从localStorage获取
-  const key = `form_prompt_${formId}`
-  return localStorage.getItem(key)
+  // 直接走后端
+  const res = await apiService.getFormPrompt(formId)
+  return res?.data || ''
 }
 
 // 生成默认提示词
@@ -286,21 +275,10 @@ const handleSave = async () => {
     ElMessage.warning('提示词内容不能为空')
     return
   }
-  
   saving.value = true
   try {
-    // 保存到后端或本地存储
-    if (props.storageMode === 'api' && appConfig.api.enabled) {
-      // TODO: 调用后端API保存
-      // await apiService.saveFormPrompt(props.form.id, promptContent.value)
-    }
-    
-    // 保存到localStorage
-    const key = `form_prompt_${props.form.id}`
-    localStorage.setItem(key, promptContent.value)
-    
+    await apiService.saveFormPrompt(props.form.id, promptContent.value)
     isCustomPrompt.value = true
-    
     ElMessage.success('保存成功')
     emit('save', promptContent.value)
     dialogVisible.value = false

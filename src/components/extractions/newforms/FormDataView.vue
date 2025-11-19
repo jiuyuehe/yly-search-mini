@@ -183,7 +183,6 @@
     <PromptEditor
       v-model:visible="promptEditorVisible"
       :form="form"
-      :storage-mode="storageMode"
       @save="handlePromptSaved"
     />
 
@@ -215,12 +214,7 @@ import PromptEditor from './PromptEditor.vue'
 // Props
 const props = defineProps({
   visible: Boolean,
-  form: Object,
-  storageMode: {
-    type: String,
-    default: 'localStorage', // 'localStorage' or 'api'
-    validator: (value) => ['localStorage', 'api'].includes(value)
-  }
+  form: Object
 })
 
 // Emits

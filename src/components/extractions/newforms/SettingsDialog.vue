@@ -24,55 +24,7 @@
         </el-form>
       </el-tab-pane>
 
-      <!-- API 设置 -->
-      <el-tab-pane label="API服务" name="api">
-        <el-form label-width="120px">
-          <el-form-item label="启用API服务">
-            <el-switch v-model="apiConfig.enabled" />
-          </el-form-item>
-          
-          <el-form-item label="API地址" v-if="apiConfig.enabled">
-            <el-input
-              v-model="apiConfig.baseUrl"
-              placeholder="https://api.example.com"
-            />
-            <div style="margin-top: 5px">
-              <el-text type="info" size="small">
-                后端API的基础URL，例如: https://api.example.com
-              </el-text>
-            </div>
-          </el-form-item>
-          
-          <el-form-item label="API密钥" v-if="apiConfig.enabled">
-            <el-input
-              v-model="apiConfig.apiKey"
-              type="password"
-              placeholder="请输入API密钥"
-              show-password
-            />
-            <div style="margin-top: 5px">
-              <el-text type="info" size="small">
-                用于认证的API密钥（可选）
-              </el-text>
-            </div>
-          </el-form-item>
-          
-          <el-form-item v-if="apiConfig.enabled">
-            <el-button @click="testApiConnection" :loading="testing">
-              测试连接
-            </el-button>
-          </el-form-item>
-          
-          <el-alert
-            v-if="!apiConfig.enabled"
-            title="API服务未启用"
-            type="info"
-            :closable="false"
-          >
-            启用后，表单数据和结果将通过API保存到后端服务器
-          </el-alert>
-        </el-form>
-      </el-tab-pane>
+   
 
       <!-- AI 设置 -->
       <el-tab-pane label="AI服务" name="ai">
@@ -200,11 +152,7 @@ const storageConfig = ref({
   mode: appConfig.storageMode
 })
 
-const apiConfig = ref({
-  enabled: appConfig.api.enabled,
-  baseUrl: appConfig.api.baseUrl,
-  apiKey: appConfig.api.apiKey
-})
+
 
 const aiConfig = ref({
   enabled: appConfig.ai.enabled,
@@ -219,11 +167,7 @@ watch(() => props.visible, (visible) => {
     storageConfig.value = {
       mode: appConfig.storageMode
     }
-    apiConfig.value = {
-      enabled: appConfig.api.enabled,
-      baseUrl: appConfig.api.baseUrl,
-      apiKey: appConfig.api.apiKey
-    }
+   
     aiConfig.value = {
       enabled: appConfig.ai.enabled,
       apiUrl: appConfig.ai.apiUrl,
@@ -240,8 +184,7 @@ const testApiConnection = async () => {
   try {
     // 临时配置API服务
     apiService.configure({
-      baseUrl: apiConfig.value.baseUrl,
-      apiKey: apiConfig.value.apiKey,
+     
       enabled: true
     })
     
@@ -261,9 +204,7 @@ const handleSave = () => {
   // 更新存储模式
   appConfig.setStorageMode(storageConfig.value.mode)
   
-  // 更新API配置
-  appConfig.setApiConfig(apiConfig.value)
-  apiService.configure(apiConfig.value)
+
   
   // 更新AI配置
   appConfig.setAiConfig(aiConfig.value)

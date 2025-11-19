@@ -18,15 +18,18 @@ class FormsService {
     const f = { ...raw };
     // parse structure if it's a JSON string
     if (typeof f.structure === 'string') {
-      try { f.structure = JSON.parse(f.structure); } catch { f.structure = { formName: f.name, fields: [] }; }
+      try { f.structure = JSON.parse(f.structure); } catch { f.structure = []; }
     }
-    // ensure structure object shape
-    if (!f.structure || typeof f.structure !== 'object') {
-      f.structure = { formName: f.name, fields: [] };
-    } else if (!f.structure.formName) {
-      f.structure.formName = f.name;
+    if (!Array.isArray(f.structure)) {
+      f.structure = [];
     }
-    // map timestamps to previous mock style keys
+    // keep schema alias for frontend
+    f.schema = f.structure;
+    // structureResult may be serialized on backend
+    if (typeof f.structureResult === 'string' && f.structureResult) {
+      try { f.structureResult = JSON.parse(f.structureResult); } catch { f.structureResult = null; }
+    }
+    // map timestamps
     if (f.createTime && !f.created_at) f.created_at = this._formatTs(f.createTime);
     if (f.updateTime && !f.updated_at) f.updated_at = this._formatTs(f.updateTime);
     // system flag
@@ -60,7 +63,13 @@ class FormsService {
     if (formData && formData.userId != null && formData.userId !== '') {
       body.userId = formData.userId;
     }
-    try { const res = await api.post('/admin-api/rag/ai/form/create', body, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }); const root = this._normalize(res); const raw = root.data || { id: root.id, ...body }; return this._deserializeForm(raw); }
+      try {
+        const res = await api.post('/admin-api/rag/ai/form/create', body, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
+        const root = this._normalize(res);
+        const formId = root.data || root.id;
+        if (!formId) throw new Error('创建表单未返回id');
+        return await this.getForm(formId);
+      }
     catch (e) { console.warn('[FormsService] createForm failed', e); throw e; }
   }
 
@@ -71,7 +80,10 @@ class FormsService {
       body.userId = formData.userId;
     }
     Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
-    try { const res = await api.post('/admin-api/rag/ai/form/update', body, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }); const root = this._normalize(res); const raw = root.data || body; return this._deserializeForm(raw); }
+      try {
+        await api.post('/admin-api/rag/ai/form/update', body, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
+        return await this.getForm(id);
+      }
     catch (e) { console.warn('[FormsService] updateForm failed', e); throw e; }
   }
 

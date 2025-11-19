@@ -32,17 +32,40 @@
           <el-card class="form-card" shadow="hover">
             <template #header>
               <div class="card-header">
-                <span class="card-title">{{ form.name }}</span>
-                <el-tag size="small">{{ form.schema.length }} 字段</el-tag>
+                <div>
+                  <span class="card-title">{{ form.name }}</span>
+                 
+                </div>
+                <div class="card-status-row" aria-label="表单状态标签">
+                  <el-tag size="small" type="info" class="field-tag">{{ form.schema.length }} 字段</el-tag>
+                </div>
               </div>
             </template>
-            
+
             <div class="card-body">
+               <el-tag
+                    size="mini"
+                    :type="isIndexed(form) ? 'success' : 'warning'"
+                    class="status-tag"
+                  >
+                    <el-icon v-if="isIndexed(form)"><Check /></el-icon>
+                    {{ isIndexed(form) ? '已索引' : '未索引' }}
+                  </el-tag>
+                  <el-tag
+                    size="mini"
+                    :type="form.userId && form.userId !== 0 ? 'primary' : 'info'"
+                    class="status-tag"
+                  >
+                    {{ ownerLabel(form) }}
+                  </el-tag>
+                  <el-tag v-if="shouldShowVersion(form)" size="mini" type="success" class="status-tag">
+                    版本 v{{ form.version }}
+                  </el-tag>
               <p class="card-description">{{ form.description || '暂无描述' }}</p>
               <div class="card-meta">
                 <el-text size="small" type="info">
                   <el-icon><Clock /></el-icon>
-                  创建于: {{ formatDate(form.createdAt) }}
+                  创建于: {{ formatDate(form.createTime) }}
                 </el-text>
               </div>
             </div>
@@ -110,9 +133,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { formStore } from '../stores/formStore'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   Plus,
   Shop,
@@ -122,7 +145,8 @@ import {
   Edit,
   List,
   Delete,
-  Clock
+  Clock,
+  Check
 } from '@element-plus/icons-vue'
 import FormDesigner from '../components/extractions/newforms/FormDesigner.vue'
 import FormPreview from '../components/extractions/newforms/FormPreview.vue'
@@ -140,6 +164,14 @@ const settingsVisible = ref(false)
 const editingForm = ref(null)
 const previewForm = ref(null)
 const dataViewForm = ref(null)
+
+onMounted(async () => {
+  try {
+    await formStore.loadForms()
+  } catch (error) {
+    console.error('加载表单列表失败:', error)
+  }
+})
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -201,6 +233,10 @@ const handleTemplateMarket = () => {
   templateMarketVisible.value = true
 }
 
+const isIndexed = (form) => Boolean(form.esIndexName)
+const ownerLabel = (form) => (form.userId && form.userId !== 0 ? '个人' : '公开')
+const shouldShowVersion = (form) => (form.version ?? 1) > 1
+
 // 从模板创建表单
 const handleSelectTemplate = async (template) => {
   await formStore.addForm({
@@ -254,6 +290,10 @@ const handleSettings = () => {
 .form-card {
   margin-bottom: 20px;
   transition: transform 0.3s;
+  background: var(--background-color);
+  border: 1px solid var(--border-color-muted);
+  border-radius: var( --border-radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .form-card:hover {
@@ -263,12 +303,34 @@ const handleSettings = () => {
 .card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .card-title {
   font-weight: bold;
   font-size: 16px;
+  color: var(--text-color-strong);
+}
+
+.card-status-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.status-tag {
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.field-tag {
+  margin-left: 8px;
+  background: var(--background-info-soft);
+  color: var(--status-info);
+  border-color: transparent;
 }
 
 .card-body {
@@ -282,8 +344,9 @@ const handleSettings = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .card-meta {

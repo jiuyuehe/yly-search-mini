@@ -259,12 +259,7 @@ import FormRenderer from './FormRenderer.vue'
 // Props
 const props = defineProps({
   visible: Boolean,
-  form: Object,
-  storageMode: {
-    type: String,
-    default: 'localStorage', // 'localStorage' or 'api'
-    validator: (value) => ['localStorage', 'api'].includes(value)
-  }
+  form: Object
 })
 
 // Emits
@@ -481,25 +476,34 @@ const handleImportFile = (event) => {
 }
 
 // 保存表单
-const handleSave = () => {
+const handleSave = async () => {
   if (!formData.value.name) {
     ElMessage.warning('请输入表单名称')
     return
   }
-  
   if (formData.value.schema.length === 0) {
     ElMessage.warning('请至少添加一个字段')
     return
   }
-  
   // 验证字段
   const invalidField = formData.value.schema.find(field => !field.label || !field.key)
   if (invalidField) {
     ElMessage.warning('请填写完整的字段标签和Key')
     return
   }
-  
-  emit('save', formData.value)
+  try {
+    if (isEdit.value) {
+      await import('../../../stores/formStore').then(m => m.formStore.updateForm(props.form.id, formData.value))
+      ElMessage.success('表单已更新')
+    } else {
+      await import('../../../stores/formStore').then(m => m.formStore.addForm(formData.value))
+      ElMessage.success('表单已创建')
+    }
+    emit('save', formData.value)
+    dialogVisible.value = false
+  } catch (error) {
+    ElMessage.error('保存表单失败')
+  }
 }
 
 // 关闭对话框
