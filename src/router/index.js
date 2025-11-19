@@ -81,9 +81,9 @@ const routes = [
   },
   // Data extraction statistics
   {
-    path: '/stats',
-    name: 'stats',
-    component: () => import('../views/DataExtractionStatsView.vue')
+    path: '/newForm',
+    name: 'newForm',
+    component: () => import('../views/FormList.vue')
   },
   // Data labeling management
   {

@@ -27,9 +27,9 @@
             <span>数据管理</span>
           </el-menu-item>
 
-          <el-menu-item index="/stats">
-            <el-icon><TrendCharts /></el-icon>
-            <span>统计分析</span>
+          <el-menu-item index="/newForm">
+            <el-icon><DataAnalysis /></el-icon>
+            <span>新表单</span>
           </el-menu-item>
 
           <el-menu-item index="/labeling">
