@@ -2,6 +2,13 @@
 import { reactive } from 'vue'
 import { formsService } from '../services/formsService'
 
+const normalizeId = (id) => (id == null ? null : String(id))
+const matchId = (storedId, targetId) => {
+  const normalizedStored = normalizeId(storedId)
+  const normalizedTarget = normalizeId(targetId)
+  return normalizedStored !== null && normalizedTarget !== null && normalizedStored === normalizedTarget
+}
+
 export const formStore = reactive({
   forms: [],
   formResults: {},
@@ -30,7 +37,7 @@ export const formStore = reactive({
   },
 
   async updateForm(id, updates) {
-    const index = this.forms.findIndex(f => f.id === id)
+    const index = this.forms.findIndex(f => matchId(f.id, id))
     if (index === -1) {
       return null
     }
@@ -45,7 +52,7 @@ export const formStore = reactive({
   },
 
   async deleteForm(id) {
-    const index = this.forms.findIndex(f => f.id === id)
+    const index = this.forms.findIndex(f => matchId(f.id, id))
     if (index !== -1) {
       await formsService.deleteForm(id)
       this.forms.splice(index, 1)
@@ -54,7 +61,10 @@ export const formStore = reactive({
   },
 
   getForm(id) {
-    return this.forms.find(f => f.id === id)
+    if (id == null) {
+      return null
+    }
+    return this.forms.find(f => matchId(f.id, id))
   },
 
   async saveFormResult(formId, result) {

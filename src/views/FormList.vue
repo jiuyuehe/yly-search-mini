@@ -29,15 +29,15 @@
       
       <el-row :gutter="20" v-else>
         <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="form in formStore.forms" :key="form.id">
-          <el-card class="form-card" shadow="hover">
+          <el-card class="form-card clickable-card" shadow="hover" @click="openDataView(form)">
             <template #header>
               <div class="card-header">
                 <div>
                   <span class="card-title">{{ form.name }}</span>
-                 
                 </div>
                 <div class="card-status-row" aria-label="表单状态标签">
-                  <el-tag size="small" type="info" class="field-tag">{{ form.schema.length }} 字段</el-tag>
+                  <el-tag size="mini" type="info" class="field-tag">{{ form.schema.length }} 字段</el-tag>
+                 
                 </div>
               </div>
             </template>
@@ -58,7 +58,12 @@
                   >
                     {{ ownerLabel(form) }}
                   </el-tag>
-                  <el-tag v-if="shouldShowVersion(form)" size="mini" type="success" class="status-tag">
+                  <el-tag
+                    v-if="shouldShowVersion(form)"
+                    size="mini"
+                    type="success"
+                    class="status-tag"
+                  >
                     版本 v{{ form.version }}
                   </el-tag>
               <p class="card-description">{{ form.description || '暂无描述' }}</p>
@@ -69,24 +74,21 @@
                 </el-text>
               </div>
             </div>
-            
+
             <template #footer>
               <div class="card-actions">
-                <el-button size="small" @click="handlePreview(form)" :icon="View">
+                <el-button size="small" @click.stop="handlePreview(form)" :icon="View">
                   预览
                 </el-button>
-                <el-button size="small" @click="handleEdit(form)" :icon="Edit">
+                <el-button size="small" @click.stop="handleEdit(form)" :icon="Edit">
                   编辑
-                </el-button>
-                <el-button size="small" @click="handleViewData(form)" :icon="List">
-                  数据
                 </el-button>
                 <el-popconfirm
                   title="确定要删除这个表单吗？"
                   @confirm="handleDelete(form.id)"
                 >
                   <template #reference>
-                    <el-button size="small" type="danger" :icon="Delete">
+                    <el-button size="small" type="danger" :icon="Delete" @click.stop>
                       删除
                     </el-button>
                   </template>
@@ -102,7 +104,6 @@
     <FormDesigner
       v-model:visible="designerVisible"
       :form="editingForm"
-      :storage-mode="appConfig.storageMode"
       @save="handleSaveForm"
     />
 
@@ -110,13 +111,6 @@
     <FormPreview
       v-model:visible="previewVisible"
       :form="previewForm"
-    />
-
-    <!-- 数据查看对话框 -->
-    <FormDataView
-      v-model:visible="dataViewVisible"
-      :form="dataViewForm"
-      :storage-mode="appConfig.storageMode"
     />
 
     <!-- 模板市场对话框 -->
@@ -134,6 +128,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { formStore } from '../stores/formStore'
 import { ElMessage } from 'element-plus'
 import {
@@ -143,27 +138,25 @@ import {
   Document,
   View,
   Edit,
-  List,
   Delete,
   Clock,
   Check
 } from '@element-plus/icons-vue'
 import FormDesigner from '../components/extractions/newforms/FormDesigner.vue'
 import FormPreview from '../components/extractions/newforms/FormPreview.vue'
-import FormDataView from '../components/extractions/newforms/FormDataView.vue'
 import TemplateMarket from '../components/extractions/newforms/TemplateMarket.vue'
 import SettingsDialog from '../components/extractions/newforms/SettingsDialog.vue'
-import { appConfig } from '../config/appConfig'
+
+const router = useRouter()
 
 // 状态管理
 const designerVisible = ref(false)
 const previewVisible = ref(false)
-const dataViewVisible = ref(false)
 const templateMarketVisible = ref(false)
 const settingsVisible = ref(false)
 const editingForm = ref(null)
 const previewForm = ref(null)
-const dataViewForm = ref(null)
+
 
 onMounted(async () => {
   try {
@@ -203,12 +196,6 @@ const handlePreview = (form) => {
   previewVisible.value = true
 }
 
-// 查看数据
-const handleViewData = (form) => {
-  dataViewForm.value = form
-  dataViewVisible.value = true
-}
-
 // 删除表单
 const handleDelete = async (id) => {
   await formStore.deleteForm(id)
@@ -218,11 +205,9 @@ const handleDelete = async (id) => {
 // 保存表单
 const handleSaveForm = async (formData) => {
   if (editingForm.value) {
-    // 更新现有表单
     await formStore.updateForm(editingForm.value.id, formData)
     ElMessage.success('表单已更新')
   } else {
-    // 创建新表单
     await formStore.addForm(formData)
     ElMessage.success('表单已创建')
   }
@@ -233,9 +218,14 @@ const handleTemplateMarket = () => {
   templateMarketVisible.value = true
 }
 
-const isIndexed = (form) => Boolean(form.esIndexName)
-const ownerLabel = (form) => (form.userId && form.userId !== 0 ? '个人' : '公开')
-const shouldShowVersion = (form) => (form.version ?? 1) > 1
+const openDataView = (form) => {
+  if (!form) return
+  router.push({ name: 'newForm-result', params: { id: form.id } })
+}
+
+const isIndexed = (form) => Boolean(form?.esIndexName)
+const ownerLabel = (form) => (form?.userId && form.userId !== 0 ? '个人' : '公开')
+const shouldShowVersion = (form) => (form?.version ?? 1) > 1
 
 // 从模板创建表单
 const handleSelectTemplate = async (template) => {
@@ -294,6 +284,7 @@ const handleSettings = () => {
   border: 1px solid var(--border-color-muted);
   border-radius: var( --border-radius-lg);
   box-shadow: var(--shadow-sm);
+  cursor: pointer;
 }
 
 .form-card:hover {
@@ -359,5 +350,9 @@ const handleSettings = () => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.clickable-card .card-actions {
+  cursor: default;
 }
 </style>

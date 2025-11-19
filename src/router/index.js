@@ -85,6 +85,12 @@ const routes = [
     name: 'newForm',
     component: () => import('../views/FormList.vue')
   },
+  {
+    path: '/newForm/:id/result',
+    name: 'newForm-result',
+    component: () => import('../views/FormDataViewPage.vue'),
+    props: true
+  },
   // Data labeling management
   {
     path: '/labeling',
