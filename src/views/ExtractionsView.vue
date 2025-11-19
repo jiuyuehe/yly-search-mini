@@ -28,7 +28,7 @@
 <script setup>
 import { useRouter } from 'vue-router';
 import AppHeader from '../components/common/AppHeader.vue';
-import FormsCards from '../components/extractions/FormsCards.vue';
+import FormsCards from '../components/forms/FormsCards.vue';
 
 const router = useRouter();
 
