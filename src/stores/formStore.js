@@ -11,16 +11,30 @@ const matchId = (storedId, targetId) => {
 
 export const formStore = reactive({
   forms: [],
+  formTotal: 0,
   formResults: {},
   formPrompts: {},
 
-  async loadForms() {
+  async loadForms({ pageNo = 1, pageSize = 100 } = {}) {
+    // Prefer server-side pagination when service supports it
+    if (typeof formsService.getFormsPage === 'function') {
+      const { list, total } = await formsService.getFormsPage({ pageNo, pageSize })
+      this.forms = list || []
+      this.formTotal = Number(total || this.forms.length)
+      (this.forms || []).forEach((form) => {
+        this.formResults[form.id] = form.structureResult || []
+      })
+      return { list: this.forms, total: this.formTotal }
+    }
+
+    // Fallback: full list
     const fetchedForms = await formsService.getForms()
     this.forms = fetchedForms
-    fetchedForms.forEach(form => {
+    this.formTotal = fetchedForms.length
+    fetchedForms.forEach((form) => {
       this.formResults[form.id] = form.structureResult || []
     })
-    return this.forms
+    return { list: this.forms, total: this.formTotal }
   },
 
   async addForm(form) {

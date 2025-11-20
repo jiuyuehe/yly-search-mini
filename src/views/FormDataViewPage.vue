@@ -15,6 +15,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formStore } from '../stores/formStore'
 import FormDataView from '../components/extractions/newforms/FormDataView.vue'
+import { formsService } from '../services/formsService'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,9 +23,23 @@ const router = useRouter()
 const formId = computed(() => route.params.id)
 const currentForm = computed(() => (formId.value ? formStore.getForm(formId.value) : null))
 
-const loadForms = async () => {
+const loadForms = async (id) => {
   try {
-    await formStore.loadForms()
+    if (id) {
+      // 尝试直接从服务端拉取单个表单，避免依赖当前列表页的分页
+      try {
+        const f = await formsService.getForm(id)
+        if (f && !formStore.getForm(f.id)) {
+          // 插入到本地列表，放到开头以便快速查看
+          formStore.forms.unshift(f)
+        }
+      } catch (e) {
+        console.error('按 id 拉取表单失败，回退到分页列表拉取:', e)
+        await formStore.loadForms({ pageNo: 1, pageSize: 20 })
+      }
+    } else {
+      await formStore.loadForms({ pageNo: 1, pageSize: 20 })
+    }
   } catch (error) {
     console.error('加载表单数据失败:', error)
   }
@@ -38,7 +53,7 @@ onMounted(async () => {
 
 watch(formId, async (id) => {
   if (id && !formStore.getForm(id)) {
-    await loadForms()
+    await loadForms(id)
   }
 }, { immediate: true })
 

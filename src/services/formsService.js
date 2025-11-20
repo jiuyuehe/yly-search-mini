@@ -45,8 +45,24 @@ class FormsService {
     try { return JSON.stringify(structure); } catch { return ''; }
   }
   async getForms({ pageNo = 1, pageSize = 100 } = {}) {
-    try { const res = await api.get('/admin-api/rag/ai/form/page', { params: { pageNo, pageSize }, timeout: 20000 }); return this._unwrapList(res).list.map(f => this._deserializeForm(f)); }
-    catch (e) { console.warn('[FormsService] getForms failed', e); return []; }
+    try {
+      const res = await api.get('/admin-api/rag/ai/form/page', { params: { pageNo, pageSize }, timeout: 20000 });
+      return this._unwrapList(res).list.map(f => this._deserializeForm(f));
+    } catch (e) { console.warn('[FormsService] getForms failed', e); return []; }
+  }
+
+  // Server-side paginated fetch: returns { list: [forms], total }
+  async getFormsPage({ pageNo = 1, pageSize = 100 } = {}) {
+    try {
+      const res = await api.get('/admin-api/rag/ai/form/page', { params: { pageNo, pageSize }, timeout: 20000 });
+      const root = this._unwrapList(res);
+      const list = (root.list || []).map(f => this._deserializeForm(f));
+      const total = Number(root.total || 0);
+      return { list, total };
+    } catch (e) {
+      console.warn('[FormsService] getFormsPage failed', e);
+      return { list: [], total: 0 };
+    }
   }
 
   async getForm(id) {

@@ -98,6 +98,18 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <!-- 分页（服务端分页） -->
+      <div class="pagination-wrapper" v-if="totalForms > pageSize">
+        <el-pagination
+          :current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalForms"
+          layout="prev, pager, next, jumper"
+          background
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
 
     <!-- 创建/编辑表单对话框 -->
@@ -127,7 +139,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { formStore } from '../stores/formStore'
 import { ElMessage } from 'element-plus'
@@ -157,10 +169,24 @@ const settingsVisible = ref(false)
 const editingForm = ref(null)
 const previewForm = ref(null)
 
+// 分页（服务端分页）
+const currentPage = ref(1)
+const pageSize = 5
+const totalForms = computed(() => formStore.formTotal || formStore.forms.length)
+
+const handlePageChange = async (page) => {
+  currentPage.value = page
+  try {
+    await formStore.loadForms({ pageNo: page, pageSize })
+  } catch (error) {
+    console.error('切换页码加载表单失败:', error)
+  }
+}
 
 onMounted(async () => {
   try {
-    await formStore.loadForms()
+    // 初始从后端拉取第 1 页，每页 20 条
+    await formStore.loadForms({ pageNo: 1, pageSize })
   } catch (error) {
     console.error('加载表单列表失败:', error)
   }
