@@ -19,6 +19,9 @@
           />
         </div>
         <div class="toolbar-right">
+          <el-button @click="goFormExtractionStatus" :icon="DataLine">
+            抽取状态
+          </el-button>
           <el-button @click="handleViewPrompt" :icon="ChatLineSquare">
             查看提示词
           </el-button>
@@ -92,10 +95,20 @@
 
       <!-- 统计信息 -->
       <div class="stats">
-        <el-tag>总计: {{ results.length }} 条数据</el-tag>
+        <el-tag>总计: {{ totalResults }} 条数据</el-tag>
         <el-tag v-if="searchText" type="info">
           筛选结果: {{ filteredResults.length }} 条
         </el-tag>
+      </div>
+      <div class="pagination-wrapper" v-if="totalResults > pageSize">
+        <el-pagination
+          :current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalResults"
+          layout="prev, pager, next, jumper"
+          background
+          @current-change="handlePageChange"
+        />
       </div>
     </div>
 
@@ -193,6 +206,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { formStore } from '../../../stores/formStore'
 import { generateFormData, exportDataToCsv } from '../utils/formUtils'
 import { extractDataWithAI, readFileContent, validateExtractedData } from '../../../services/aiPromptService'
@@ -206,10 +220,13 @@ import {
   Edit,
   Delete,
   UploadFilled,
-  ChatLineSquare
+  ChatLineSquare,
+  DataLine
 } from '@element-plus/icons-vue'
 import FormRenderer from './FormRenderer.vue'
 import PromptEditor from './PromptEditor.vue'
+
+const router = useRouter()
 
 // Props
 const props = defineProps({
@@ -237,16 +254,49 @@ const editingDataId = ref(null)
 const formRendererRef = ref(null)
 const fileInput = ref(null)
 
+const currentPage = ref(1)
+const pageSize = ref(20)
+const totalResults = ref(0)
+
 // 文件提取相关
 const extractMode = ref('file')
 const extractText = ref('')
 const extracting = ref(false)
 const uploadFile = ref(null)
 
+const loadResults = async (page = currentPage.value) => {
+  if (!props.form || !props.form.id) {
+    results.value = []
+    totalResults.value = 0
+    return
+  }
+  try {
+  
+    const { list, total } = await formStore.loadFormResults(props.form.id, {
+      pageNo: page,
+      pageSize: pageSize.value
+    })
+    results.value = list
+    totalResults.value = total
+    currentPage.value = page
+  } catch (error) {
+    console.error('加载表单数据失败:', error)
+    results.value = []
+    totalResults.value = 0
+  }
+}
+
+const handlePageChange = (page) => {
+  loadResults(page)
+}
+
 // 监听 form 变化，加载数据
 watch(() => props.form, (newForm) => {
   if (newForm) {
-    results.value = formStore.getFormResults(newForm.id)
+    loadResults(1)
+  } else {
+    results.value = []
+    totalResults.value = 0
   }
 }, { immediate: true, deep: true })
 
@@ -308,6 +358,7 @@ const handleSaveData = async () => {
     results.value = formStore.getFormResults(props.form.id)
     dataFormVisible.value = false
   } catch (error) {
+    console.error('保存数据失败:', error)
     ElMessage.warning('请填写完整的表单')
   }
 }
@@ -336,7 +387,7 @@ const handleViewPrompt = () => {
 }
 
 // 提示词保存成功回调
-const handlePromptSaved = (prompt) => {
+const handlePromptSaved = () => {
   ElMessage.success('提示词已保存')
 }
 
@@ -504,6 +555,12 @@ const handleDataFormClose = () => {
 const handleClose = () => {
   dialogVisible.value = false
   searchText.value = ''
+}
+
+// 跳转：当前表单抽取状态
+const goFormExtractionStatus = () => {
+  if (!props.form || !props.form.id) return
+  router.push({ name: 'extraction-status-form', params: { id: props.form.id } })
 }
 </script>
 

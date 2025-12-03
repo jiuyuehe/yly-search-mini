@@ -1,4 +1,5 @@
-import api from './api';
+import api from "./api";
+import { ElMessage } from "element-plus";
 
 // 真实接口适配：基于 /admin-api/rag/ai/form* 系列
 // 约定：
@@ -11,14 +12,39 @@ import api from './api';
 // POST /admin-api/rag/ai/form/extract  body: { esId, formId }
 
 class FormsService {
-  _normalize(res) { return (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {}); }
-  _unwrapList(res) { const root = this._normalize(res); const data = root.data || root; const list = data.list || data.rows || data.data || []; const total = Number(data.total || data.count || list.length || 0); return { list, total }; }
+  _normalize(res) {
+    const normalized =
+      res && typeof res === "object" && "code" in res
+        ? res
+        : res?.data || {};
+    this._handleBusinessError(normalized);
+    return normalized;
+  }
+  
+  _handleBusinessError(entry) {
+    if (entry && entry.code === 500) {
+      const message = entry.msg || "请求失败";
+      ElMessage.error(message);
+      throw new Error(message);
+    }
+  }
+  _unwrapList(res) {
+    const root = this._normalize(res);
+    const data = root.data || root;
+    const list = data.list || data.rows || data.data || [];
+    const total =data.total || 0;
+    return { list, total };
+  }
   _deserializeForm(raw) {
-    if (!raw || typeof raw !== 'object') return raw;
+    if (!raw || typeof raw !== "object") return raw;
     const f = { ...raw };
     // parse structure if it's a JSON string
-    if (typeof f.structure === 'string') {
-      try { f.structure = JSON.parse(f.structure); } catch { f.structure = []; }
+    if (typeof f.structure === "string") {
+      try {
+        f.structure = JSON.parse(f.structure);
+      } catch {
+        f.structure = [];
+      }
     }
     if (!Array.isArray(f.structure)) {
       f.structure = [];
@@ -26,121 +52,314 @@ class FormsService {
     // keep schema alias for frontend
     f.schema = f.structure;
     // structureResult may be serialized on backend
-    if (typeof f.structureResult === 'string' && f.structureResult) {
-      try { f.structureResult = JSON.parse(f.structureResult); } catch { f.structureResult = null; }
+    if (typeof f.structureResult === "string" && f.structureResult) {
+      try {
+        f.structureResult = JSON.parse(f.structureResult);
+      } catch {
+        f.structureResult = null;
+      }
     }
     // map timestamps
-    if (f.createTime && !f.created_at) f.created_at = this._formatTs(f.createTime);
-    if (f.updateTime && !f.updated_at) f.updated_at = this._formatTs(f.updateTime);
+    if (f.createTime && !f.created_at)
+      f.created_at = this._formatTs(f.createTime);
+    if (f.updateTime && !f.updated_at)
+      f.updated_at = this._formatTs(f.updateTime);
     // system flag
-    const sys = f.systemFlag === 1 || f.system === true || f.isSystem === true || f.creator === 'system';
+    const sys =
+      f.systemFlag === 1 ||
+      f.system === true ||
+      f.isSystem === true ||
+      f.creator === "system";
     f.system = sys;
     f.isSystem = sys;
     return f;
   }
-  _formatTs(ts) { try { const d = new Date(ts); if (!isFinite(d)) return ''; return d.toISOString(); } catch { return ''; } }
+  _formatTs(ts) {
+    try {
+      const d = new Date(ts);
+      if (!isFinite(d)) return "";
+      return d.toISOString();
+    } catch {
+      return "";
+    }
+  }
   _serializeStructure(structure) {
-    if (!structure) return '';
-    if (typeof structure === 'string') return structure; // assume already stringified
-    try { return JSON.stringify(structure); } catch { return ''; }
+    if (!structure) return "";
+    if (typeof structure === "string") return structure; // assume already stringified
+    try {
+      return JSON.stringify(structure);
+    } catch {
+      return "";
+    }
   }
   async getForms({ pageNo = 1, pageSize = 100 } = {}) {
     try {
-      const res = await api.get('/admin-api/rag/ai/form/page', { params: { pageNo, pageSize }, timeout: 20000 });
-      return this._unwrapList(res).list.map(f => this._deserializeForm(f));
-    } catch (e) { console.warn('[FormsService] getForms failed', e); return []; }
+      const res = await api.get("/admin-api/rag/ai/form/page", {
+        params: { pageNo, pageSize },
+        timeout: 20000,
+      });
+      return this._unwrapList(res).list.map((f) => this._deserializeForm(f));
+    } catch (e) {
+      console.warn("[FormsService] getForms failed", e);
+      return [];
+    }
   }
 
   // Server-side paginated fetch: returns { list: [forms], total }
   async getFormsPage({ pageNo = 1, pageSize = 100 } = {}) {
     try {
-      const res = await api.get('/admin-api/rag/ai/form/page', { params: { pageNo, pageSize }, timeout: 20000 });
+      const res = await api.get("/admin-api/rag/ai/form/page", {
+        params: { pageNo, pageSize },
+        timeout: 20000,
+      });
       const root = this._unwrapList(res);
-      const list = (root.list || []).map(f => this._deserializeForm(f));
-      const total = Number(root.total || 0);
+      const list = (root.list || []).map((f) => this._deserializeForm(f));
+      const total = root.total || 0;
       return { list, total };
     } catch (e) {
-      console.warn('[FormsService] getFormsPage failed', e);
+      console.warn("[FormsService] getFormsPage failed", e);
       return { list: [], total: 0 };
     }
   }
 
   async getForm(id) {
-    if (!id) throw new Error('缺少表单 id');
+    if (!id) throw new Error("缺少表单 id");
     try {
-      const res = await api.get('/admin-api/rag/ai/form/get', { params: { id }, timeout: 20000 });
-      const root = this._normalize(res); const raw = root.data || root.form || root; return this._deserializeForm(raw);
-    } catch (e) { console.warn('[FormsService] getForm failed', e); throw e; }
+      const res = await api.get("/admin-api/rag/ai/form/get", {
+        params: { id },
+        timeout: 20000,
+      });
+      const root = this._normalize(res);
+      const raw = root.data || root.form || root;
+      return this._deserializeForm(raw);
+    } catch (e) {
+      console.warn("[FormsService] getForm failed", e);
+      throw e;
+    }
+  }
+
+  async getFormPrompt(formId) {
+    if (!formId) throw new Error("缺少表单 id");
+    try {
+      const form = await this.getForm(formId);
+      return form?.structureResult || '';
+    } catch (e) {
+      console.warn("[FormsService] getFormPrompt failed", e);
+      return '';
+    }
   }
 
   async createForm(formData) {
-    const body = { name: formData.name, description: formData.description || '', structure: this._serializeStructure(formData.structure) }; // backend expects JSON string
+    const body = {
+      name: formData.name,
+      description: formData.description || "",
+      structure: this._serializeStructure(formData.structure),
+    }; // backend expects JSON string
     // visibility: include userId only when provided (personal)
-    if (formData && formData.userId != null && formData.userId !== '') {
+    if (formData && formData.userId != null && formData.userId !== "") {
       body.userId = formData.userId;
     }
-      try {
-        const res = await api.post('/admin-api/rag/ai/form/create', body, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
-        const root = this._normalize(res);
-        const formId = root.data || root.id;
-        if (!formId) throw new Error('创建表单未返回id');
-        return await this.getForm(formId);
-      }
-    catch (e) { console.warn('[FormsService] createForm failed', e); throw e; }
+    try {
+      const res = await api.post("/admin-api/rag/ai/form/create", body, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 20000,
+      });
+      const root = this._normalize(res);
+      const formId = root.data || root.id;
+      if (!formId) throw new Error("创建表单未返回id");
+      return await this.getForm(formId);
+    } catch (e) {
+      console.warn("[FormsService] createForm failed", e);
+      throw e;
+    }
   }
 
   async updateForm(id, formData) {
-    if (!id) throw new Error('缺少表单 id');
-    const body = { id, name: formData.name, description: formData.description, structure: formData.structure && this._serializeStructure(formData.structure) };
-    if (formData && formData.userId != null && formData.userId !== '') {
+    if (!id) throw new Error("缺少表单 id");
+    const body = {
+      id,
+      name: formData.name,
+      description: formData.description,
+      structure:
+        formData.structure && this._serializeStructure(formData.structure),
+    };
+    if (formData && formData.userId != null && formData.userId !== "") {
       body.userId = formData.userId;
     }
-    Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
-      try {
-        await api.post('/admin-api/rag/ai/form/update', body, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
-        return await this.getForm(id);
-      }
-    catch (e) { console.warn('[FormsService] updateForm failed', e); throw e; }
+    Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
+    try {
+      await api.post("/admin-api/rag/ai/form/update", body, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 20000,
+      });
+      return await this.getForm(id);
+    } catch (e) {
+      console.warn("[FormsService] updateForm failed", e);
+      throw e;
+    }
   }
 
   async deleteForm(id) {
-    if (!id) throw new Error('缺少表单 id');
-    try { const res = await api.delete('/admin-api/rag/ai/form/delete', { params: { id }, timeout: 15000 }); const root = this._normalize(res); return { success: root.code === 0 }; }
-    catch (e) { console.warn('[FormsService] deleteForm failed', e); throw e; }
+    if (!id) throw new Error("缺少表单 id");
+    try {
+      const res = await api.delete("/admin-api/rag/ai/form/delete", {
+        params: { id },
+        timeout: 15000,
+      });
+      const root = this._normalize(res);
+      return { success: root.code === 0 };
+    } catch (e) {
+      console.warn("[FormsService] deleteForm failed", e);
+      throw e;
+    }
+  }
+
+  async updatePrompt(formId, promptString, timeout = 20000) {
+    if (!formId) throw new Error("缺少表单 id");
+    if (promptString == null) throw new Error("缺少提示词内容");
+    try {
+      const res = await api.post(
+        "/admin-api/rag/ai/form/update-prompt",
+        null,
+        {
+          params: { formId, promptString },
+          timeout,
+        }
+      );
+      return this._normalize(res);
+    } catch (e) {
+      console.warn("[FormsService] updatePrompt failed", e);
+      throw e;
+    }
+  }
+
+  async generateEsIndex(formId, timeout = 20000) {
+    if (!formId) throw new Error("缺少表单 id");
+    try {
+      const res = await api.post(
+        "/admin-api/rag/ai/form/generate-es-index",
+        null,
+        {
+          params: { formId },
+          timeout,
+        }
+      );
+      const root = this._normalize(res);
+      return root.data ?? root.result ?? true;
+    } catch (e) {
+      console.warn("[FormsService] generateEsIndex failed", e);
+      throw e;
+    }
+  }
+
+  async saveFormPrompt(formId, promptString, timeout = 20000) {
+    return this.updatePrompt(formId, promptString, timeout)
   }
 
   async searchForms(keyword) {
-    if (!keyword) { return this.getForms(); }
-    try { const res = await api.get('/admin-api/rag/ai/form/search', { params: { keyword }, timeout: 15000 }); return this._unwrapList(res).list; }
-    catch (e) { console.warn('[FormsService] searchForms failed, fallback page filter', e); const all = await this.getForms(); return all.filter(f => (f.name || '').toLowerCase().includes(keyword.toLowerCase())); }
+    if (!keyword) {
+      return this.getForms();
+    }
+    try {
+      const res = await api.get("/admin-api/rag/ai/form/search", {
+        params: { keyword },
+        timeout: 15000,
+      });
+      return this._unwrapList(res).list;
+    } catch (e) {
+      console.warn(
+        "[FormsService] searchForms failed, fallback page filter",
+        e
+      );
+      const all = await this.getForms();
+      return all.filter((f) =>
+        (f.name || "").toLowerCase().includes(keyword.toLowerCase())
+      );
+    }
   }
 
   async extractByForm({ esId, formId }) {
-    if (!esId || !formId) throw new Error('缺少 esId 或 formId');
+    if (!esId || !formId) throw new Error("缺少 esId 或 formId");
     try {
       const body = { esId, formId };
-      const res = await api.post('/admin-api/rag/ai/form/extract', body, { headers: { 'Content-Type': 'application/json' }, timeout: 60000 });
-      const root = this._normalize(res); return root.data || root.result || root;
-    } catch (e) { console.warn('[FormsService] extractByForm failed', e); throw e; }
+      const res = await api.post("/admin-api/rag/ai/form/extract", body, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 60000,
+      });
+      const root = this._normalize(res);
+      return root.data || root.result || root;
+    } catch (e) {
+      console.warn("[FormsService] extractByForm failed", e);
+      throw e;
+    }
   }
 
   // New endpoint per requirement /admin-api/rag/ai/text/extract/form
   async extractTextByForm({ esId, formId, structure, timeout = 180000 }) {
-    if (!esId || !formId) throw new Error('缺少 esId 或 formId');
+    if (!esId || !formId) throw new Error("缺少 esId 或 formId");
     const started = Date.now();
     try {
       const body = { esId, formId };
       if (structure) {
         body.structure = this._serializeStructure(structure);
       }
-      const res = await api.post('/admin-api/rag/ai/text/extract/form', body, { headers: { 'Content-Type': 'application/json' }, timeout });
+      const res = await api.post("/admin-api/rag/ai/text/extract/form", body, {
+        headers: { "Content-Type": "application/json" },
+        timeout,
+      });
       const root = this._normalize(res);
       const data = root.data || root.result || root;
-      console.info('[FormsService] extractTextByForm success in', (Date.now() - started) + 'ms');
+      console.info(
+        "[FormsService] extractTextByForm success in",
+        Date.now() - started + "ms"
+      );
       return data;
     } catch (e) {
-      console.warn('[FormsService] extractTextByForm failed after', (Date.now() - started) + 'ms', e);
+      console.warn(
+        "[FormsService] extractTextByForm failed after",
+        Date.now() - started + "ms",
+        e
+      );
       throw e;
+    }
+  }
+
+  // 保存用户填写的表单数据(此接口将表单数据保存在ES中)
+  async saveFormData(formId, extractionData, timeout = 20000) {
+    if (!formId) throw new Error("缺少表单 id");
+    try {
+      const res = await api.post(
+        "/admin-api/rag/ai/form/save-form-data",
+        extractionData,
+        {
+          params: { formId },
+          headers: { "Content-Type": "application/json" },
+          timeout,
+        }
+      );
+      return this._normalize(res);
+    } catch (e) {
+      console.warn("[FormsService] saveFormData failed", e);
+      throw e;
+    }
+  }
+
+  // 分页获取表单数据(从ES中获取)
+  async pageFormData({ formId, esId, pageNo = 1, pageSize = 10 } = {}) {
+    if (!formId) throw new Error("缺少表单 id");
+    try {
+      const res = await api.get("/admin-api/rag/ai/form/page-form-data", {
+        params: { formId, esId, pageNo, pageSize },
+        timeout: 20000,
+      });
+      const root = this._normalize(res);
+      const data = root.data || root;
+      const list = data.records || data.list || [];
+      const total = Number(data.total || data.count || list.length || 0);
+      return { list, total, raw: data };
+    } catch (e) {
+      console.warn("[FormsService] pageFormData failed", e);
+      return { list: [], total: 0, raw: null };
     }
   }
 
@@ -153,19 +372,22 @@ class FormsService {
    * 返回: { id, esId, formId, ... }
    */
   async saveExtractionHistory({ esId, formId, fields, raw, timeout = 30000 }) {
-    if (!esId || !formId) throw new Error('缺少 esId 或 formId');
-    console.log('[raw ===========] ', raw);
+    if (!esId || !formId) throw new Error("缺少 esId 或 formId");
+    console.log("[raw ===========] ", raw);
     const body = { esId, formId, fields };
     if (raw) body.raw = raw; // 允许透传原始结果 (便于后端调试)
     try {
-      const res = await api.post('/admin-api/rag/ai/form/history/save', body, { headers: { 'Content-Type': 'application/json' }, timeout });
+      const res = await api.post("/admin-api/rag/ai/form/history/save", body, {
+        headers: { "Content-Type": "application/json" },
+        timeout,
+      });
       if (res.code === 500) {
-        throw new Error(res.msg || '保存抽取历史失败');
+        throw new Error(res.msg || "保存抽取历史失败");
       }
       const root = this._normalize(res);
       return root.data || root.result || root;
     } catch (e) {
-      console.warn('[FormsService] saveExtractionHistory failed', e);
+      console.warn("[FormsService] saveExtractionHistory failed", e);
       throw e;
     }
   }

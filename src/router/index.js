@@ -67,6 +67,19 @@ const routes = [
     component: () => import('../views/FormDesignerView.vue'),
     props: true
   },
+  // View extraction status by form
+  {
+    path: '/extractions/status/form/:id',
+    name: 'extraction-status-form',
+    component: () => import('../views/DataExtractionStatsView.vue'),
+    props: true
+  },
+  // View extraction status for all forms
+  {
+    path: '/extractions/status/all',
+    name: 'extraction-status-all',
+    component: () => import('../views/DataExtractionStatsView.vue')
+  },
   // Extractions management routes
   {
     path: '/extractions',

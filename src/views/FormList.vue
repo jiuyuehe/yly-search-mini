@@ -4,11 +4,16 @@
     <div class="toolbar">
       <div class="toolbar-left">
         <h1>
-          <el-icon><Document /></el-icon>
+          <el-icon>
+            <Document />
+          </el-icon>
           表单管理系统
         </h1>
       </div>
       <div class="toolbar-right">
+        <el-button @click="goAllExtractionStatus" :icon="DataLine">
+          抽取状态
+        </el-button>
         <el-button @click="handleTemplateMarket" :icon="Shop">
           模板市场
         </el-button>
@@ -26,7 +31,7 @@
       <el-empty v-if="formStore.forms.length === 0" description="暂无表单，点击创建表单开始">
         <el-button type="primary" @click="handleCreateForm">立即创建</el-button>
       </el-empty>
-      
+
       <el-row :gutter="20" v-else>
         <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="form in formStore.forms" :key="form.id">
           <el-card class="form-card clickable-card" shadow="hover" @click="openDataView(form)">
@@ -36,40 +41,40 @@
                   <span class="card-title">{{ form.name }}</span>
                 </div>
                 <div class="card-status-row" aria-label="表单状态标签">
-                  <el-tag size="mini" type="info" class="field-tag">{{ form.schema.length }} 字段</el-tag>
-                 
+                  <el-tag size="small" type="info" class="field-tag">{{ form.schema.length }} 字段</el-tag>
+
                 </div>
               </div>
             </template>
 
             <div class="card-body">
-               <el-tag
-                    size="mini"
-                    :type="isIndexed(form) ? 'success' : 'warning'"
-                    class="status-tag"
-                  >
-                    <el-icon v-if="isIndexed(form)"><Check /></el-icon>
-                    {{ isIndexed(form) ? '已索引' : '未索引' }}
-                  </el-tag>
-                  <el-tag
-                    size="mini"
-                    :type="form.userId && form.userId !== 0 ? 'primary' : 'info'"
-                    class="status-tag"
-                  >
+              <div class="status-row">
+                <div class="index-status">
+                  <el-tag size="small" :type="form.userId && form.userId !== 0 ? 'primary' : 'info'" class="status-tag">
                     {{ ownerLabel(form) }}
                   </el-tag>
-                  <el-tag
-                    v-if="shouldShowVersion(form)"
-                    size="mini"
-                    type="success"
-                    class="status-tag"
-                  >
+                  <el-tag v-if="shouldShowVersion(form)" size="small" type="success" class="status-tag">
                     版本 v{{ form.version }}
                   </el-tag>
+                  <el-tag size="small" :type="isIndexed(form) ? 'success' : 'warning'" class="status-tag">
+                    <el-icon v-if="isIndexed(form)">
+                      <Check />
+                    </el-icon>
+                    {{ isIndexed(form) ? '已索引' : '未索引' }}
+                  </el-tag>
+                  <el-link v-if="!isIndexed(form)" type="info"  size="small"
+                    @click.stop="handleGenerateIndex(form)">
+                    立即索引
+                  </el-link>
+                </div>
+
+              </div>
               <p class="card-description">{{ form.description || '暂无描述' }}</p>
               <div class="card-meta">
                 <el-text size="small" type="info">
-                  <el-icon><Clock /></el-icon>
+                  <el-icon>
+                    <Clock />
+                  </el-icon>
                   创建于: {{ formatDate(form.createTime) }}
                 </el-text>
               </div>
@@ -83,10 +88,7 @@
                 <el-button size="small" @click.stop="handleEdit(form)" :icon="Edit">
                   编辑
                 </el-button>
-                <el-popconfirm
-                  title="确定要删除这个表单吗？"
-                  @confirm="handleDelete(form.id)"
-                >
+                <el-popconfirm title="确定要删除这个表单吗？" @confirm="handleDelete(form.id)">
                   <template #reference>
                     <el-button size="small" type="danger" :icon="Delete" @click.stop>
                       删除
@@ -100,41 +102,23 @@
       </el-row>
 
       <!-- 分页（服务端分页） -->
-      <div class="pagination-wrapper" v-if="totalForms > pageSize">
-        <el-pagination
-          :current-page="currentPage"
-          :page-size="pageSize"
-          :total="totalForms"
-          layout="prev, pager, next, jumper"
-          background
-          @current-change="handlePageChange"
-        />
+      <div class="pagination-wrapper" v-if="totalForms > 0">
+        <el-pagination :current-page="currentPage" :page-size="pageSize" :total="totalForms"
+          layout="prev, pager, next, jumper" background @current-change="handlePageChange" />
       </div>
     </div>
 
     <!-- 创建/编辑表单对话框 -->
-    <FormDesigner
-      v-model:visible="designerVisible"
-      :form="editingForm"
-      @save="handleSaveForm"
-    />
+    <FormDesigner v-model:visible="designerVisible" :form="editingForm" @save="handleSaveForm" />
 
     <!-- 预览表单对话框 -->
-    <FormPreview
-      v-model:visible="previewVisible"
-      :form="previewForm"
-    />
+    <FormPreview v-model:visible="previewVisible" :form="previewForm" />
 
     <!-- 模板市场对话框 -->
-    <TemplateMarket
-      v-model:visible="templateMarketVisible"
-      @select-template="handleSelectTemplate"
-    />
+    <TemplateMarket v-model:visible="templateMarketVisible" @select-template="handleSelectTemplate" />
 
     <!-- 设置对话框 -->
-    <SettingsDialog
-      v-model:visible="settingsVisible"
-    />
+    <SettingsDialog v-model:visible="settingsVisible" />
   </div>
 </template>
 
@@ -143,6 +127,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { formStore } from '../stores/formStore'
 import { ElMessage } from 'element-plus'
+import { formsService } from '../services/formsService'
 import {
   Plus,
   Shop,
@@ -152,7 +137,8 @@ import {
   Edit,
   Delete,
   Clock,
-  Check
+  Check,
+  DataLine
 } from '@element-plus/icons-vue'
 import FormDesigner from '../components/extractions/newforms/FormDesigner.vue'
 import FormPreview from '../components/extractions/newforms/FormPreview.vue'
@@ -253,6 +239,18 @@ const isIndexed = (form) => Boolean(form?.esIndexName)
 const ownerLabel = (form) => (form?.userId && form.userId !== 0 ? '个人' : '公开')
 const shouldShowVersion = (form) => (form?.version ?? 1) > 1
 
+const handleGenerateIndex = async (form) => {
+  if (!form) return
+  try {
+    await formsService.generateEsIndex(form.id)
+    ElMessage.success('索引创建请求已提交，稍后刷新查看状态')
+    await formStore.loadForms({ pageNo: currentPage.value, pageSize })
+  } catch (error) {
+    console.error('创建索引失败:', error)
+    ElMessage.error(error?.message || '创建索引失败')
+  }
+}
+
 // 从模板创建表单
 const handleSelectTemplate = async (template) => {
   await formStore.addForm({
@@ -266,6 +264,11 @@ const handleSelectTemplate = async (template) => {
 // 打开设置
 const handleSettings = () => {
   settingsVisible.value = true
+}
+
+// 跳转：所有表单抽取状态
+const goAllExtractionStatus = () => {
+  router.push({ name: 'extraction-status-all' })
 }
 </script>
 
@@ -308,7 +311,7 @@ const handleSettings = () => {
   transition: transform 0.3s;
   background: var(--background-color);
   border: 1px solid var(--border-color-muted);
-  border-radius: var( --border-radius-lg);
+  border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
 }
@@ -361,9 +364,9 @@ const handleSettings = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .card-meta {
@@ -377,6 +380,22 @@ const handleSettings = () => {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.index-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+
 
 .clickable-card .card-actions {
   cursor: default;

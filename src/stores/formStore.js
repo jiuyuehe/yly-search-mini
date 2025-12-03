@@ -2,6 +2,7 @@
 import { reactive } from 'vue'
 import { formsService } from '../services/formsService'
 
+
 const normalizeId = (id) => (id == null ? null : String(id))
 const matchId = (storedId, targetId) => {
   const normalizedStored = normalizeId(storedId)
@@ -9,18 +10,28 @@ const matchId = (storedId, targetId) => {
   return normalizedStored !== null && normalizedTarget !== null && normalizedStored === normalizedTarget
 }
 
+const normalizeFormDataRecord = (raw, fallbackId) => {
+  const data = raw?.data ?? raw?.fields ?? raw
+  const createdAt = raw?.createdAt ?? raw?.createTime ?? data?.createdAt ?? ''
+  const updatedAt = raw?.updatedAt ?? raw?.updateTime ?? data?.updatedAt ?? ''
+  const id = raw?.id ?? raw?.documentId ?? raw?._id ?? fallbackId
+  return { id, data, createdAt, updatedAt, raw }
+}
+
 export const formStore = reactive({
   forms: [],
   formTotal: 0,
   formResults: {},
+  formDataPagination: {},
   formPrompts: {},
 
   async loadForms({ pageNo = 1, pageSize = 100 } = {}) {
     // Prefer server-side pagination when service supports it
     if (typeof formsService.getFormsPage === 'function') {
       const { list, total } = await formsService.getFormsPage({ pageNo, pageSize })
+      console.log('Fetched forms (page):', list, total)
       this.forms = list || []
-      this.formTotal = Number(total || this.forms.length)
+      this.formTotal = total;
       (this.forms || []).forEach((form) => {
         this.formResults[form.id] = form.structureResult || []
       })
@@ -92,8 +103,33 @@ export const formStore = reactive({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
+    try {
+      await formsService.saveFormData(formId, result)
+    } catch (error) {
+      console.error('保存用户表单数据到后端失败:', error)
+    }
     this.formResults[formId].push(newResult)
+    console.log("Saved new form result:", newResult)
     return newResult
+  },
+
+  async addFormResult(formId, result) {
+    return this.saveFormResult(formId, result)
+  },
+
+  async loadFormResults(formId, { esId, pageNo = 1, pageSize = 10 } = {}) {
+    if (!formId) {
+      return { list: [], total: 0 }
+    }
+    const { list, total } = await formsService.pageFormData({ formId, esId, pageNo, pageSize })
+    const normalizedList = list.map((item, idx) => normalizeFormDataRecord(item, `${formId}-${pageNo}-${idx}`))
+    this.formResults[formId] = normalizedList
+    this.formDataPagination[formId] = { pageNo, pageSize, total }
+    return { list: normalizedList, total }
+  },
+
+  getFormDataPagination(formId) {
+    return this.formDataPagination[formId] || { pageNo: 1, pageSize: 10, total: 0 }
   },
 
   async updateFormResult(formId, resultId, data) {

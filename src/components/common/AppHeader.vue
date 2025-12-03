@@ -19,14 +19,7 @@
             <el-icon><Search /></el-icon>
             <span>文档搜索</span>
           </el-menu-item>
-          
-  
-          
-          <el-menu-item index="/extractions">
-            <el-icon><DataAnalysis /></el-icon>
-            <span>数据管理</span>
-          </el-menu-item>
-
+        
           <el-menu-item index="/newForm">
             <el-icon><DataAnalysis /></el-icon>
             <span>新表单</span>
