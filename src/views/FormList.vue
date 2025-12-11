@@ -3,12 +3,15 @@
     <!-- 顶部工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <h1>
-          <el-icon>
-            <Document />
-          </el-icon>
-          表单管理系统
-        </h1>
+        <el-breadcrumb separator="/">
+          <el-breadcrumb-item :to="{ path: '/' }" class="breadcrumb-link">
+            <el-icon><House /></el-icon>
+            <span class="breadcrumb-text">Home</span>
+          </el-breadcrumb-item>
+          <el-breadcrumb-item>
+            <span class="breadcrumb-text">数据表单</span>
+          </el-breadcrumb-item>
+        </el-breadcrumb>
       </div>
       <div class="toolbar-right">
         <el-button @click="goAllExtractionStatus" :icon="DataLine">
@@ -19,9 +22,6 @@
         </el-button>
         <el-button type="primary" @click="handleCreateForm" :icon="Plus">
           创建表单
-        </el-button>
-        <el-button @click="handleSettings" :icon="Setting">
-          设置
         </el-button>
       </div>
     </div>
@@ -116,9 +116,6 @@
 
     <!-- 模板市场对话框 -->
     <TemplateMarket v-model:visible="templateMarketVisible" @select-template="handleSelectTemplate" />
-
-    <!-- 设置对话框 -->
-    <SettingsDialog v-model:visible="settingsVisible" />
   </div>
 </template>
 
@@ -131,27 +128,23 @@ import { formsService } from '../services/formsService'
 import {
   Plus,
   Shop,
-  Setting,
-  Document,
   View,
   Edit,
   Delete,
   Clock,
   Check,
-  DataLine
+  DataLine,
+  House
 } from '@element-plus/icons-vue'
 import FormDesigner from '../components/extractions/newforms/FormDesigner.vue'
 import FormPreview from '../components/extractions/newforms/FormPreview.vue'
 import TemplateMarket from '../components/extractions/newforms/TemplateMarket.vue'
-import SettingsDialog from '../components/extractions/newforms/SettingsDialog.vue'
-
 const router = useRouter()
 
 // 状态管理
 const designerVisible = ref(false)
 const previewVisible = ref(false)
 const templateMarketVisible = ref(false)
-const settingsVisible = ref(false)
 const editingForm = ref(null)
 const previewForm = ref(null)
 
@@ -259,11 +252,6 @@ const handleSelectTemplate = async (template) => {
     schema: template.schema
   })
   ElMessage.success(`已从模板 "${template.name}" 创建表单`)
-}
-
-// 打开设置
-const handleSettings = () => {
-  settingsVisible.value = true
 }
 
 // 跳转：所有表单抽取状态

@@ -24,6 +24,22 @@
           </el-tag>
         </div>
         <div class="toolbar-right">
+          <el-select
+            v-model="selectedModelId"
+            placeholder="选择模型"
+            size="small"
+            style="width: 220px"
+            filterable
+            :loading="modelsLoading"
+            @change="handleModelChange"
+          >
+            <el-option
+              v-for="model in models"
+              :key="model.id || model.modelId"
+              :label="model.name || model.modelName || model.id"
+              :value="model.id || model.modelId"
+            />
+          </el-select>
           <el-button @click="handleGenerateDefault" :icon="Refresh">
             生成默认提示词
           </el-button>
@@ -32,6 +48,8 @@
           </el-button>
         </div>
       </div>
+
+      <!-- 新增模型绑定 -->
 
       <!-- 提示词编辑区 -->
       <div class="prompt-section">
@@ -81,6 +99,7 @@ import {
 import { generateAIPrompt, extractDataWithAI } from '../../../services/aiPromptService'
 import { appConfig } from '../../../config/appConfig'
 import { formsService } from '../../../services/formsService'
+import { aiService } from '../../../services/aiService'
 
 // Props
 const props = defineProps({
@@ -111,6 +130,9 @@ const showTestArea = ref(false)
 const testContent = ref('')
 const testResult = ref(null)
 const testError = ref('')
+const models = ref([])
+const selectedModelId = ref(null)
+const modelsLoading = ref(false)
 
 // 加载提示词
 const loadPrompt = async () => {
@@ -131,13 +153,30 @@ const loadPrompt = async () => {
   loading.value = false
 }
 
+const loadModels = async () => {
+  modelsLoading.value = true
+  try {
+    const res = await aiService.getChatModels({ type: 1 })
+    const list = res?.data || res?.list || res || []
+    models.value = Array.isArray(list) ? list : []
+  } catch (error) {
+    console.error('加载模型列表失败:', error)
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
 
 // 监听 form 变化，加载提示词
 watch(() => props.form, async (newForm) => {
   if (newForm && newForm.id) {
+    selectedModelId.value = newForm.modelId || null
     await loadPrompt()
   }
 }, { immediate: true })
+
+// 初始加载模型列表
+loadModels()
 
 
 
@@ -250,7 +289,7 @@ const handleSave = async () => {
   }
   saving.value = true
   try {
-    await formsService.saveFormPrompt(props.form.id, promptContent.value)
+    await formsService.saveFormPrompt(props.form.id, promptContent.value, selectedModelId.value)
     isCustomPrompt.value = true
     ElMessage.success('保存成功')
     emit('save', promptContent.value)
@@ -261,6 +300,10 @@ const handleSave = async () => {
   } finally {
     saving.value = false
   }
+}
+
+const handleModelChange = (val) => {
+  selectedModelId.value = val
 }
 
 // 关闭对话框

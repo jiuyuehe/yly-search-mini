@@ -1,5 +1,5 @@
 import api from './api';
-import {fetchEventSource} from '@microsoft/fetch-event-source';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 // AI 接口允许耗时较长，单独超时时间 (ms)
 const AI_REQUEST_TIMEOUT = 180000; // 3 分钟，可按需再调大
@@ -131,19 +131,19 @@ class AIService {
             return map[low] || low;
         };
         const apiLang = normalizeToUi(targetLanguage);
-        const body = {targetLang: apiLang, outputFormat: 'plain', size: length};
+        const body = { targetLang: apiLang, outputFormat: 'plain', size: length };
         if (esId) {
             body.esId = esId;
         }
         try {
             const res = await api.post('/admin-api/rag/ai/text/summary', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: AI_REQUEST_TIMEOUT
             }).catch(e => {
                 throw e;
             });
             const parseMaybeJson = (str) => {
-                if (str == null) return {summary: ''};
+                if (str == null) return { summary: '' };
                 if (typeof str !== 'string') return {
                     summary: str?.summary || '',
                     key_points: str?.key_points || str?.keyPoints || str?.points
@@ -174,7 +174,7 @@ class AIService {
                     const obj = tryJson(cleaned);
                     if (obj) return obj;
                 }
-                return {summary: cleaned};
+                return { summary: cleaned };
             };
             if (res && typeof res === 'object') {
                 const data = res.data || res.result || {};
@@ -201,7 +201,7 @@ class AIService {
                     esId: esId || body.esId || null
                 };
             }
-            return {summary: '', targetObj: {}, sourceObj: {}, targetLang: normalizeToUi(apiLang), sourceLang: '', esId: esId || null};
+            return { summary: '', targetObj: {}, sourceObj: {}, targetLang: normalizeToUi(apiLang), sourceLang: '', esId: esId || null };
         } catch (e) {
             // 不立即使用本地 fallback，直接抛出由上层界面显示“生成失败”或重试，避免用户误以为已完成
             console.warn('[AIService] summary failed', e);
@@ -212,12 +212,12 @@ class AIService {
     async fetchCachedSummary(esId) {
         if (!esId) return null;
         try {
-            const res = await api.get(`/admin-api/rag/ai/text/summary/${encodeURIComponent(esId)}`, {timeout: 30000});
+            const res = await api.get(`/admin-api/rag/ai/text/summary/${encodeURIComponent(esId)}`, { timeout: 30000 });
             if (!res || typeof res !== 'object') return null;
             const data = res.data || res.result || {};
             if (!data || Object.keys(data).length === 0) return null;
             const parseMaybeJson = (str) => {
-                if (str == null) return {summary: ''};
+                if (str == null) return { summary: '' };
                 if (typeof str !== 'string') return {
                     summary: str?.summary || '',
                     key_points: str?.key_points || str?.keyPoints || str?.points
@@ -235,7 +235,7 @@ class AIService {
                     } catch { /* ignore */
                     }
                 }
-                return {summary: cleaned};
+                return { summary: cleaned };
             };
             const targetRaw = data.summaryTarget || '';
             const sourceRaw = data.summary || '';
@@ -281,7 +281,7 @@ class AIService {
         }
     }
 
-    async saveSummary(esId, {sourceSummary, targetSummary, sourceLang: _sourceLang, targetLang: _targetLang}) {
+    async saveSummary(esId, { sourceSummary, targetSummary, sourceLang: _sourceLang, targetLang: _targetLang }) {
         if (!esId) throw new Error('缺少 esId');
         const normalizeToUi = (lang) => {
             if (!lang) return 'zh';
@@ -319,13 +319,13 @@ class AIService {
         };
         try {
             const res = await api.post('/admin-api/rag/ai/text/summary/update', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: 20000
             });
             if (res && typeof res === 'object') {
-                if (res.code === 0) return {success: true};
+                if (res.code === 0) return { success: true };
             }
-            return {success: false, message: res?.msg || '保存失败'};
+            return { success: false, message: res?.msg || '保存失败' };
         } catch (e) {
             console.warn('[AIService] saveSummary failed', e);
             throw e;
@@ -335,13 +335,13 @@ class AIService {
     async getTags(fileId, fileData) {
         // const text = this.buildTextFromFileData(fileData) || '';
         const esId = fileData?.esId || fileData?.esid || fileData?._raw?.esId || fileData?._raw?.esid || null;
-        const body = {outputFormat: 'tag_list'};
+        const body = { outputFormat: 'tag_list' };
         if (esId) {
             body.esId = esId;
         }
         try {
             const res = await api.post('/admin-api/rag/ai/text/tags', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: AI_REQUEST_TIMEOUT
             }).catch(e => {
                 throw e;
@@ -355,12 +355,12 @@ class AIService {
                     kw.forEach(it => {
                         if (!it) return;
                         if (typeof it === 'string') {
-                            out.push({tag: it, weight: 0});
+                            out.push({ tag: it, weight: 0 });
                             return;
                         }
                         const tag = it.tag || it.keyword || it.key || it.name || '';
                         const weight = Number(it.weight ?? it.score ?? 0) || 0;
-                        if (tag) out.push({tag, weight});
+                        if (tag) out.push({ tag, weight });
                     });
                 } else if (typeof kw === 'string') {
                     // 可能返回碎片化 JSON 片段拼接在 keywords 中，如示例，需要尝试重组
@@ -369,18 +369,18 @@ class AIService {
                         const parsed = JSON.parse(str);
                         if (parsed && Array.isArray(parsed.keywords)) {
                             parsed.keywords.forEach(k => {
-                                if (k?.tag) out.push({tag: k.tag, weight: Number(k.weight || 0)});
+                                if (k?.tag) out.push({ tag: k.tag, weight: Number(k.weight || 0) });
                             });
                         } else {
-                            str.split(/[;,，、\s]+/).filter(Boolean).forEach(t => out.push({tag: t, weight: 0}));
+                            str.split(/[;,，、\s]+/).filter(Boolean).forEach(t => out.push({ tag: t, weight: 0 }));
                         }
                     } catch {
-                        str.split(/[;,，、\s]+/).filter(Boolean).forEach(t => out.push({tag: t, weight: 0}));
+                        str.split(/[;,，、\s]+/).filter(Boolean).forEach(t => out.push({ tag: t, weight: 0 }));
                     }
                 } else if (kw && typeof kw === 'object') {
                     // 可能是 { tag: weight } map
                     Object.entries(kw).forEach(([k, v]) => {
-                        if (typeof v === 'number') out.push({tag: k, weight: v});
+                        if (typeof v === 'number') out.push({ tag: k, weight: v });
                     });
                 }
             }
@@ -388,7 +388,7 @@ class AIService {
             const fragmented = out.some(o => /```/.test(o.tag)) && out.some(o => /"keywords"/.test(o.tag));
             if (fragmented) {
                 try {
-                    const frags = out.map(o => ({raw: o.tag, w: o.weight}));
+                    const frags = out.map(o => ({ raw: o.tag, w: o.weight }));
                     const tagEntries = [];
                     const weightVals = [];
                     const isWeightToken = (s) => /^\d+(?:\.\d+)?}?$/.test(s.replace(/^[^{0-9.]*/, ''));
@@ -418,7 +418,7 @@ class AIService {
                             // Clean quotes
                             phrase = phrase.replace(/^"|"$/g, '').trim();
                             if (phrase) {
-                                tagEntries.push({tag: phrase, weight: 0});
+                                tagEntries.push({ tag: phrase, weight: 0 });
                             }
                             continue;
                         }
@@ -427,7 +427,7 @@ class AIService {
                     if (!tagEntries.length) {
                         frags.forEach(f => {
                             const m = f.raw.match(/^"([^"]+)"$/);
-                            if (m) tagEntries.push({tag: m[1], weight: 0});
+                            if (m) tagEntries.push({ tag: m[1], weight: 0 });
                         });
                     }
                     // Assign weights in order
@@ -485,25 +485,25 @@ class AIService {
     }
 
     async saveTags(esId, _tagsWithWeights = []) {
-        if (!esId) return {success: false, message: '缺少 esId'};
-        const keywords = _tagsWithWeights.map(t => ({tag: t.tag, weight: Number(t.weight || 0)})).filter(t => t.tag);
+        if (!esId) return { success: false, message: '缺少 esId' };
+        const keywords = _tagsWithWeights.map(t => ({ tag: t.tag, weight: Number(t.weight || 0) })).filter(t => t.tag);
         try {
             const res = await api.post('/admin-api/rag/ai/text/tags/update', {
                 esId,
                 keywords
-            }, {headers: {'Content-Type': 'application/json'}, timeout: 20000});
-            if (res && typeof res === 'object' && res.code === 0) return {success: true};
-            return {success: false, message: res?.msg || '保存失败'};
+            }, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
+            if (res && typeof res === 'object' && res.code === 0) return { success: true };
+            return { success: false, message: res?.msg || '保存失败' };
         } catch (e) {
             console.warn('[AIService] saveTags failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
     async fetchCachedTags(esId) {
         if (!esId) return null;
         try {
-            const res = await api.get(`/admin-api/rag/ai/text/tags/${encodeURIComponent(esId)}`, {timeout: 20000});
+            const res = await api.get(`/admin-api/rag/ai/text/tags/${encodeURIComponent(esId)}`, { timeout: 20000 });
             if (!res || typeof res !== 'object') return null;
             const data = res.data || res.result || {};
             let kw = data.keywords || data.tags || data.list || data;
@@ -512,16 +512,16 @@ class AIService {
                 kw.forEach(it => {
                     if (!it) return;
                     if (typeof it === 'string') {
-                        out.push({tag: it, weight: 0});
+                        out.push({ tag: it, weight: 0 });
                         return;
                     }
                     const tag = it.tag || it.keyword || it.key || it.name || '';
                     const weight = Number(it.weight ?? it.score ?? 0) || 0;
-                    if (tag) out.push({tag, weight});
+                    if (tag) out.push({ tag, weight });
                 });
             } else if (kw && typeof kw === 'object') {
                 Object.entries(kw).forEach(([k, v]) => {
-                    if (typeof v === 'number') out.push({tag: k, weight: v});
+                    if (typeof v === 'number') out.push({ tag: k, weight: v });
                 });
             }
             return out.length ? out.slice(0, 100) : null;
@@ -536,19 +536,19 @@ class AIService {
         // const text = this.buildTextFromFileData(fileData) || '';
         let esId = fileData?.esId || fileData?.esid || fileData?._raw?.esId || fileData?._raw?.esid || null;
         if (!esId && fileId) esId = String(fileId || '').trim() || null;
-        const body = {outputFormat: 'json'};
+        const body = { outputFormat: 'json' };
         if (esId) {
             body.esId = esId;
             body.esid = esId;
         }
         try {
             const res = await api.post('/admin-api/rag/ai/text/ner', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: AI_REQUEST_TIMEOUT
             }).catch(e => {
                 throw e;
             });
-            const grouped = {persons: [], organizations: [], locations: [], dates: [], events: [], others: []};
+            const grouped = { persons: [], organizations: [], locations: [], dates: [], events: [], others: [] };
             if (res && typeof res === 'object') {
                 // Unwrap common wrappers: { code, data } or { data: { data: [...] } }
                 let data = res.data ?? res.result ?? res;
@@ -638,13 +638,13 @@ class AIService {
     async fetchCachedNER(esId) {
         if (!esId) return null;
         try {
-            const res = await api.get(`/admin-api/rag/ai/text/ner/${encodeURIComponent(esId)}`, {timeout: 20000});
+            const res = await api.get(`/admin-api/rag/ai/text/ner/${encodeURIComponent(esId)}`, { timeout: 20000 });
             if (!res || typeof res !== 'object') return null;
             let data = res.data || res.result || res;
             if (data && typeof data === 'object' && 'code' in data && data.data !== undefined) data = data.data;
             if (data && typeof data === 'object' && data.data !== undefined) data = data.data;
             // normalize return into grouped { persons, organizations, locations, dates, events, others }
-            const grouped = {persons: [], organizations: [], locations: [], dates: [], events: [], others: []};
+            const grouped = { persons: [], organizations: [], locations: [], dates: [], events: [], others: [] };
             // Case A: data is an array whose first element is an object with uppercase keys
             if (Array.isArray(data) && data.length > 0 && data[0] && typeof data[0] === 'object' && !Array.isArray(data[0])) {
                 const obj = data[0];
@@ -718,7 +718,7 @@ class AIService {
     }
 
     async saveNER(esId, nerGrouped) {
-        if (!esId) return {success: false, message: '缺少 esId'};
+        if (!esId) return { success: false, message: '缺少 esId' };
         // 构造后端期望的单对象大写键数组结构
         try {
             const makeArray = (arr) => Array.isArray(arr) ? arr.map(x => String(x).trim()).filter(Boolean) : [];
@@ -726,9 +726,9 @@ class AIService {
             const orgArr = makeArray(nerGrouped?.organizations);
             const locArr = makeArray(nerGrouped?.locations);
             const timeArr = makeArray(nerGrouped?.dates);
-          // merge events and others (some callers use 'others' for miscellaneous entities)
-  const eventsArr = makeArray(nerGrouped?.events);
-  const othersArr = makeArray(nerGrouped?.others);
+            // merge events and others (some callers use 'others' for miscellaneous entities)
+            const eventsArr = makeArray(nerGrouped?.events);
+            const othersArr = makeArray(nerGrouped?.others);
 
             const obj = {
                 PERSON: personsArr.length ? personsArr : null,
@@ -736,19 +736,19 @@ class AIService {
                 TIME: timeArr,
                 ORG: orgArr,
                 EVENT: eventsArr.length ? eventsArr : null,
-        OTHERS: othersArr.length ? othersArr : null
+                OTHERS: othersArr.length ? othersArr : null
             };
             const payload = [obj];
             const res = await api.post('/admin-api/rag/ai/text/ner/update', {
                 esId,
                 esid: esId,
                 ner: payload
-            }, {headers: {'Content-Type': 'application/json'}, timeout: 20000});
-            if (res && typeof res === 'object' && (res.code === 0 || res.success === true)) return {success: true};
-            return {success: false, message: res?.msg || '保存失败'};
+            }, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
+            if (res && typeof res === 'object' && (res.code === 0 || res.success === true)) return { success: true };
+            return { success: false, message: res?.msg || '保存失败' };
         } catch (e) {
             console.warn('[AIService] saveNER failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -761,7 +761,7 @@ class AIService {
                     amount: '100万元',
                     date: '2024-01-15',
                     duration: '12个月'
-                }, invoice: {number: 'INV-2024-001', amount: '50000元', date: '2024-01-15', vendor: 'ABC供应商'}
+                }, invoice: { number: 'INV-2024-001', amount: '50000元', date: '2024-01-15', vendor: 'ABC供应商' }
             };
             return mockResults[template.type] || {};
         } catch {
@@ -791,9 +791,9 @@ class AIService {
 
     async translateText(text, targetLanguage, onChunk, esId = null) {
         try {
-            const body = {text, targetLang: targetLanguage, esId: esId || undefined, outputFormat: 'plain'};
+            const body = { text, targetLang: targetLanguage, esId: esId || undefined, outputFormat: 'plain' };
             const res = await api.post('/admin-api/rag/ai/text/translate', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: AI_REQUEST_TIMEOUT
             });
             // 兼容统一包装格式 { code, data:{ translated }, msg }
@@ -835,16 +835,16 @@ class AIService {
         };
         try {
             const res = await api.post('/Itrans/onlinetrans/tourist', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: AI_REQUEST_TIMEOUT
             });
             const data = res?.data || res?.result || {};
             // 预期 data.body.targetList
             const targetList = data.body?.targetList || data.targetList || [];
             if (Array.isArray(targetList) && targetList.length) {
-                return {sentences: targetList};
+                return { sentences: targetList };
             }
-            return {text: data.body?.text || data.text || ''};
+            return { text: data.body?.text || data.text || '' };
         } catch (e) {
             console.warn('[AIService] translateWithXunfei failed', e);
             throw e;
@@ -854,7 +854,7 @@ class AIService {
     async fetchCachedTranslation(esId) {
         if (!esId) return null;
         try {
-            const res = await api.get(`/admin-api/rag/ai/text/translate/${encodeURIComponent(esId)}`, {timeout: 30000});
+            const res = await api.get(`/admin-api/rag/ai/text/translate/${encodeURIComponent(esId)}`, { timeout: 30000 });
             const root = res?.data || res?.result || res || {};
             const data = root?.data !== undefined ? root.data : root; // 兼容 { code, data } 包装
             if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) return null;
@@ -904,18 +904,18 @@ class AIService {
     }
 
     async saveTranslation(esId, translation) {
-        if (!esId) return {success: false, message: '缺少 esId'};
+        if (!esId) return { success: false, message: '缺少 esId' };
         try {
-            const body = {esId, translated: translation};
+            const body = { esId, translated: translation };
             const res = await api.post('/admin-api/rag/ai/text/translate/update', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: 20000
             });
-            if (res && typeof res === 'object' && res.code === 0) return {success: true};
-            return {success: false, message: res?.msg || '保存失败'};
+            if (res && typeof res === 'object' && res.code === 0) return { success: true };
+            return { success: false, message: res?.msg || '保存失败' };
         } catch (e) {
             console.warn('[AIService] saveTranslation failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -947,21 +947,21 @@ class AIService {
 
     // 保存原文内容（与译文保存接口区分，后端若已有统一接口可复用）
     async saveSourceContent(esId, fileContents) {
-        if (!esId) return {success:false, message:'缺少 esId'};
+        if (!esId) return { success: false, message: '缺少 esId' };
         try {
             const body = {
                 esId: esId,
-                docs: [{fileContents: fileContents}]
+                docs: [{ fileContents: fileContents }]
             };
             const res = await api.post('/admin-api/rag/documents/indexes/update-fields', body, {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 20000
             });
-            if (res && typeof res === 'object' && res.code === 0) return {success:true};
-            return {success:false, message: res?.msg || '保存失败'};
+            if (res && typeof res === 'object' && res.code === 0) return { success: true };
+            return { success: false, message: res?.msg || '保存失败' };
         } catch (e) {
             console.warn('[AIService] saveSourceContent failed', e);
-            return {success:false, message:e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -990,24 +990,24 @@ class AIService {
             const results = picks.map((f, idx) => {
                 const score = idx === picks.length - 1 ? remaining : +(Math.random() * remaining * 0.6 + 0.05).toFixed(3);
                 remaining = +(remaining - score).toFixed(3);
-                return {category: f.name, score: score};
+                return { category: f.name, score: score };
             });
             const total = results.reduce((s, r) => s + r.score, 0) || 1;
-            return results.map(r => ({...r, score: +(r.score / total).toFixed(4)})).sort((a, b) => b.score - a.score);
+            return results.map(r => ({ ...r, score: +(r.score / total).toFixed(4) })).sort((a, b) => b.score - a.score);
         } catch {
             console.warn('classifyDocument mock fallback');
             return [];
         }
     }
 
-    async getRelatedDocuments({esId, query = '', page = 1, pageSize = 10, useLLM = false, forceRefresh = false} = {}) {
-        if (!esId) return {list: [], total: 0};
+    async getRelatedDocuments({ esId, query = '', page = 1, pageSize = 10, useLLM = false, forceRefresh = false } = {}) {
+        if (!esId) return { list: [], total: 0 };
         const offset = (page - 1) * pageSize;
         try {
             // 按接口文档: GET /admin-api/rag/ai/recommend/related?esId=&keyword=&offset=&limit=
-            const params = {esId, useLLM: !!useLLM, keyword: query || undefined, offset, limit: pageSize};
+            const params = { esId, useLLM: !!useLLM, keyword: query || undefined, offset, limit: pageSize };
             if (forceRefresh) params.forceRefresh = true;
-            const res = await api.get('/admin-api/rag/ai/recommend/related', {params, timeout: 60000});
+            const res = await api.get('/admin-api/rag/ai/recommend/related', { params, timeout: 60000 });
             const root = res?.data || res || {};
             const data = root.data || root.result || root;
             // 兼容 list / fileList / data 数组
@@ -1042,27 +1042,27 @@ class AIService {
                 };
             }).filter(Boolean);
             const total = Number(data.total ?? data.count ?? data.totalCount ?? list.length);
-            return {list, total};
+            return { list, total };
         } catch (e) {
             console.warn('[AIService] getRelatedDocuments failed, fallback mock', e);
-            const mock = Array.from({length: Math.min(pageSize, 5)}).map((_, i) => ({
+            const mock = Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => ({
                 id: `mock_${page}_${i}`,
                 esId: `mock_${page}_${i}`,
                 name: `相关文档示例 ${i + 1 + (page - 1) * pageSize}`,
                 score: +(Math.random() * 0.5 + 0.5).toFixed(3),
                 snippet: '这是一个模拟的相关内容片段，用于展示关联推荐效果。'
             }));
-            return {list: mock, total: mock.length};
+            return { list: mock, total: mock.length };
         }
     }
 
     // ===== Theme Classification (document themes & labels) =====
-    async listThemes({userId} = {}) {
+    async listThemes({ userId } = {}) {
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
-            const res = await api.get('/admin-api/rag/ai/theme/list', {headers, timeout: 20000});
+            const res = await api.get('/admin-api/rag/ai/theme/list', { headers, timeout: 20000 });
             const root = this._normalizeWrapper(res);
             const data = root.data || root.list || [];
             return Array.isArray(data) ? data.map(t => ({
@@ -1078,13 +1078,13 @@ class AIService {
         }
     }
 
-    async listThemesPage({pageNo = 1, pageSize = 10, userId} = {}) {
+    async listThemesPage({ pageNo = 1, pageSize = 10, userId } = {}) {
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const res = await api.get('/admin-api/rag/ai/theme/page', {
-                params: {pageNo, pageSize},
+                params: { pageNo, pageSize },
                 headers,
                 timeout: 20000
             });
@@ -1117,57 +1117,57 @@ class AIService {
                     raw: t
                 };
             }) : [];
-            return {list, total};
+            return { list, total };
         } catch (e) {
             console.warn('[AIService] listThemesPage failed', e);
-            return {list: [], total: 0};
+            return { list: [], total: 0 };
         }
     }
 
-    async createTheme({name, description = '', userId} = {}) {
+    async createTheme({ name, description = '', userId } = {}) {
         try {
-            const headers = {'Content-Type': 'application/json'};
+            const headers = { 'Content-Type': 'application/json' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
-            const body = {name, description};
-            const res = await api.post('/admin-api/rag/ai/theme/create', body, {headers, timeout: 20000});
+            const body = { name, description };
+            const res = await api.post('/admin-api/rag/ai/theme/create', body, { headers, timeout: 20000 });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0, id: root.data?.id || root.data || null, raw: root.data};
+            return { success: root.code === 0, id: root.data?.id || root.data || null, raw: root.data };
         } catch (e) {
             console.warn('[AIService] createTheme failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
-    async updateTheme({id, name, description, enabled, userId} = {}) {
-        if (!id) return {success: false, message: '缺少 id'};
+    async updateTheme({ id, name, description, enabled, userId } = {}) {
+        if (!id) return { success: false, message: '缺少 id' };
         try {
-            const headers = {'Content-Type': 'application/json'};
+            const headers = { 'Content-Type': 'application/json' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
-            const body = {id, name, description, enabled};
+            const body = { id, name, description, enabled };
             Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
-            const res = await api.post('/admin-api/rag/ai/theme/update', body, {headers, timeout: 20000});
+            const res = await api.post('/admin-api/rag/ai/theme/update', body, { headers, timeout: 20000 });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] updateTheme failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
     async deleteTheme(id, userId) {
-        if (!id) return {success: false};
+        if (!id) return { success: false };
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
-            const res = await api.delete('/admin-api/rag/ai/theme/delete', {params: {id}, headers, timeout: 15000});
+            const res = await api.delete('/admin-api/rag/ai/theme/delete', { params: { id }, headers, timeout: 15000 });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] deleteTheme failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -1178,7 +1178,7 @@ class AIService {
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const res = await api.get('/admin-api/rag/ai/theme/label/list', {
-                params: {themeId},
+                params: { themeId },
                 headers,
                 timeout: 20000
             });
@@ -1203,66 +1203,66 @@ class AIService {
         }
     }
 
-    async createThemeLabel({themeId, name, description = '', userId} = {}) {
-        if (!themeId) return {success: false, message: '缺少 themeId'};
+    async createThemeLabel({ themeId, name, description = '', userId } = {}) {
+        if (!themeId) return { success: false, message: '缺少 themeId' };
         try {
-            const headers = {'Content-Type': 'application/json'};
+            const headers = { 'Content-Type': 'application/json' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
-            const body = {themeId, name, description};
-            const res = await api.post('/admin-api/rag/ai/theme/label/create', body, {headers, timeout: 20000});
+            const body = { themeId, name, description };
+            const res = await api.post('/admin-api/rag/ai/theme/label/create', body, { headers, timeout: 20000 });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0, id: root.data?.id || root.data || null};
+            return { success: root.code === 0, id: root.data?.id || root.data || null };
         } catch (e) {
             console.warn('[AIService] createThemeLabel failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
-    async updateThemeLabel({id, themeId, name, description, enabled, userId} = {}) {
-        if (!id) return {success: false, message: '缺少 id'};
+    async updateThemeLabel({ id, themeId, name, description, enabled, userId } = {}) {
+        if (!id) return { success: false, message: '缺少 id' };
         try {
-            const headers = {'Content-Type': 'application/json'};
+            const headers = { 'Content-Type': 'application/json' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
-            const body = {id, themeId, name, description, enabled};
+            const body = { id, themeId, name, description, enabled };
             Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
-            const res = await api.post('/admin-api/rag/ai/theme/label/update', body, {headers, timeout: 20000});
+            const res = await api.post('/admin-api/rag/ai/theme/label/update', body, { headers, timeout: 20000 });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] updateThemeLabel failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
     async deleteThemeLabel(id, userId) {
-        if (!id) return {success: false};
+        if (!id) return { success: false };
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const res = await api.delete('/admin-api/rag/ai/theme/label/delete', {
-                params: {id},
+                params: { id },
                 headers,
                 timeout: 15000
             });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] deleteThemeLabel failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
-    async classifyByTheme({esId, themeId, text, topN, userId} = {}) {
+    async classifyByTheme({ esId, themeId, text, topN, userId } = {}) {
         try {
             const uid = this._getUserId(userId);
             const baseHeaders = {};
             if (uid !== '') baseHeaders['X-User-Id'] = uid;
             // 分支1: 有 esId -> 按文档 GET 查询
             if (esId) {
-                const params = {esId};
+                const params = { esId };
                 if (themeId) params.themeId = themeId;
                 if (topN) params.topN = topN;
                 const res = await api.get('/admin-api/rag/ai/theme/classify', {
@@ -1276,12 +1276,12 @@ class AIService {
             }
             // 分支2: 无 esId 但有文本 -> 尝试 POST (兼容之前写法, 后端若只支持 esId 会返回错误)
             if (text && text.trim()) {
-                const body = {text: text.trim()};
+                const body = { text: text.trim() };
                 if (themeId) body.themeId = themeId;
                 if (topN) body.topN = topN;
-                const headers = {...baseHeaders, 'Content-Type': 'application/json'};
+                const headers = { ...baseHeaders, 'Content-Type': 'application/json' };
                 try {
-                    const res = await api.post('/admin-api/rag/ai/theme/classify', body, {headers, timeout: 60000});
+                    const res = await api.post('/admin-api/rag/ai/theme/classify', body, { headers, timeout: 60000 });
                     const root = this._normalizeWrapper(res);
                     // 兼容 data 为数组或对象包装
                     const node = root.data !== undefined ? root.data : root;
@@ -1300,24 +1300,24 @@ class AIService {
         }
     }
 
-    async confirmTheme({esId, themeId, row, payload, userId} = {}) {
-        if (!esId) return {success: false, message: '缺少参数'};
+    async confirmTheme({ esId, themeId, row, payload, userId } = {}) {
+        if (!esId) return { success: false, message: '缺少参数' };
         try {
             const uid = this._getUserId(userId);
             // New API: accept full row/payload JSON body
             if (row || payload) {
-                const body = Object.assign({}, {theme: row || payload});
+                const body = Object.assign({}, { theme: row || payload });
                 // ensure esId present
                 body.esId = body.esId || esId;
-                const headers = {'Content-Type': 'application/json'};
+                const headers = { 'Content-Type': 'application/json' };
                 if (uid !== '') headers['X-User-Id'] = uid;
-                const res = await api.post('/admin-api/rag/ai/theme/confirm', body, {headers, timeout: 20000});
+                const res = await api.post('/admin-api/rag/ai/theme/confirm', body, { headers, timeout: 20000 });
                 const root = this._normalizeWrapper(res);
-                return {success: root.code === 0 || root.data === true, message: root.msg || ''};
+                return { success: root.code === 0 || root.data === true, message: root.msg || '' };
             }
             // Backwards-compatible: form-encoded with esId + themeId
-            if (!themeId) return {success: false, message: '缺少 themeId'};
-            const headers = {'Content-Type': 'application/x-www-form-urlencoded'};
+            if (!themeId) return { success: false, message: '缺少 themeId' };
+            const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
             if (uid !== '') headers['X-User-Id'] = uid;
             const bodyParams = new URLSearchParams();
             bodyParams.append('esId', String(esId));
@@ -1327,17 +1327,17 @@ class AIService {
                 timeout: 20000
             });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0 || root.data === true, message: root.msg || ''};
+            return { success: root.code === 0 || root.data === true, message: root.msg || '' };
         } catch (e) {
             console.warn('[AIService] confirmTheme failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
-    async unconfirmTheme({esId, themeId, userId} = {}) {
-        if (!esId) return {success: false, message: '缺少参数'};
+    async unconfirmTheme({ esId, themeId, userId } = {}) {
+        if (!esId) return { success: false, message: '缺少参数' };
         try {
-            const headers = {'Content-Type': 'application/x-www-form-urlencoded'};
+            const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const bodyParams = new URLSearchParams();
@@ -1348,10 +1348,10 @@ class AIService {
                 timeout: 20000
             });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0 || root.data === true, message: root.msg || ''};
+            return { success: root.code === 0 || root.data === true, message: root.msg || '' };
         } catch (e) {
             console.warn('[AIService] unconfirmTheme failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -1374,7 +1374,7 @@ class AIService {
     }
 
     _mapThemeClassifyResp(r, i, fallbackThemeId) {
-        if (!r) return {id: `rec_${i}`, label: '', themeId: fallbackThemeId || null, rawScore: 0, scorePercent: 0};
+        if (!r) return { id: `rec_${i}`, label: '', themeId: fallbackThemeId || null, rawScore: 0, scorePercent: 0 };
         // 兼容不同字段:
         // 1. 若提供 rawScore(0-1) 与 scorePercent(0-100)
         // 2. 若只有 score(<=1 视为 rawScore, >1 视为百分比)
@@ -1413,20 +1413,20 @@ class AIService {
     }
 
     async createFileChatSession({
-                                    esId,
-                                    title = '',
-                                    roleId,
-                                    modelId,
-                                    temperature,
-                                    maxTokens,
-                                    maxContexts,
-                                    userPrompt,
-                                    userId
-                                } = {}) {
+        esId,
+        title = '',
+        roleId,
+        modelId,
+        temperature,
+        maxTokens,
+        maxContexts,
+        userPrompt,
+        userId
+    } = {}) {
         try {
-            const body = {title, esId, roleId, modelId, temperature, maxTokens, maxContexts, userPrompt};
+            const body = { title, esId, roleId, modelId, temperature, maxTokens, maxContexts, userPrompt };
             Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
-            const headers = {'Content-Type': 'application/json'};
+            const headers = { 'Content-Type': 'application/json' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const res = await api.post('/admin-api/rag/ai/text/file-chat/session/create', body, {
@@ -1436,41 +1436,41 @@ class AIService {
             const root = this._normalizeWrapper(res);
             const data = root.data !== undefined ? root.data : root; // may be id or object
             const sessionId = this._extractSessionId(data);
-            return {success: root.code === 0 && !!sessionId, sessionId, raw: data};
+            return { success: root.code === 0 && !!sessionId, sessionId, raw: data };
         } catch (e) {
             console.warn('[AIService] createFileChatSession failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
-    async getLatestFileChatSession({esId, returnHistory = true, userId} = {}) {
+    async getLatestFileChatSession({ esId, returnHistory = true, userId } = {}) {
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const res = await api.get('/admin-api/rag/ai/text/file-chat/session/latest', {
-                params: {esId, returnHistory},
+                params: { esId, returnHistory },
                 headers,
                 timeout: 30000
             });
             const root = this._normalizeWrapper(res);
-            if (root.code !== 0) return {success: false};
+            if (root.code !== 0) return { success: false };
             const data = root.data; // expected structure from backend sample
-            if (!data) return {success: true, session: null, messages: []};
+            if (!data) return { success: true, session: null, messages: [] };
             const sessionId = this._extractSessionId(data);
             const history = Array.isArray(data.history) ? data.history : (data.messages || []);
             return {
                 success: true,
-                session: {id: sessionId, esId: data.esId || esId, title: data.title || '', raw: data},
+                session: { id: sessionId, esId: data.esId || esId, title: data.title || '', raw: data },
                 messages: this._mapChatMessages(history, sessionId)
             };
         } catch (e) {
             console.warn('[AIService] getLatestFileChatSession failed', e);
-            return {success: false, session: null, messages: []};
+            return { success: false, session: null, messages: [] };
         }
     }
 
-    async listFileChatSessions({esId, pageNo = 1, pageSize = 20, userId} = {}) {
+    async listFileChatSessions({ esId, pageNo = 1, pageSize = 20, userId } = {}) {
         try {
             const headers = {};
             const uid = this._getUserId(userId);
@@ -1483,7 +1483,7 @@ class AIService {
                 }, headers, timeout: 30000
             });
             const root = this._normalizeWrapper(res);
-            if (root.code !== 0) return {list: [], total: 0};
+            if (root.code !== 0) return { list: [], total: 0 };
             const data = root.data || {};
             const listRaw = data.list || data.sessions || (Array.isArray(data) ? data : []);
             const list = (listRaw || []).map(s => ({
@@ -1493,16 +1493,16 @@ class AIService {
                 raw: s
             })).filter(s => s.id);
             const total = data.total || list.length;
-            return {list, total};
+            return { list, total };
         } catch (e) {
             console.warn('[AIService] listFileChatSessions failed', e);
-            return {list: [], total: 0};
+            return { list: [], total: 0 };
         }
     }
 
     // 获取指定会话详情（含历史）。如果后端没有提供 sessionId 直查接口，将回退到按 esId 查询最新并比对。
-    async getFileChatSessionDetail({sessionId, esId, returnHistory = true, userId} = {}) {
-        if (!sessionId && !esId) return {success: false, session: null, messages: []};
+    async getFileChatSessionDetail({ sessionId, esId, returnHistory = true, userId } = {}) {
+        if (!sessionId && !esId) return { success: false, session: null, messages: [] };
         try {
             const headers = {};
             const uid = this._getUserId(userId);
@@ -1540,26 +1540,26 @@ class AIService {
             return { success: !!session, session, messages: history };
         } catch (e) {
             console.warn('[AIService] getFileChatSessionDetail failed', e);
-            return {success: false, session: null, messages: []};
+            return { success: false, session: null, messages: [] };
         }
     }
 
     async deleteFileChatSession(sessionId, userId) {
-        if (!sessionId) return {success: false};
+        if (!sessionId) return { success: false };
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const res = await api.delete('/admin-api/rag/ai/text/file-chat/session/delete', {
-                params: {sessionId},
+                params: { sessionId },
                 headers,
                 timeout: 20000
             });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] deleteFileChatSession failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -1583,21 +1583,21 @@ class AIService {
     }
 
     async clearFileChatSessions(esId, userId) {
-        if (!esId) return {success: false};
+        if (!esId) return { success: false };
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             const res = await api.delete('/admin-api/rag/ai/text/file-chat/session/clear', {
-                params: {esId},
+                params: { esId },
                 headers,
                 timeout: 30000
             });
             const root = this._normalizeWrapper(res);
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] clearFileChatSessions failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -1620,14 +1620,14 @@ class AIService {
         }
     }
 
-    async updateFileChatSession({sessionId, modelId, temperature, maxTokens, maxContexts, userPrompt, userId} = {}) {
-        if (!sessionId) return {success: false, message: '缺少 sessionId'};
+    async updateFileChatSession({ sessionId, modelId, temperature, maxTokens, maxContexts, userPrompt, userId } = {}) {
+        if (!sessionId) return { success: false, message: '缺少 sessionId' };
         try {
-            const headers = {'Content-Type': 'application/json'};
+            const headers = { 'Content-Type': 'application/json' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             // 假设后端提供此更新接口 (如无请调整路径或方法)
-            const body = {sessionId, modelId, temperature, maxTokens, maxContexts, userPrompt};
+            const body = { sessionId, modelId, temperature, maxTokens, maxContexts, userPrompt };
             Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
             const res = await api.post('/admin-api/rag/ai/text/file-chat/session/update', body, {
                 headers,
@@ -1635,20 +1635,20 @@ class AIService {
             });
             const root = this._normalizeWrapper(res);
             const success = root.code === 0;
-            return {success, data: root.data || null};
+            return { success, data: root.data || null };
         } catch (e) {
             console.warn('[AIService] updateFileChatSession failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
-    async updateFileChatUserPrompt({sessionId, userPrompt, userId} = {}) {
-        if (!sessionId) return {success: false, message: '缺少 sessionId'};
+    async updateFileChatUserPrompt({ sessionId, userPrompt, userId } = {}) {
+        if (!sessionId) return { success: false, message: '缺少 sessionId' };
         try {
-            const headers = {'Content-Type': 'application/json'};
+            const headers = { 'Content-Type': 'application/json' };
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
-            const body = {sessionId, userPrompt};
+            const body = { sessionId, userPrompt };
             Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
             const res = await api.post('/admin-api/rag/ai/text/file-chat/session/update-user-prompt', body, {
                 headers,
@@ -1656,25 +1656,26 @@ class AIService {
             });
             const root = this._normalizeWrapper(res);
             const success = root.code === 0;
-            return {success};
+            return { success };
         } catch (e) {
             console.warn('[AIService] updateFileChatUserPrompt failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
-    async getChatModels({userId, type = 1} = {}) {
+    // 获取当前后台模型里被支持模型；
+    async getChatModels({ userId, type = 1 } = {}) {
         try {
             const headers = {};
             const uid = this._getUserId(userId);
             if (uid !== '') headers['X-User-Id'] = uid;
             // 假设后端简易列表接口；若不同请调整路径或参数
-            const res = await api.get('/admin-api/rag/ai/model/simple-list', {params: {type}, headers, timeout: 30000});
+            const res = await api.get('/admin-api/rag/ai/model/simple-list', { params: { type }, headers, timeout: 30000 });
             const root = this._normalizeWrapper(res);
-            const data = root.data || root.list || root.models || [];
+            const data = root.data || [];
             const list = Array.isArray(data) ? data.map(m => ({
-                id: m.id || m.modelId || m.name,
-                name: m.name || m.modelName || m.label || m.id
+                id: m.id,
+                name: m.name 
             })) : [];
             return list;
         } catch (e) {
@@ -1717,26 +1718,26 @@ class AIService {
     }
 
     async streamFileChatMessage({
-                                    sessionId,
-                                    esId,
-                                    content,
-                                    useContext = true,
-                                    topK = 3,
-                                    maxContextChars = 8000,
-                                    url,
-                                    signal,
-                                    onDelta,
-                                    onDone,
-                                    onError,
-                                    userId,
-                                    disableReconnect = true
-                                }) {
-    const endpoint = this._resolveApiPath(url || '/admin-api/rag/ai/text/file-chat/stream');
-        const body = {sessionId, esId, content, useContext, topK, maxContextChars};
-        const headers = {'Content-Type': 'application/json'};
+        sessionId,
+        esId,
+        content,
+        useContext = true,
+        topK = 3,
+        maxContextChars = 8000,
+        url,
+        signal,
+        onDelta,
+        onDone,
+        onError,
+        userId,
+        disableReconnect = true
+    }) {
+        const endpoint = this._resolveApiPath(url || '/admin-api/rag/ai/text/file-chat/stream');
+        const body = { sessionId, esId, content, useContext, topK, maxContextChars };
+        const headers = { 'Content-Type': 'application/json' };
         const uid = this._getUserId(userId);
         if (uid !== '') headers['X-User-Id'] = uid;
-        const ctrl = signal ? {signal} : new AbortController();
+        const ctrl = signal ? { signal } : new AbortController();
         const abortSignal = signal || ctrl.signal;
         try {
             await fetchEventSource(endpoint, {
@@ -1801,13 +1802,13 @@ class AIService {
     }
 
     // === Glossary (术语库) ===
-    async getGlossaryPage({pageNo = 1, pageSize = 20, type = '', originalText = '', language = 'zh'} = {}) {
+    async getGlossaryPage({ pageNo = 1, pageSize = 20, type = '', originalText = '', language = 'zh' } = {}) {
         try {
-            const params = {pageNo, pageSize};
+            const params = { pageNo, pageSize };
             if (type) params.type = type;
             if (originalText) params.originalText = originalText;
             if (language) params.language = language;
-            const res = await api.get('/admin-api/rag/ai/translate/glossary/page', {params, timeout: 20000});
+            const res = await api.get('/admin-api/rag/ai/translate/glossary/page', { params, timeout: 20000 });
             const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
             const dataNode = (root && typeof root.data === 'object' && !Array.isArray(root.data)) ? root.data : root;
             return {
@@ -1816,48 +1817,48 @@ class AIService {
             };
         } catch (e) {
             console.warn('[AIService] getGlossaryPage failed', e);
-            return {list: [], total: 0};
+            return { list: [], total: 0 };
         }
     }
 
     async createGlossaryEntry(entry) {
         try {
-            const body = {...entry};
+            const body = { ...entry };
             const res = await api.post('/admin-api/rag/ai/translate/glossary/create', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: 20000
             });
             const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
-            return {success: root.code === 0, id: root.data};
+            return { success: root.code === 0, id: root.data };
         } catch (e) {
             console.warn('[AIService] createGlossaryEntry failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
     async updateGlossaryEntry(entry) {
         try {
-            const body = {...entry};
+            const body = { ...entry };
             const res = await api.put('/admin-api/rag/ai/translate/glossary/update', body, {
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 timeout: 20000
             });
             const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] updateGlossaryEntry failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
     async deleteGlossaryEntry(id) {
         try {
-            const res = await api.delete('/admin-api/rag/ai/translate/glossary/delete', {params: {id}, timeout: 20000});
+            const res = await api.delete('/admin-api/rag/ai/translate/glossary/delete', { params: { id }, timeout: 20000 });
             const root = (res && typeof res === 'object' && 'code' in res) ? res : (res?.data || {});
-            return {success: root.code === 0};
+            return { success: root.code === 0 };
         } catch (e) {
             console.warn('[AIService] deleteGlossaryEntry failed', e);
-            return {success: false, message: e.message};
+            return { success: false, message: e.message };
         }
     }
 
@@ -1868,16 +1869,16 @@ class AIService {
     async createClassificationForm(name) {
         const list = loadForms();
         const id = Date.now();
-        list.push({id, name, enabled: true});
+        list.push({ id, name, enabled: true });
         saveForms(list);
-        return {id, name};
+        return { id, name };
     }
 
     async updateClassificationForm(id, patch) {
         const list = loadForms();
         const idx = list.findIndex(i => i.id === id);
         if (idx > -1) {
-            list[idx] = {...list[idx], ...patch};
+            list[idx] = { ...list[idx], ...patch };
             saveForms(list);
             return list[idx];
         }

@@ -214,7 +214,7 @@ class FormsService {
     }
   }
 
-  async updatePrompt(formId, promptString, timeout = 20000) {
+  async updatePrompt(formId, promptString, modelId, timeout = 20000) {
     if (!formId) throw new Error("缺少表单 id");
     if (promptString == null) throw new Error("缺少提示词内容");
     try {
@@ -222,7 +222,7 @@ class FormsService {
         "/admin-api/rag/ai/form/update-prompt",
         null,
         {
-          params: { formId, promptString },
+          params: { formId, promptString, modelId },
           timeout,
         }
       );
@@ -252,8 +252,8 @@ class FormsService {
     }
   }
 
-  async saveFormPrompt(formId, promptString, timeout = 20000) {
-    return this.updatePrompt(formId, promptString, timeout)
+  async saveFormPrompt(formId, promptString, modelId, timeout = 20000) {
+    return this.updatePrompt(formId, promptString, modelId, timeout)
   }
 
   async searchForms(keyword) {
